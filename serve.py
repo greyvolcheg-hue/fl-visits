@@ -66,8 +66,18 @@ class GameData:
 
     def __init__(self, game_dir):
         data_dir = fl.ipath(game_dir, "DATA")
-        self.bases, systems = fl.load_universe(data_dir)
+        bases, systems = fl.load_universe(data_dir)
         self.objects = fl.load_objects(data_dir, systems)
+
+        # Keep only bases something in space actually points at. universe.ini
+        # carries 15 that nothing does: the three intro-cutscene copies of
+        # Manhattan (same strid_name, so they print as duplicates), plus story
+        # locations like Battleship Osiris. A `visit` record is written against
+        # a space object, so a base without one can never be recorded, and
+        # counting it would put a permanent floor under every percentage.
+        reachable = {base.lower() for _, base, _ in self.objects.values()}
+        self.bases = {k: v for k, v in bases.items() if k in reachable}
+
         self.names = fl.load_names(game_dir)
         self.system_ids = {nick.lower(): ids for nick, ids in systems.items()}
         self.by_hash = {fl.fl_hash(nick): nick for nick in self.objects}
