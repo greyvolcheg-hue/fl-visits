@@ -1,7 +1,17 @@
 # fl-visits
 
-Reads a Freelancer save game and reports which bases the player has docked at,
-grouped by system. Own git repo; the history in this folder is the undo button.
+Reads a Freelancer save game and reports what the player has found, grouped by
+system. Own git repo; the history in this folder is the undo button.
+
+| File | What |
+|---|---|
+| `flvisits.py` | save decoding, the nickname hash, game data loading, bases CLI. **Frozen, see below.** |
+| `wrecks.py` | the 157 secret wrecks and their loot, as data and as a CLI |
+| `serve.py` | local web view on 127.0.0.1:8731, tabs for both |
+
+Everything new goes in its own file. `flvisits.py` supplies the primitives;
+`wrecks.py` adds its own INI reader because loadouts repeat their `equip` and
+`cargo` keys and the frozen reader collapses repeats.
 
 ## `flvisits.py` is frozen. Do not edit it.
 

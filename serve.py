@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import flvisits as fl  # noqa: E402
+import wrecks as wr  # noqa: E402
 
 REVEALED = 1  # story put it on the nav map; the player has never docked there
 
@@ -81,12 +82,16 @@ class GameData:
         self.names = fl.load_names(game_dir)
         self.system_ids = {nick.lower(): ids for nick, ids in systems.items()}
         self.by_hash = {fl.fl_hash(nick): nick for nick in self.objects}
+        self.wrecks = wr.load_wrecks(game_dir)
 
     def label(self, ids, fallback):
         try:
             return self.names.get(int(ids), fallback)
         except (TypeError, ValueError):
             return fallback
+
+    def system_label(self, system):
+        return self.label(self.system_ids.get(system, 0), system)
 
 
 def read_state(game, save_path):
@@ -125,8 +130,15 @@ def read_state(game, save_path):
         out.append(row)
     out.sort(key=lambda r: (-r["percent"], -len(r["docked"]), r["system"]))
 
+    wreck_rows = wr.group_by_system(game.wrecks, visits, game.system_label)
+
     return {
         "systems": out,
+        "wrecks": wreck_rows,
+        "wrecks_found": sum(len(r["found"]) for r in wreck_rows),
+        "wrecks_total": len(game.wrecks),
+        "wrecks_systems": sum(1 for r in wreck_rows if r["found"]),
+        "wrecks_systems_total": len(wreck_rows),
         "save": os.path.basename(save_path),
         "saved_at": os.path.getmtime(save_path),
         "docked": sum(len(r["docked"]) for r in out),
@@ -173,23 +185,46 @@ PAGE = """<!doctype html>
   .tag.d { color: var(--docked); } .tag.r { color: var(--revealed); } .tag.u { color: var(--unknown); }
   .row.u span { color: var(--dim); }
   .empty { color: var(--dim); font-style: italic; }
+  .tabs { display: flex; gap: .25rem; margin-bottom: 1.25rem;
+          border-bottom: 1px solid var(--line); }
+  .tab { background: none; border: none; border-bottom: 2px solid transparent;
+         color: var(--dim); font: inherit; font-size: .95rem; padding: .5rem .9rem;
+         cursor: pointer; margin-bottom: -1px; }
+  .tab:hover { color: var(--text); }
+  .tab.on { color: var(--text); border-bottom-color: var(--docked); }
+  .wreck { display: flex; gap: .6rem; margin: .3rem 0; font-size: .9rem; align-items: baseline; }
+  .wreck .mark { flex: none; width: 1rem; text-align: center; }
+  .wreck.f .mark { color: var(--docked); }
+  .wreck.m .mark { color: var(--unknown); }
+  .wreck.m .nm { color: var(--dim); }
+  .wreck .nm { flex: none; min-width: 12rem; }
+  .loot { color: var(--dim); font-size: .82rem; }
 </style>
 <div class="wrap">
-  <h1>Freelancer visits</h1>
+  <h1>Freelancer</h1>
   <div class="sub" id="sub">loading…</div>
+  <nav class="tabs">
+    <button class="tab on" data-tab="visits">Visits</button>
+    <button class="tab" data-tab="wrecks">Wrecks</button>
+  </nav>
   <div class="totals" id="totals"></div>
   <label class="toggle">
-    <input type="checkbox" id="ext"> show every system and the bases you have not found
+    <input type="checkbox" id="ext"> <span id="extlabel"></span>
   </label>
   <div id="list"></div>
 </div>
 <script>
 const $ = s => document.querySelector(s);
-let extended = false, latest = null;
+let extended = false, latest = null, tab = 'visits';
 
 $('#ext').addEventListener('change', e => { extended = e.target.checked; render(); });
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+  tab = b.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+  render();
+}));
 
-function esc(s) { return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
 function line(cls, tag, items) {
   if (!items.length) return '';
@@ -197,26 +232,54 @@ function line(cls, tag, items) {
          `<span>${items.map(esc).join(', ')}</span></div>`;
 }
 
+function totals(pairs) {
+  $('#totals').innerHTML = pairs
+    .map(([n, l]) => `<div><span class="n">${n}</span><span class="lbl">${l}</span></div>`).join('');
+}
+
+function card(title, done, total, percent, body) {
+  return `<div class="sys">
+    <div class="head"><b>${esc(title)}</b><span class="count">${done} / ${total}</span></div>
+    <div class="bar"><i style="width:${percent}%"></i></div>${body}</div>`;
+}
+
+function renderVisits(d) {
+  totals([[d.docked, 'docked'], [d.revealed, 'revealed'],
+          [d.bases - d.docked - d.revealed, 'unknown'],
+          [`${d.systems_touched}/${d.systems_total}`, 'systems']]);
+  const rows = d.systems.filter(s => extended || s.docked.length || s.revealed.length);
+  return rows.length ? rows.map(s => card(s.system, s.docked.length, s.total, s.percent,
+      line('d', 'docked', s.docked) + line('r', 'revealed', s.revealed) +
+      (extended ? line('u', 'unknown', s.unknown) : ''))).join('')
+    : '<p class="empty">Nothing docked at yet.</p>';
+}
+
+function wreckLine(w, found) {
+  const loot = extended && w.loot.length
+    ? `<span class="loot">${w.loot.map(([i, n]) => `${n}x ${esc(i)}`).join(', ')}</span>` : '';
+  return `<div class="wreck ${found ? 'f' : 'm'}"><span class="mark">${found ? '+' : '-'}</span>` +
+         `<span class="nm">${esc(w.name)}</span>${loot}</div>`;
+}
+
+function renderWrecks(d) {
+  totals([[d.wrecks_found, 'found'], [d.wrecks_total - d.wrecks_found, 'left'],
+          [`${d.wrecks_systems}/${d.wrecks_systems_total}`, 'systems']]);
+  const rows = d.wrecks.filter(s => extended || s.found.length);
+  return rows.length ? rows.map(s => card(s.system, s.found.length, s.total, s.percent,
+      s.found.map(w => wreckLine(w, true)).join('') +
+      (extended ? s.missing.map(w => wreckLine(w, false)).join('') : ''))).join('')
+    : '<p class="empty">No wrecks found yet. Tick the box to see where they are.</p>';
+}
+
 function render() {
   if (!latest) return;
   const d = latest;
   $('#sub').textContent =
     `${d.save} · updated ${new Date(d.saved_at * 1000).toLocaleTimeString()}`;
-  $('#totals').innerHTML = [
-    [d.docked, 'docked'], [d.revealed, 'revealed'], [d.bases - d.docked - d.revealed, 'unknown'],
-    [`${d.systems_touched}/${d.systems_total}`, 'systems'],
-  ].map(([n, l]) => `<div><span class="n">${n}</span><span class="lbl">${l}</span></div>`).join('');
-
-  const rows = d.systems.filter(s => extended || s.docked.length || s.revealed.length);
-  $('#list').innerHTML = rows.length ? rows.map(s => `
-    <div class="sys">
-      <div class="head"><b>${esc(s.system)}</b>
-        <span class="count">${s.docked.length} / ${s.total}</span></div>
-      <div class="bar"><i style="width:${s.percent}%"></i></div>
-      ${line('d', 'docked', s.docked)}
-      ${line('r', 'revealed', s.revealed)}
-      ${extended ? line('u', 'unknown', s.unknown) : ''}
-    </div>`).join('') : '<p class="empty">Nothing visited yet.</p>';
+  $('#extlabel').textContent = tab === 'visits'
+    ? 'show every system and the bases you have not found'
+    : 'show every system, the wrecks you have not found, and what they hold';
+  $('#list').innerHTML = tab === 'visits' ? renderVisits(d) : renderWrecks(d);
 }
 
 async function poll() {
