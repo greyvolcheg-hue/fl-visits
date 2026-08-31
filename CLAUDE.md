@@ -56,6 +56,33 @@ not for how easily it clears.
 - `AutoSave.fl` changes under your hands while the game is running. Test against
   a fixed `Save*.fl`, or you will chase differences that are just play.
 
+## Open: are the Asteroid Miner bases really dockable
+
+The report counts them. Three checks in the data all say they can be docked at:
+the space object carries `dock_with`, the base has a room file, and that file
+declares `[BaseInfo] start_room = Deck` with the room present. They are distinct
+bases that share one display name, which is the game's own naming, not a bug:
+Dresden has three, Tau-31 three, Omega-7 and Tau-29 two each.
+
+The owner reports the dock button is greyed out on them in play. Proof pending:
+a screenshot once he reaches those systems. If it holds, the cause is almost
+certainly reputation gating at run time, which is invisible in the files, and
+the choice is then between dropping them from the denominator or giving them a
+bucket of their own. The second is more useful once achievements exist.
+
+## Settled: Ithaca Research Station is not reachable
+
+It showed up as an unvisited base in New York. It is not one. Its space object
+`Li01_05` is defined in `UNIVERSE/SYSTEMS/INTRO/intro.ini`, and `universe.ini`
+does not list `INTRO` among its 53 systems. It exists for the opening cutscene
+only.
+
+The cause was structural: objects were gathered by walking the `SYSTEMS/`
+directory and taking the system from the folder name, so a cutscene file was
+read as if it were a system. The fix is to follow the `file` key that
+`universe.ini` gives for each declared system instead, which excludes stray
+files by construction.
+
 ## Dependency
 
 `bini.py` lives in `../scripts/` and is shared with other work in this area. It
