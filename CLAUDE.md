@@ -26,6 +26,15 @@ read its output. Do not touch it.
 If a change is genuinely unavoidable, say plainly what breaks without it, get
 the owner's go, and re-run the checks below first.
 
+**Thawed once, 2026-08-31, with the owner's explicit go.** The denominator
+counted all 197 `[Base]` entries in `universe.ini`, including 15 that no space
+object points at. Three of those are intro-cutscene copies of Manhattan sharing
+one `strid_name`, so the report printed "Planet Manhattan" three times as
+unvisited. Left alone the two programs here would have disagreed with each
+other on the same data, 197 against 182, which reads as a bug in whichever one
+you check second. The freeze stands; this is the precedent for what clears it,
+not for how easily it clears.
+
 ## What it was verified against
 
 - Every one of the 301 hashes in a live save resolved to a nickname in the game

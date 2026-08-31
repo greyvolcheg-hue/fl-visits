@@ -301,6 +301,15 @@ def main():
     objects = load_objects(data_dir, systems)
     names = load_names(args.game)
 
+    # Keep only bases something in space points at. universe.ini carries 15 that
+    # nothing does: three intro-cutscene copies of Manhattan sharing one
+    # strid_name, so they printed as duplicates, plus story locations such as
+    # Battleship Osiris. A `visit` record is written against a space object, so
+    # a base without one can never be recorded, and counting it puts a permanent
+    # floor under every percentage.
+    reachable = {base.lower() for _, base, _ in objects.values()}
+    bases = {k: v for k, v in bases.items() if k in reachable}
+
     def label(ids, fallback):
         try:
             return names.get(int(ids), fallback)
