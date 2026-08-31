@@ -22,6 +22,7 @@ from collections import Counter, defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import flvisits as fl  # noqa: E402  (also puts ../scripts on the path)
 import bini  # noqa: E402
+import navmap  # noqa: E402
 
 SECRET_VISIT = 16  # the game's own marker for "this is a discoverable secret"
 
@@ -123,6 +124,7 @@ def load_wrecks(game_dir):
     names = fl.load_names(game_dir)
     item_names = load_item_names(game_dir, data_dir, names)
     loadouts = load_loadouts(game_dir, data_dir, item_names)
+    scales = navmap.load_scales(data_dir, fl.read_ini, fl.ipath)
 
     out = []
     for path, system in fl.system_files(data_dir):
@@ -140,10 +142,23 @@ def load_wrecks(game_dir):
                 label = names.get(int(ids), nick)
             except (TypeError, ValueError):
                 label = nick
+            pos = entry.get("pos")
+            cell = spot = None
+            if pos and len(pos) >= 3:
+                try:
+                    x, z = float(pos[0]), float(pos[2])
+                except (TypeError, ValueError):
+                    x = z = None
+                if x is not None:
+                    scale = scales.get(system, 1.0)
+                    cell = navmap.sector(x, z, scale)
+                    spot = navmap.subcell(x, z, scale)
             out.append({
                 "system": system,
                 "nickname": nick,
                 "name": label,
+                "sector": cell,
+                "spot": spot,
                 "loot": [[item, n] for item, n in loadouts.get(loadout.lower(), [])],
             })
     return out
@@ -158,7 +173,8 @@ def group_by_system(wrecks, visits, system_label):
     """
     rows = defaultdict(lambda: {"found": [], "missing": []})
     for wreck in wrecks:
-        entry = {"name": wreck["name"], "loot": wreck["loot"]}
+        entry = {"name": wreck["name"], "sector": wreck["sector"],
+                 "spot": wreck["spot"], "loot": wreck["loot"]}
         hid = fl.fl_hash(wreck["nickname"])
         bucket = "found" if hid in visits else "missing"
         rows[wreck["system"]][bucket].append(entry)
@@ -166,7 +182,7 @@ def group_by_system(wrecks, visits, system_label):
     out = []
     for system, row in rows.items():
         for bucket in ("found", "missing"):
-            row[bucket].sort(key=lambda e: e["name"])
+            row[bucket].sort(key=lambda e: (e["sector"] or "", e["name"]))
         row["system"] = system_label(system)
         row["total"] = len(row["found"]) + len(row["missing"])
         row["percent"] = round(100 * len(row["found"]) / row["total"]) if row["total"] else 0
@@ -212,7 +228,8 @@ def main():
                 loot = ""
                 if args.loot and entry["loot"]:
                     loot = "   " + ", ".join(f"{n}x {i}" for i, n in entry["loot"])
-                print(f"  {mark} {entry['name']}{loot}")
+                where = f"{entry['sector'] or '??'} {entry['spot'] or '':<2}"
+                print(f"  {mark} {where}  {entry['name']}{loot}")
 
 
 if __name__ == "__main__":

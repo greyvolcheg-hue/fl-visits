@@ -199,6 +199,8 @@ PAGE = """<!doctype html>
   .wreck.m .nm { color: var(--dim); }
   .wreck .nm { flex: none; min-width: 12rem; }
   .loot { color: var(--dim); font-size: .82rem; }
+  .cell { flex: none; width: 3.4rem; color: var(--dim);
+          font-variant-numeric: tabular-nums; }
 </style>
 <div class="wrap">
   <h1>Freelancer</h1>
@@ -257,7 +259,9 @@ function renderVisits(d) {
 function wreckLine(w, found) {
   const loot = extended && w.loot.length
     ? `<span class="loot">${w.loot.map(([i, n]) => `${n}x ${esc(i)}`).join(', ')}</span>` : '';
+  const where = [w.sector, w.spot].filter(Boolean).join(' ');
   return `<div class="wreck ${found ? 'f' : 'm'}"><span class="mark">${found ? '+' : '-'}</span>` +
+         `<span class="cell">${esc(where)}</span>` +
          `<span class="nm">${esc(w.name)}</span>${loot}</div>`;
 }
 

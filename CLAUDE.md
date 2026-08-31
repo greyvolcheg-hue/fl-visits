@@ -66,6 +66,18 @@ not for how easily it clears.
 - `AutoSave.fl` changes under your hands while the game is running. Test against
   a fixed `Save*.fl`, or you will chase differences that are just play.
 
+## What the `visit` flags mean
+
+Read them as bits. Bit 1 is "seen, it is on the nav map" and bit 16 is "this is
+a secret", so a recorded wreck reads 17. Bases read 30 or 31 once docked at, and
+1 when the story has only revealed them.
+
+**Bit 8 is not understood.** New York's three Patrol 27 hulls, all three visited,
+came back 25, 17, 17. Something distinguishes one of them and it is not whether
+the player went there. Finding a wreck and emptying it are one act in play, so
+every recorded wreck counts the same and the report does not split on this bit.
+Do not invent a meaning for it; if you find one, prove it against a save.
+
 ## Open: are the Asteroid Miner bases really dockable
 
 The report counts them. Three checks in the data all say they can be docked at:
