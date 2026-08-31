@@ -184,23 +184,45 @@ def load_objects(data_dir, systems):
     can actually dock with, which is what "visited a station" means.
     """
     objects = {}
-    root = ipath(data_dir, "universe", "systems")
-    for dirpath, _, files in os.walk(root):
-        for fn in files:
-            if not fn.lower().endswith(".ini"):
+    for path, system in system_files(data_dir):
+        for section, entries in read_ini(path):
+            if section.lower() != "object":
                 continue
-            system = os.path.basename(dirpath)
-            for section, entries in read_ini(os.path.join(dirpath, fn)):
-                if section.lower() != "object":
-                    continue
-                nick, base = entries.get("nickname"), entries.get("base")
-                if nick and base:
-                    objects[str(nick[0])] = (
-                        system.lower(),
-                        str(base[0]),
-                        entries.get("ids_name", [0])[0],
-                    )
+            nick, base = entries.get("nickname"), entries.get("base")
+            if nick and base:
+                objects[str(nick[0])] = (
+                    system,
+                    str(base[0]),
+                    entries.get("ids_name", [0])[0],
+                )
     return objects
+
+
+def system_files(data_dir):
+    """Yield (path, system nickname) for each system universe.ini declares.
+
+    Not a walk of SYSTEMS/. That directory also holds INTRO/intro.ini, a
+    cutscene which universe.ini does not list as a system, and taking the
+    folder name as the system attributed its objects to real ones: Ithaca
+    Research Station showed up as an unvisited base in New York, where it does
+    not exist. Following the `file` each system names excludes strays by
+    construction rather than by a list of exceptions.
+    """
+    # A [system]'s `file` is relative to DATA/UNIVERSE, while a [Base]'s is
+    # relative to DATA and spells the "Universe\" prefix out. Same key name,
+    # two different roots.
+    universe = ipath(data_dir, "universe")
+    for section, entries in read_ini(ipath(universe, "universe.ini")):
+        if section.lower() != "system":
+            continue
+        nick, rel = entries.get("nickname"), entries.get("file")
+        if not nick or not rel:
+            continue
+        path = universe
+        for part in str(rel[0]).replace("\\", "/").split("/"):
+            path = ipath(path, part)
+        if os.path.exists(path):
+            yield path, str(nick[0]).lower()
 
 
 # --- display names from the resource DLLs ---------------------------------
