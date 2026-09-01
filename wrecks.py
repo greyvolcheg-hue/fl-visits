@@ -25,6 +25,7 @@ import bini  # noqa: E402
 import navmap  # noqa: E402
 
 SECRET_VISIT = 16  # the game's own marker for "this is a discoverable secret"
+LOOTED = 8  # set once the loot is taken; a found but untouched wreck reads 17
 
 
 def read_multi(path):
@@ -173,11 +174,15 @@ def group_by_system(wrecks, visits, system_label):
     """
     rows = defaultdict(lambda: {"found": [], "missing": []})
     for wreck in wrecks:
-        entry = {"name": wreck["name"], "sector": wreck["sector"],
-                 "spot": wreck["spot"], "loot": wreck["loot"]}
         hid = fl.fl_hash(wreck["nickname"])
-        bucket = "found" if hid in visits else "missing"
-        rows[wreck["system"]][bucket].append(entry)
+        flag = visits.get(hid)
+        entry = {"name": wreck["name"], "sector": wreck["sector"],
+                 "spot": wreck["spot"], "loot": wreck["loot"],
+                 # Bit 8 is the game's own record of the loot having been taken,
+                 # so a wreck you flew to but never opened is still a thing to
+                 # go back for. Progress does not split on it: found is found.
+                 "emptied": bool(flag is not None and flag & LOOTED)}
+        rows[wreck["system"]]["found" if flag is not None else "missing"].append(entry)
 
     out = []
     for system, row in rows.items():
@@ -185,9 +190,12 @@ def group_by_system(wrecks, visits, system_label):
             row[bucket].sort(key=lambda e: (e["sector"] or "", e["name"]))
         row["system"] = system_label(system)
         row["total"] = len(row["found"]) + len(row["missing"])
+        row["found_open"] = sum(1 for e in row["found"] if not e["emptied"])
         row["percent"] = round(100 * len(row["found"]) / row["total"]) if row["total"] else 0
         out.append(row)
-    out.sort(key=lambda r: (-r["percent"], -len(r["found"]), r["system"]))
+    # Same order as the Visits tab: least explored first, untouched systems last
+    # in name order. See the note on the matching sort in serve.py.
+    out.sort(key=lambda r: (r["percent"] == 0, r["percent"], r["system"]))
     return out
 
 
@@ -215,16 +223,24 @@ def main():
     rows = group_by_system(wrecks, visits, label)
 
     found = sum(len(r["found"]) for r in rows)
+    still_open = sum(r["found_open"] for r in rows)
     print(f"Found {found} of {len(wrecks)} wrecks "
-          f"across {len([r for r in rows if r['found']])} of {len(rows)} systems\n")
+          f"across {len([r for r in rows if r['found']])} of {len(rows)} systems")
+    if still_open:
+        print(f"{still_open} of those still hold their loot (marked *)")
+    print()
     for row in rows:
         if not row["found"] and not args.all:
             continue
         print(f"{row['system']:<22} {len(row['found'])}/{row['total']}")
-        for bucket, mark in (("found", "+"), ("missing", "-")):
+        for bucket in ("found", "missing"):
             if bucket == "missing" and not args.all:
                 continue
             for entry in row[bucket]:
+                if bucket == "missing":
+                    mark = "-"
+                else:
+                    mark = "+" if entry["emptied"] else "*"
                 loot = ""
                 if args.loot and entry["loot"]:
                     loot = "   " + ", ".join(f"{n}x {i}" for i, n in entry["loot"])

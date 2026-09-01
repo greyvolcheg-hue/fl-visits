@@ -128,7 +128,11 @@ def read_state(game, save_path):
         row["total"] = len(row["docked"]) + len(row["revealed"]) + len(row["unknown"])
         row["percent"] = round(100 * len(row["docked"]) / row["total"]) if row["total"] else 0
         out.append(row)
-    out.sort(key=lambda r: (-r["percent"], -len(r["docked"]), r["system"]))
+    # Least explored first, so the systems with something left to do are at the
+    # top. Systems with nothing docked at are not "0% done and therefore first":
+    # they are the ones you have not started, so they go to the bottom in name
+    # order rather than heading the list every time.
+    out.sort(key=lambda r: (r["percent"] == 0, r["percent"], r["system"]))
 
     wreck_rows = wr.group_by_system(game.wrecks, visits, game.system_label)
 
@@ -136,6 +140,9 @@ def read_state(game, save_path):
         "systems": out,
         "wrecks": wreck_rows,
         "wrecks_found": sum(len(r["found"]) for r in wreck_rows),
+        # Found but not yet emptied: the game records the loot being taken as
+        # bit 8 of the visit flag, so these are the ones still worth flying to.
+        "wrecks_open": sum(r["found_open"] for r in wreck_rows),
         "wrecks_total": len(game.wrecks),
         "wrecks_systems": sum(1 for r in wreck_rows if r["found"]),
         "wrecks_systems_total": len(wreck_rows),
@@ -195,6 +202,8 @@ PAGE = """<!doctype html>
   .wreck { display: flex; gap: .6rem; margin: .3rem 0; font-size: .9rem; align-items: baseline; }
   .wreck .mark { flex: none; width: 1rem; text-align: center; }
   .wreck.f .mark { color: var(--docked); }
+  .wreck.o .mark { color: var(--revealed); }
+  .wreck.o .nm { color: var(--revealed); }
   .wreck.m .mark { color: var(--unknown); }
   .wreck.m .nm { color: var(--dim); }
   .wreck .nm { flex: none; min-width: 12rem; }
@@ -257,16 +266,24 @@ function renderVisits(d) {
 }
 
 function wreckLine(w, found) {
-  const loot = extended && w.loot.length
+  // Three states, not two: a wreck you found but never opened still holds its
+  // loot, and the game says so in bit 8 of the visit flag.
+  const cls = !found ? 'm' : w.emptied ? 'f' : 'o';
+  const mark = !found ? '-' : w.emptied ? '+' : '*';
+  // The loot of an untouched wreck is what you would actually collect, so it
+  // stays on screen without the checkbox; for an emptied one it is history.
+  const showLoot = w.loot.length && (extended || (found && !w.emptied));
+  const loot = showLoot
     ? `<span class="loot">${w.loot.map(([i, n]) => `${n}x ${esc(i)}`).join(', ')}</span>` : '';
   const where = [w.sector, w.spot].filter(Boolean).join(' ');
-  return `<div class="wreck ${found ? 'f' : 'm'}"><span class="mark">${found ? '+' : '-'}</span>` +
+  return `<div class="wreck ${cls}"><span class="mark">${mark}</span>` +
          `<span class="cell">${esc(where)}</span>` +
          `<span class="nm">${esc(w.name)}</span>${loot}</div>`;
 }
 
 function renderWrecks(d) {
-  totals([[d.wrecks_found, 'found'], [d.wrecks_total - d.wrecks_found, 'left'],
+  totals([[d.wrecks_found, 'found'], [d.wrecks_open, 'still loaded'],
+          [d.wrecks_total - d.wrecks_found, 'left'],
           [`${d.wrecks_systems}/${d.wrecks_systems_total}`, 'systems']]);
   const rows = d.wrecks.filter(s => extended || s.found.length);
   return rows.length ? rows.map(s => card(s.system, s.found.length, s.total, s.percent,

@@ -72,11 +72,32 @@ Read them as bits. Bit 1 is "seen, it is on the nav map" and bit 16 is "this is
 a secret", so a recorded wreck reads 17. Bases read 30 or 31 once docked at, and
 1 when the story has only revealed them.
 
-**Bit 8 is not understood.** New York's three Patrol 27 hulls, all three visited,
-came back 25, 17, 17. Something distinguishes one of them and it is not whether
-the player went there. Finding a wreck and emptying it are one act in play, so
-every recorded wreck counts the same and the report does not split on this bit.
-Do not invent a meaning for it; if you find one, prove it against a save.
+**Bit 8 means the wreck has been emptied.** Settled 2026-09-01, replacing the
+note that called it not understood. A wreck found but not looted reads 17, and
+the same wreck reads 25 once the loot is taken.
+
+The save that settled it held five found wrecks: four at 25 and exactly one at
+17, the Storm in Dublin (D6). The owner confirmed independently that the Storm
+is the one he had found and deliberately not emptied, and that he was leaving it
+alone. One save cannot distinguish "not looted" from "some other property of
+that particular hull", so the second leg is the old reading this note used to
+carry: New York's three Patrol 27 hulls were 25, 17, 17 and are now 25, 25, 25.
+Two of them changed while the player flew, which a fixed property of the object
+cannot do and being emptied is exactly what does.
+
+**The transition was never caught in a file.** All 20 saves on disk already hold
+their final flags, so the 25/17/17 reading survives only as the earlier entry in
+this document, not as something re-checkable. If you want it on disk, note a
+wreck's flag, empty it, and keep that pair of saves.
+
+**The report shows it, and progress deliberately does not count it.** Found is
+found: a wreck counts once for the totals and the percentage whether or not it
+was emptied, because reaching it is the discovery. The bit only changes how the
+line is drawn, `*` and amber for one still holding its loot against `+` and
+green for one already stripped, plus a "still loaded" tally. That way the number
+you are trying to drive to 157 never moves backwards, while the list still tells
+you where there is something left to collect. An untouched wreck also shows its
+loot without the checkbox, since that is cargo you can still go and get.
 
 ## Open: are the Asteroid Miner bases really dockable
 

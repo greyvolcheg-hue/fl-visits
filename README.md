@@ -9,10 +9,15 @@ coordinates. It reads the save; it never writes to it.
 ```bash
 cd ~/Projects/40-computer-geek/fl-visits
 
+./run.sh                         # start the server and open the page
 python3 serve.py                 # web view on http://127.0.0.1:8731/
 python3 flvisits.py <save.fl>    # bases, in the terminal
 python3 wrecks.py <save.fl>      # wrecks, in the terminal
 ```
+
+`run.sh` is the one-command version: it starts `serve.py`, waits for the port
+to answer rather than sleeping a guess, and opens a browser on the page. Ctrl+C
+stops both. Any arguments it gets are passed straight through to `serve.py`.
 
 `serve.py` follows the newest `AutoSave.fl` on its own and re-reads it every
 five seconds, so you can leave the page open on a second screen while you play.
@@ -37,8 +42,14 @@ universe list: the other 16 are cutscene copies and story-only locations that no
 save can ever record.
 
 **Wrecks** are the 157 objects the game marks as secrets, spread over 33
-systems. Found is found; there is no partial credit, and a wreck you have seen
-counts the same as one you have stripped.
+systems. Found is found: a wreck counts once whether or not you emptied it, so
+the total never goes backwards. The list still marks the difference, because the
+game records it. `+` is stripped, `*` is found but still holding its loot, `-`
+is not found yet, and an untouched wreck lists its cargo without the checkbox,
+since that is the part you can still go and collect.
+
+Both tabs sort the same way: least explored first, and everything you have not
+started at the bottom in alphabetical order.
 
 **Coordinates** are the nav map cell and roughly where in it, `E6 C` or
 `D6 UR`, the same notation the guides use. The cell is reliable. The `UR`/`C`
