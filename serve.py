@@ -22,8 +22,15 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import docking as dk  # noqa: E402
 import flvisits as fl  # noqa: E402
+import speed as sp  # noqa: E402
 import wrecks as wr  # noqa: E402
+
+# Offered on the Speed tab. 300 is roughly vanilla, 1000 is what constants.ini
+# carries, and the top of the range is where ANOM_LIMITS_MAX_VELOCITY sits, so
+# 10000 may clamp: that cap is a separate constant this does not touch.
+SPEED_CHOICES = [300, 500, 1000, 2000, 5000, 7500, 10000]
 
 REVEALED = 1  # story put it on the nav map; the player has never docked there
 
@@ -70,14 +77,12 @@ class GameData:
         bases, systems = fl.load_universe(data_dir)
         self.objects = fl.load_objects(data_dir, systems)
 
-        # Keep only bases something in space actually points at. universe.ini
-        # carries 15 that nothing does: the three intro-cutscene copies of
-        # Manhattan (same strid_name, so they print as duplicates), plus story
-        # locations like Battleship Osiris. A `visit` record is written against
-        # a space object, so a base without one can never be recorded, and
-        # counting it would put a permanent floor under every percentage.
-        reachable = {base.lower() for _, base, _ in self.objects.values()}
-        self.bases = {k: v for k, v in bases.items() if k in reachable}
+        # Keep only bases a player can actually dock at. Same rule as the CLI,
+        # from the same place, because these two used to hold their own copies
+        # of it and drifted apart. Why 30 of the 197 are dropped is in
+        # docking.py and is deliberately not restated here.
+        dockable = dk.dockable_bases(game_dir, data_dir, fl.system_files, fl.ipath)
+        self.bases = {k: v for k, v in bases.items() if k in dockable}
 
         self.names = fl.load_names(game_dir)
         self.system_ids = {nick.lower(): ids for nick, ids in systems.items()}
@@ -210,6 +215,16 @@ PAGE = """<!doctype html>
   .loot { color: var(--dim); font-size: .82rem; }
   .cell { flex: none; width: 3.4rem; color: var(--dim);
           font-variant-numeric: tabular-nums; }
+  .speeds { display: flex; flex-wrap: wrap; gap: .5rem; margin: .25rem 0 1rem; }
+  .speeds button { background: var(--card); color: var(--text); cursor: pointer;
+                   border: 1px solid var(--line); border-radius: 8px;
+                   font: inherit; font-variant-numeric: tabular-nums;
+                   padding: .55rem 1.1rem; min-width: 5.5rem; }
+  .speeds button:hover:not(:disabled) { border-color: var(--docked); }
+  .speeds button.on { border-color: var(--docked); color: var(--docked); font-weight: 650; }
+  .speeds button:disabled { opacity: .4; cursor: default; }
+  .note { color: var(--dim); font-size: .85rem; margin: 0 0 1rem; }
+  .note.warn { color: var(--revealed); }
 </style>
 <div class="wrap">
   <h1>Freelancer</h1>
@@ -217,16 +232,17 @@ PAGE = """<!doctype html>
   <nav class="tabs">
     <button class="tab on" data-tab="visits">Visits</button>
     <button class="tab" data-tab="wrecks">Wrecks</button>
+    <button class="tab" data-tab="speed">Speed</button>
   </nav>
   <div class="totals" id="totals"></div>
-  <label class="toggle">
+  <label class="toggle" id="togglewrap">
     <input type="checkbox" id="ext"> <span id="extlabel"></span>
   </label>
   <div id="list"></div>
 </div>
 <script>
 const $ = s => document.querySelector(s);
-let extended = false, latest = null, tab = 'visits';
+let extended = false, latest = null, speed = null, tab = 'visits';
 
 $('#ext').addEventListener('change', e => { extended = e.target.checked; render(); });
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
@@ -292,7 +308,49 @@ function renderWrecks(d) {
     : '<p class="empty">No wrecks found yet. Tick the box to see where they are.</p>';
 }
 
+function renderSpeed() {
+  const s = speed;
+  if (!s) return '<p class="empty">Reading the game…</p>';
+  // No game running is the ordinary case, not a failure: the page is usually
+  // open before Freelancer is.
+  const head = s.error
+    ? `<p class="note warn">${esc(s.error)}</p>`
+    : `<p class="note">Cruise speed is <b>${s.value}</b>. A change applies to the
+       next cruise burn, no reload. It lasts until the game is closed; the file
+       still says what it said.</p>`;
+  const msg = s.message ? `<p class="note">${esc(s.message)}</p>` : '';
+  const buttons = s.choices.map(v =>
+    `<button data-speed="${v}" ${s.error ? 'disabled' : ''}` +
+    `${!s.error && Math.abs(s.value - v) < 0.5 ? ' class="on"' : ''}>${v}</button>`
+  ).join('');
+  return head + msg + `<div class="speeds">${buttons}</div>` +
+    `<p class="note">10000 is where ANOM_LIMITS_MAX_VELOCITY sits, so it may
+     clamp; that cap is a separate constant this does not touch.</p>`;
+}
+
+async function setSpeed(value) {
+  document.querySelectorAll('.speeds button').forEach(b => b.disabled = true);
+  try {
+    const r = await fetch('api/speed', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value })
+    });
+    if (r.ok) { speed = await r.json(); render(); }
+  } catch (e) { /* leave the buttons as they were */ }
+}
+
 function render() {
+  const onSpeed = tab === 'speed';
+  $('#totals').hidden = onSpeed;
+  $('#togglewrap').hidden = onSpeed;
+  if (onSpeed) {
+    $('#sub').textContent = 'live cruise speed of the running game';
+    $('#list').innerHTML = renderSpeed();
+    document.querySelectorAll('.speeds button').forEach(b =>
+      b.addEventListener('click', () => setSpeed(Number(b.dataset.speed))));
+    return;
+  }
   if (!latest) return;
   const d = latest;
   $('#sub').textContent =
@@ -306,8 +364,14 @@ function render() {
 async function poll() {
   try {
     const r = await fetch('api/state', { cache: 'no-store' });
-    if (r.ok) { latest = await r.json(); render(); }
+    if (r.ok) { latest = await r.json(); }
   } catch (e) { /* the server went away; keep showing the last good state */ }
+  try {
+    // Polled too, so the tab notices the game starting or stopping on its own.
+    const r = await fetch('api/speed', { cache: 'no-store' });
+    if (r.ok) { const s = await r.json(); speed = { ...s, message: speed && speed.message }; }
+  } catch (e) { /* same */ }
+  render();
 }
 poll();
 setInterval(poll, 5000);
@@ -339,8 +403,47 @@ def make_handler(game, save_path):
                     self._send(200, body, "application/json")
                 except FileNotFoundError:
                     self._send(404, b'{"error":"save not found"}', "application/json")
+            elif path == "/api/speed":
+                self._send_speed()
             else:
                 self._send(404, b"not found", "text/plain")
+
+        def _send_speed(self, message=None):
+            """Current cruise speed, or why it cannot be read.
+
+            A missing game is the normal case, not an error: the page is
+            usually open before Freelancer is started.
+            """
+            body = {"choices": SPEED_CHOICES, "value": None,
+                    "error": None, "message": message}
+            try:
+                _pid, _addr, value = sp.current()
+                body["value"] = round(value, 1)
+            except sp.NotRunning as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
+
+        def do_POST(self):
+            if self.path.split("?", 1)[0] != "/api/speed":
+                self._send(404, b"not found", "text/plain")
+                return
+            try:
+                size = int(self.headers.get("Content-Length") or 0)
+                wanted = float(json.loads(self.rfile.read(size) or b"{}")["value"])
+            except (ValueError, KeyError, TypeError):
+                self._send(400, b'{"error":"bad value"}', "application/json")
+                return
+            try:
+                # Re-locate rather than trusting a cached address: common.dll
+                # moves between runs, and the game may have been restarted
+                # since the page was loaded.
+                with lock:
+                    sp.set_speed(wanted)
+                self._send_speed(message=f"cruise speed set to {wanted:g}")
+            except (sp.NotRunning, ValueError) as exc:
+                body = {"choices": SPEED_CHOICES, "value": None,
+                        "error": str(exc), "message": None}
+                self._send(200, json.dumps(body).encode("utf-8"), "application/json")
 
         def log_message(self, *args):
             pass  # a poll every five seconds would bury anything worth reading

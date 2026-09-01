@@ -7,7 +7,11 @@ system. Own git repo; the history in this folder is the undo button.
 |---|---|
 | `flvisits.py` | save decoding, the nickname hash, game data loading, bases CLI. **Frozen, see below.** |
 | `wrecks.py` | the 157 secret wrecks and their loot, as data and as a CLI |
-| `serve.py` | local web view on 127.0.0.1:8731, tabs for both |
+| `docking.py` | which bases can actually be docked at, and the denominator both programs use |
+| `navmap.py` | world position to nav map cell |
+| `speed.py` | reads and writes the cruise speed of the *running* game |
+| `serve.py` | local web view on 127.0.0.1:8731, three tabs |
+| `run.sh` | start the server and open a browser on it |
 
 Everything new goes in its own file. `flvisits.py` supplies the primitives;
 `wrecks.py` adds its own INI reader because loadouts repeat their `equip` and
@@ -45,6 +49,22 @@ other on the same data, 197 against 182, which reads as a bug in whichever one
 you check second. The freeze stands; this is the precedent for what clears it,
 not for how easily it clears.
 
+**Thawed a second time, 2026-09-01, with the owner's explicit go.** The
+Asteroid Miners turned out to be undockable (see below), which changes the
+denominator, and the denominator filter sat in both `flvisits.py` and
+`serve.py`. Editing only one would have left them disagreeing, 167 against 181,
+the same failure the first thaw was for.
+
+The edit was kept to the smallest shape that removes the duplicate rather than
+adding a third copy of it: the rule moved to `docking.py` and both callers now
+ask that. Eight lines changed in the frozen file, all of them in `main()`, none
+in the decoding, the hash or the loaders.
+
+Checked afterwards, against the same save, with the committed version of the
+file and the thawed one side by side: 3430 object nicknames, 2188 visit
+entries, **486 resolved by both**. Identical. That is the check that matters
+here, because it is the one that would have gone quietly wrong.
+
 ## What it was verified against
 
 - Every one of the 301 hashes in a live save resolved to a nickname in the game
@@ -55,9 +75,11 @@ not for how easily it clears.
   base on the nav map, flags 30 and 31 mean the player actually docked. A base
   moved from the first bucket to the second while the player was flying, exactly
   as the model predicts.
-- Denominator is the `[Base]` list in `universe.ini` (197), not the count of
-  dockable space objects (250). A planet's mooring fixture is a second object
-  pointing at the same base, so counting objects double counts every planet.
+- Denominator starts from the `[Base]` list in `universe.ini` (197), not the
+  count of dockable space objects (250). A planet's mooring fixture is a second
+  object pointing at the same base, so counting objects double counts every
+  planet. 197 then narrows to 181 reachable and 167 dockable; `docking.py` owns
+  that and says why.
 
 ## Known gaps, deliberately not fixed
 
@@ -99,19 +121,17 @@ you are trying to drive to 157 never moves backwards, while the list still tells
 you where there is something left to collect. An untouched wreck also shows its
 loot without the checkbox, since that is cargo you can still go and get.
 
-## Open: are the Asteroid Miner bases really dockable
+## Settled: the Asteroid Miners are not dockable, and the rule is in the data
 
-The report counts them. Three checks in the data all say they can be docked at:
-the space object carries `dock_with`, the base has a room file, and that file
-declares `[BaseInfo] start_room = Deck` with the room present. They are distinct
-bases that share one display name, which is the game's own naming, not a bug:
-Dresden has three, Tau-31 three, Omega-7 and Tau-29 two each.
+Closed 2026-09-01 by screenshot, at 100 m from the Asteroid Miner in Omega-7
+with the target selected and no dock prompt. The guess in the previous version
+of this section, run-time reputation gating invisible in the files, was wrong:
+the reason is in the data and the denominator is now 167, not 181.
 
-The owner reports the dock button is greyed out on them in play. Proof pending:
-a screenshot once he reaches those systems. If it holds, the cause is almost
-certainly reputation gating at run time, which is invisible in the files, and
-the choice is then between dropping them from the denominator or giving them a
-bucket of their own. The second is more useful once achievements exist.
+The rule, and the three candidates that had to be eliminated to find it, are in
+`docking.py`. It is not restated here, and it is not duplicated in `flvisits.py`
+or `serve.py`: both call it. Those two held their own copies of the old
+"reachable" filter and that is exactly how they drifted apart in August.
 
 ## Settled: Ithaca Research Station is not reachable
 
@@ -125,6 +145,36 @@ directory and taking the system from the folder name, so a cutscene file was
 read as if it were a system. The fix is to follow the `file` key that
 `universe.ini` gives for each declared system instead, which excludes stray
 files by construction.
+
+## Writing to the running game
+
+The Speed tab changes cruise speed in a live Freelancer, and this is the only
+part of the project that writes anything anywhere. It writes to process memory,
+never to a save and never to a game file.
+
+It exists because `CRUISING_SPEED` is a single global in `constants.ini`, read
+once at startup, with no per-system or per-zone variant anywhere in the data:
+the key appears in exactly one file of the 8370 under `DATA/`. Wanting 5000 in
+open space and 500 in an asteroid field therefore cannot be expressed in the
+game's own data at all.
+
+Confirmed working on 2026-09-01 by writing 20.0 into a live game: the ship
+slowed on the spot, no reload and no crash, and the owner then asked for the
+tab. So the value is read per cruise burn, not cached when the ship spawns.
+
+**Never hardcode the address.** It lives in `common.dll`, which loads at a
+different place each run. `speed.py` finds it by the three floats that follow
+it, `5.0, 3.0, 0.25`, unique in the whole address space: one hit every time.
+Searching for the speed value is useless, plain `1000.0` matched 6948 places,
+which is what killed the first two attempts.
+
+A change lasts until the game is closed. `constants.ini` still says what it
+said, which is the intended split: the file is the default, the tab is the
+session.
+
+`kernel.yama.ptrace_scope` is 0 on this machine, so no privileges beyond the
+same user are needed. On a machine where it is not, this stops working and
+should say so rather than being "fixed" by loosening it.
 
 ## Dependency
 

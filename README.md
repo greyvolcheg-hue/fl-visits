@@ -28,18 +28,29 @@ Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
-The web page has two tabs, Visits and Wrecks, and one checkbox. Ticked, it shows
-every system, the things still to find, and what the wrecks contain. Unticked,
-it shows only progress.
+The web page has three tabs. Visits and Wrecks share one checkbox: ticked, it
+shows every system, the things still to find, and what the wrecks contain;
+unticked, only progress.
+
+**Speed** changes the cruise speed of the running game, from 300 to 10000, and
+it applies to the next cruise burn with no reload. It is the one thing here that
+writes rather than reads, and it writes to the game's memory, never to a save or
+a file. Close the game and the setting is gone; `constants.ini` is still the
+default. The tab says so when no game is running, which is the usual state.
+
+This exists because cruise speed is a single global read once at startup, with
+no per-zone version anywhere in the game data, so "fast in open space, slow in
+an asteroid field" is not expressible in the files at all.
 
 ## What the numbers mean
 
 **Bases** fall into three buckets. *Docked* is where you have actually landed.
 *Revealed* is a base the story has put on your nav map that you have never
-visited. *Unknown* is the rest. The denominator counts only bases that exist in
-space to be docked at, which is 181, not the 197 entries in the game's own
-universe list: the other 16 are cutscene copies and story-only locations that no
-save can ever record.
+visited. *Unknown* is the rest. The denominator is 167, not the 197 entries in
+the game's own universe list: 16 are cutscene copies and story-only locations
+that no save can ever record, and 15 are the Asteroid and Gas Miners, which look
+dockable in the data but refuse in play. `docking.py` explains how they are
+told apart.
 
 **Wrecks** are the 157 objects the game marks as secrets, spread over 33
 systems. Found is found: a wreck counts once whether or not you emptied it, so

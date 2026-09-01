@@ -39,7 +39,9 @@ DEFAULT_GAME = os.path.expanduser(
 )
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bini  # noqa: E402
+import docking  # noqa: E402
 
 
 def ipath(base, *parts):
@@ -323,14 +325,12 @@ def main():
     objects = load_objects(data_dir, systems)
     names = load_names(args.game)
 
-    # Keep only bases something in space points at. universe.ini carries 15 that
-    # nothing does: three intro-cutscene copies of Manhattan sharing one
-    # strid_name, so they printed as duplicates, plus story locations such as
-    # Battleship Osiris. A `visit` record is written against a space object, so
-    # a base without one can never be recorded, and counting it puts a permanent
-    # floor under every percentage.
-    reachable = {base.lower() for _, base, _ in objects.values()}
-    bases = {k: v for k, v in bases.items() if k in reachable}
+    # Keep only bases a player can actually dock at: 197 in universe.ini, 181
+    # that anything in space points at, 167 that can be docked. The other 30
+    # would put a permanent floor under every percentage. Which 30 and why is
+    # in docking.py, deliberately not restated here.
+    dockable = docking.dockable_bases(args.game, data_dir, system_files, ipath)
+    bases = {k: v for k, v in bases.items() if k in dockable}
 
     def label(ids, fallback):
         try:
