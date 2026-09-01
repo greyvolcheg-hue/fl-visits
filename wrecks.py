@@ -186,6 +186,9 @@ def group_by_system(wrecks, visits, system_label):
     for system, row in rows.items():
         for bucket in ("found", "missing"):
             row[bucket].sort(key=lambda e: (e["sector"] or "", e["name"]))
+        # The raw nickname survives beside the label: the house a system belongs
+        # to is its nickname's prefix, and "New York" does not carry it.
+        row["nickname"] = system
         row["system"] = system_label(system)
         row["total"] = len(row["found"]) + len(row["missing"])
         # Only an emptied wreck counts towards progress, the same way only a
@@ -196,9 +199,10 @@ def group_by_system(wrecks, visits, system_label):
         row["found_open"] = len(row["found"]) - row["stripped"]
         row["percent"] = round(100 * row["stripped"] / row["total"]) if row["total"] else 0
         out.append(row)
-    # Same order as the Visits tab: least explored first, untouched systems last
-    # in name order. See the note on the matching sort in serve.py.
-    out.sort(key=lambda r: (r["percent"] == 0, r["percent"], r["system"]))
+    # Deliberately not the Visits order. That tab is a to-do list and sorts by
+    # how few bases are left; this one is a record of what has been found, so
+    # the fullest systems lead and the empty ones trail. Asked for explicitly.
+    out.sort(key=lambda r: (-r["percent"], -r["stripped"], r["system"]))
     return out
 
 

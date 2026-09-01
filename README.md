@@ -28,9 +28,10 @@ Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
-The web page has three tabs. Visits and Wrecks share one checkbox: ticked, it
-shows every system, the things still to find, and what the wrecks contain;
-unticked, only progress.
+The web page has four tabs. Visits and Wrecks each have their own state for the
+checkbox: ticked, it shows every system, the things still to find, and what the
+wrecks contain; unticked, only progress. Both group their systems by house,
+Liberty through Edge Worlds, with a running count per house.
 
 **Speed** changes the cruise speed of the running game, from 300 to 10000, and
 it applies to the next cruise burn with no reload. It is the one thing here that
@@ -41,6 +42,12 @@ default. The tab says so when no game is running, which is the usual state.
 This exists because cruise speed is a single global read once at startup, with
 no per-zone version anywhere in the game data, so "fast in open space, slow in
 an asteroid field" is not expressible in the files at all.
+
+**Thrusters** does the same for the six thrusters, from 120 to 1000. These are
+**bonuses added to your normal speed, not the speed itself**: setting 300 gives
+you base plus 300. Vanilla is 120 on all six. All of them are listed rather than
+just the one fitted, so swapping thrusters needs no code change. Same rules as
+Speed: memory only, gone when the game closes.
 
 ## What the numbers mean
 
@@ -59,8 +66,14 @@ game records it. `+` is stripped, `*` is found but still holding its loot, `-`
 is not found yet, and an untouched wreck lists its cargo without the checkbox,
 since that is the part you can still go and collect.
 
-Both tabs sort the same way: least explored first, and everything you have not
-started at the bottom in alphabetical order.
+The two tabs sort differently, on purpose. **Visits** is a to-do list: fewest
+bases left first, so the system needing one more dock is at the top, then the
+systems you have finished, then the ones you have never opened, both
+alphabetically. **Wrecks** is a record of what you have found, so the fullest
+systems lead.
+
+Houses fold. Click a heading to collapse it, or use Collapse all and Expand all;
+each tab remembers its own folds and its own checkbox.
 
 **Coordinates** are the nav map cell and roughly where in it, `E6 C` or
 `D6 UR`, the same notation the guides use. The cell is reliable. The `UR`/`C`

@@ -60,7 +60,7 @@ def find_pid():
     return max(found)
 
 
-def _regions(pid):
+def regions(pid):
     """Writable mappings worth searching, largest excluded as noise."""
     out = []
     try:
@@ -92,7 +92,7 @@ def locate(pid):
     except OSError as exc:
         raise NotRunning(f"cannot read process memory: {exc}") from exc
     with mem:
-        for start, end in _regions(pid):
+        for start, end in regions(pid):
             try:
                 mem.seek(start)
                 buf = mem.read(end - start)
