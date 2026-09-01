@@ -139,12 +139,12 @@ def read_state(game, save_path):
     return {
         "systems": out,
         "wrecks": wreck_rows,
-        "wrecks_found": sum(len(r["found"]) for r in wreck_rows),
-        # Found but not yet emptied: the game records the loot being taken as
-        # bit 8 of the visit flag, so these are the ones still worth flying to.
+        # Only emptied wrecks count, mirroring "docked" on the Visits tab. The
+        # game records the loot being taken as bit 8 of the visit flag.
+        "wrecks_stripped": sum(r["stripped"] for r in wreck_rows),
         "wrecks_open": sum(r["found_open"] for r in wreck_rows),
         "wrecks_total": len(game.wrecks),
-        "wrecks_systems": sum(1 for r in wreck_rows if r["found"]),
+        "wrecks_systems": sum(1 for r in wreck_rows if r["stripped"]),
         "wrecks_systems_total": len(wreck_rows),
         "save": os.path.basename(save_path),
         "saved_at": os.path.getmtime(save_path),
@@ -282,11 +282,11 @@ function wreckLine(w, found) {
 }
 
 function renderWrecks(d) {
-  totals([[d.wrecks_found, 'found'], [d.wrecks_open, 'still loaded'],
-          [d.wrecks_total - d.wrecks_found, 'left'],
+  totals([[d.wrecks_stripped, 'stripped'], [d.wrecks_open, 'still loaded'],
+          [d.wrecks_total - d.wrecks_stripped - d.wrecks_open, 'left'],
           [`${d.wrecks_systems}/${d.wrecks_systems_total}`, 'systems']]);
   const rows = d.wrecks.filter(s => extended || s.found.length);
-  return rows.length ? rows.map(s => card(s.system, s.found.length, s.total, s.percent,
+  return rows.length ? rows.map(s => card(s.system, s.stripped, s.total, s.percent,
       s.found.map(w => wreckLine(w, true)).join('') +
       (extended ? s.missing.map(w => wreckLine(w, false)).join('') : ''))).join('')
     : '<p class="empty">No wrecks found yet. Tick the box to see where they are.</p>';

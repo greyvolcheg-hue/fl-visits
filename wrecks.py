@@ -178,9 +178,7 @@ def group_by_system(wrecks, visits, system_label):
         flag = visits.get(hid)
         entry = {"name": wreck["name"], "sector": wreck["sector"],
                  "spot": wreck["spot"], "loot": wreck["loot"],
-                 # Bit 8 is the game's own record of the loot having been taken,
-                 # so a wreck you flew to but never opened is still a thing to
-                 # go back for. Progress does not split on it: found is found.
+                 # Bit 8 is the game's own record of the loot having been taken.
                  "emptied": bool(flag is not None and flag & LOOTED)}
         rows[wreck["system"]]["found" if flag is not None else "missing"].append(entry)
 
@@ -190,8 +188,13 @@ def group_by_system(wrecks, visits, system_label):
             row[bucket].sort(key=lambda e: (e["sector"] or "", e["name"]))
         row["system"] = system_label(system)
         row["total"] = len(row["found"]) + len(row["missing"])
-        row["found_open"] = sum(1 for e in row["found"] if not e["emptied"])
-        row["percent"] = round(100 * len(row["found"]) / row["total"]) if row["total"] else 0
+        # Only an emptied wreck counts towards progress, the same way only a
+        # base you docked at counts on the Visits tab. A wreck you found and
+        # left loaded is the wreck equivalent of a base the story revealed:
+        # on the map, not yet done.
+        row["stripped"] = sum(1 for e in row["found"] if e["emptied"])
+        row["found_open"] = len(row["found"]) - row["stripped"]
+        row["percent"] = round(100 * row["stripped"] / row["total"]) if row["total"] else 0
         out.append(row)
     # Same order as the Visits tab: least explored first, untouched systems last
     # in name order. See the note on the matching sort in serve.py.
@@ -222,17 +225,17 @@ def main():
     visits = fl.parse_visits(fl.decode_save(args.save))
     rows = group_by_system(wrecks, visits, label)
 
-    found = sum(len(r["found"]) for r in rows)
+    stripped = sum(r["stripped"] for r in rows)
     still_open = sum(r["found_open"] for r in rows)
-    print(f"Found {found} of {len(wrecks)} wrecks "
-          f"across {len([r for r in rows if r['found']])} of {len(rows)} systems")
+    print(f"Stripped {stripped} of {len(wrecks)} wrecks "
+          f"across {len([r for r in rows if r['stripped']])} of {len(rows)} systems")
     if still_open:
-        print(f"{still_open} of those still hold their loot (marked *)")
+        print(f"{still_open} more found but still loaded (marked *), not counted above")
     print()
     for row in rows:
         if not row["found"] and not args.all:
             continue
-        print(f"{row['system']:<22} {len(row['found'])}/{row['total']}")
+        print(f"{row['system']:<22} {row['stripped']}/{row['total']}")
         for bucket in ("found", "missing"):
             if bucket == "missing" and not args.all:
                 continue
