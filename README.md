@@ -28,7 +28,7 @@ Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
-The web page has four tabs. Visits and Wrecks each have their own state for the
+The web page has five tabs. Visits and Wrecks each have their own state for the
 checkbox: ticked, it shows every system, the things still to find, and what the
 wrecks contain; unticked, only progress. Both group their systems by house,
 Liberty through Edge Worlds, with a running count per house.
@@ -49,6 +49,28 @@ you base plus 300. Vanilla is 120 on all six. All of them are listed rather than
 just the one fitted, so swapping thrusters needs no code change. Same rules as
 Speed: memory only, gone when the game closes.
 
+**DPS** adds up to five weapons and shows what they do per second, hull and
+shield side by side. `+ Add weapon` opens a search box over the 247 guns a ship
+can carry; the picks survive a reload. It needs neither a save nor a running
+game, since it is reading the game's own equipment files.
+
+The two columns are the split the game itself makes, not the same number twice.
+A laser does 19.6 hull and 0 shield per shot; a pulse gun does 10.1 hull and 303
+shield, which is what makes pulse weapons the anti-shield ones. Station and
+battleship fixtures are left out: 190 of the 437 damaging guns cannot be mounted
+on a ship, and they are where the confusing name clashes live, five different
+guns called "Battleship Defense Turret" from 82 to 1060 DPS.
+
+The figures are the weapon's own. Freelancer also carries a weapon-type against
+shield-type table in `weaponmoddb.ini`, worth 0.8 to 1.2, and this deliberately
+ignores it: putting it in would make every number depend on what the target
+happens to be flying.
+
+**Neural Net** is the in-game log, readable while you fly. Mark an entry
+interesting or read; the marks live in your browser and survive reloads. Sorting
+is newest first with a button to flip it, and there is **no date column, because
+the save holds no dates** at all, only the order the entries were written in.
+
 ## What the numbers mean
 
 **Bases** fall into three buckets. *Docked* is where you have actually landed.
@@ -66,11 +88,13 @@ game records it. `+` is stripped, `*` is found but still holding its loot, `-`
 is not found yet, and an untouched wreck lists its cargo without the checkbox,
 since that is the part you can still go and collect.
 
-The two tabs sort differently, on purpose. **Visits** is a to-do list: fewest
-bases left first, so the system needing one more dock is at the top, then the
+The two tabs sort differently, on purpose. **Visits** is a to-do list: most
+bases left first, so the system with the most still to find heads it, then the
 systems you have finished, then the ones you have never opened, both
-alphabetically. **Wrecks** is a record of what you have found, so the fullest
-systems lead.
+alphabetically. Note that a system you have never opened has the most left of
+all, and it still goes to the bottom: not started and finished are different
+kinds of nothing and they sit at opposite ends. **Wrecks** is a record of what
+you have found, so the fullest systems lead.
 
 Houses fold. Click a heading to collapse it, or use Collapse all and Expand all;
 each tab remembers its own folds and its own checkbox.

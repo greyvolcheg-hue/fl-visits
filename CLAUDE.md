@@ -10,7 +10,10 @@ system. Own git repo; the history in this folder is the undo button.
 | `docking.py` | which bases can actually be docked at, and the denominator both programs use |
 | `navmap.py` | world position to nav map cell |
 | `speed.py` | reads and writes the cruise speed of the *running* game |
-| `serve.py` | local web view on 127.0.0.1:8731, three tabs |
+| `thrusters.py` | the same for the six thruster bonuses |
+| `weapons.py` | gun and munition stats turned into DPS, static game data |
+| `netlog.py` | the Neural Net log out of a save, as readable text |
+| `serve.py` | local web view on 127.0.0.1:8731, five tabs |
 | `run.sh` | start the server and open a browser on it |
 
 Everything new goes in its own file. `flvisits.py` supplies the primitives;

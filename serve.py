@@ -24,9 +24,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docking as dk  # noqa: E402
 import flvisits as fl  # noqa: E402
+import netlog as nl  # noqa: E402
 import speed as sp  # noqa: E402
 import thrusters as th  # noqa: E402
+import weapons as wp  # noqa: E402
 import wrecks as wr  # noqa: E402
+
+MAX_LOADOUT = 5  # weapons the DPS tab will hold at once, the owner's number
 
 # Offered on the Speed tab. 300 is roughly vanilla, 1000 is what constants.ini
 # carries, and the top of the range is where ANOM_LIMITS_MAX_VELOCITY sits, so
@@ -120,6 +124,9 @@ class GameData:
         self.system_ids = {nick.lower(): ids for nick, ids in systems.items()}
         self.by_hash = {fl.fl_hash(nick): nick for nick in self.objects}
         self.wrecks = wr.load_wrecks(game_dir)
+        # Static: no save and no running game needed, so the DPS tab works with
+        # Freelancer closed.
+        self.weapons = wp.load_weapons(game_dir)
 
     def label(self, ids, fallback):
         try:
@@ -139,20 +146,27 @@ def _visit_rank(row):
     started, and sorting on the remaining count alone would put the finished
     ones first and bury the nearly-finished ones behind every untouched system.
 
-    So: in progress first, fewest bases left at the top, then the finished
-    ones, then the never-opened ones, the last two alphabetically.
+    So: in progress first, most bases left at the top, then the finished ones,
+    then the never-opened ones, the last two alphabetically.
+
+    The tier number is load-bearing and not decoration. A never-opened system
+    has the largest remaining count there is, so on the remaining count alone
+    it would head the list; the tier is the only thing holding it at the bottom.
     """
     docked = len(row["docked"])
     if docked == 0:
         return (2, 0, row["system"])
     if row["remaining"] == 0:
         return (1, 0, row["system"])
-    return (0, row["remaining"], row["system"])
+    return (0, -row["remaining"], row["system"])
 
 
 def read_state(game, save_path):
     """Split every base into docked / revealed / unknown, grouped by system."""
-    visits = fl.parse_visits(fl.decode_save(save_path))
+    # Decoded once and used twice: the visit flags and the Neural Net log come
+    # out of the same save text, and decoding is the expensive half.
+    saved = fl.decode_save(save_path)
+    visits = fl.parse_visits(saved)
 
     flags = {}
     for hid, flag in visits.items():
@@ -195,6 +209,7 @@ def read_state(game, save_path):
     return {
         "systems": out,
         "wrecks": wreck_rows,
+        "log": nl.entries(saved, game.names),
         "house_order": HOUSE_ORDER,
         # Only emptied wrecks count, mirroring "docked" on the Visits tab. The
         # game records the loot being taken as bit 8 of the visit flag.
@@ -224,6 +239,12 @@ PAGE = """<!doctype html>
     --docked: #3fb950; --revealed: #d29922; --unknown: #6e7681;
   }
   * { box-sizing: border-box; }
+  /* The page hides things with the `hidden` property, and a class selector
+     carrying `display: flex` outranks the browser's own `[hidden]` rule. The
+     Speed tab set `hidden` on the totals row and the Show All bar and both
+     stayed on screen because of exactly that. Make the property mean what it
+     says rather than adding a second mechanism beside it. */
+  [hidden] { display: none !important; }
   body { margin: 0; padding: 2rem 1.5rem 4rem; background: var(--bg); color: var(--text);
          font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; }
   .wrap { max-width: 60rem; margin: 0 auto; }
@@ -244,6 +265,66 @@ PAGE = """<!doctype html>
                       border: 1px solid var(--line); border-radius: 6px;
                       font: inherit; font-size: .78rem; padding: .25rem .6rem; }
   .groupacts button:hover { color: var(--text); border-color: var(--docked); }
+  /* DPS tab */
+  .gun { display: flex; align-items: baseline; gap: .75rem; padding: .55rem .9rem;
+         background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+         margin-bottom: .4rem; }
+  .gun .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+             white-space: nowrap; }
+  .gun .num { flex: none; width: 5.5rem; text-align: right;
+              font-variant-numeric: tabular-nums; }
+  .gun .num.h { color: var(--docked); }
+  .gun .num.s { color: var(--revealed); }
+  .gun .rf { flex: none; width: 4.5rem; text-align: right; color: var(--dim);
+             font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .gun .kill { flex: none; background: none; border: none; color: var(--dim);
+               cursor: pointer; font: inherit; padding: 0 .25rem; }
+  .gun .kill:hover { color: #f85149; }
+  .gun.sum { background: none; border-color: transparent; border-top: 1px solid var(--line);
+             border-radius: 0; margin-top: .4rem; font-weight: 650; }
+  .gunhead { display: flex; gap: .75rem; padding: 0 .9rem .35rem; color: var(--dim);
+             font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
+  .gunhead .nm { flex: 1; }
+  .gunhead .num { flex: none; width: 5.5rem; text-align: right; }
+  .gunhead .rf { flex: none; width: 4.5rem; text-align: right; }
+  .gunhead .pad { flex: none; width: 1.5rem; }
+  #gunsearch { width: 100%; padding: .5rem .75rem; background: var(--card);
+               color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+               font: inherit; }
+  #gunsearch:focus { outline: none; border-color: var(--docked); }
+  .hits { margin: .4rem 0 0; max-height: 17rem; overflow-y: auto; }
+  .hit { display: flex; gap: .75rem; align-items: baseline; width: 100%; text-align: left;
+         background: none; border: none; color: var(--text); font: inherit;
+         cursor: pointer; padding: .35rem .9rem; border-radius: 6px; }
+  .hit:hover { background: var(--card); }
+  .hit .num { flex: none; width: 5rem; text-align: right; color: var(--dim);
+              font-variant-numeric: tabular-nums; }
+  .addgun { background: var(--card); color: var(--text); cursor: pointer;
+            border: 1px dashed var(--line); border-radius: 8px; font: inherit;
+            padding: .5rem 1rem; }
+  .addgun:hover { border-color: var(--docked); color: var(--docked); }
+  .addgun:disabled { opacity: .4; cursor: default; border-style: solid; }
+  /* Neural Net tab */
+  .logbar { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+  .logbar button { background: var(--card); color: var(--text); cursor: pointer;
+                   border: 1px solid var(--line); border-radius: 8px; font: inherit;
+                   font-size: .85rem; padding: .35rem .8rem; }
+  .logbar button:hover { border-color: var(--docked); }
+  .logbar .count { color: var(--dim); font-size: .85rem; margin-left: auto; }
+  .entry { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+           padding: .85rem 1.1rem; margin-bottom: .5rem; }
+  .entry.read { opacity: .5; }
+  .entry.star { border-left: 3px solid var(--revealed); }
+  .entry .body { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .entry .subs { margin: .5rem 0 0; padding-left: 1rem; color: var(--dim);
+                 font-size: .85rem; }
+  .entry .acts { display: flex; gap: .4rem; margin-top: .6rem; }
+  .entry .acts button { background: none; border: 1px solid var(--line);
+                        border-radius: 6px; color: var(--dim); cursor: pointer;
+                        font: inherit; font-size: .75rem; padding: .15rem .6rem; }
+  .entry .acts button:hover { color: var(--text); }
+  .entry .acts button.on { color: var(--revealed); border-color: var(--revealed); }
+  .entry .acts button.on.done { color: var(--docked); border-color: var(--docked); }
   h2.house[data-house] { cursor: pointer; user-select: none; }
   h2.house[data-house]:hover { color: var(--text); }
   .caret { flex: none; width: .8rem; font-size: .7rem; }
@@ -303,6 +384,8 @@ PAGE = """<!doctype html>
     <button class="tab on" data-tab="visits">Visits</button>
     <button class="tab" data-tab="wrecks">Wrecks</button>
     <button class="tab" data-tab="speed">Speed</button>
+    <button class="tab" data-tab="dps">DPS</button>
+    <button class="tab" data-tab="log">Neural Net</button>
   </nav>
   <div class="totals" id="totals"></div>
   <div class="controls" id="togglewrap">
@@ -324,6 +407,36 @@ const extended = { visits: false, wrecks: false };
 // Which house headings are folded, per tab, same reasoning as the checkbox.
 const collapsed = { visits: {}, wrecks: {} };
 let latest = null, speed = null, thrusters = null, tab = 'visits';
+
+// DPS tab. `catalogue` is the game's own data, fetched once because it cannot
+// change while the page is open; `loadout` is the player's pick, held as
+// nicknames so it survives a reload and stays valid if the numbers are ever
+// recomputed. localStorage is the right home for it: it is one person's
+// scratch selection on their own machine, not something the server should own.
+let catalogue = null, gunQuery = null;
+let loadout = [];
+try {
+  loadout = JSON.parse(localStorage.getItem('fl.loadout') || '[]');
+} catch (e) { loadout = []; }
+
+function saveLoadout() {
+  try { localStorage.setItem('fl.loadout', JSON.stringify(loadout)); } catch (e) {}
+}
+
+// Neural Net marks. Keyed by netlog.py's stable key, which counts an entry's
+// duplicates up from the oldest end precisely so these do not slide onto the
+// wrong line when the game writes a new entry at the top. Newest first is the
+// default because that is the end the game appends to.
+let logNewestFirst = true;
+let marks = { star: {}, read: {} };
+try {
+  const held = JSON.parse(localStorage.getItem('fl.netlog') || '{}');
+  marks = { star: held.star || {}, read: held.read || {} };
+} catch (e) {}
+
+function saveMarks() {
+  try { localStorage.setItem('fl.netlog', JSON.stringify(marks)); } catch (e) {}
+}
 
 // Delegated, because render() replaces the list wholesale on every poll and a
 // handler bound to a heading would not survive it.
@@ -351,9 +464,13 @@ document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () =>
   tab = b.dataset.tab;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
   $('#ext').checked = !!extended[tab];
+  // Leaving the DPS tab closes the picker, so coming back shows the loadout
+  // rather than a half-typed search from last time.
+  if (tab !== 'dps') gunQuery = null;
   render();
   // The live tab is only polled while it is open, so opening it has to ask.
   if (tab === 'speed') poll();
+  if (tab === 'dps') loadCatalogue();
 }));
 
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -511,13 +628,155 @@ async function setSpeed(value) {
   } catch (e) { /* leave the buttons as they were */ }
 }
 
+function gunByNick(nick) {
+  return (catalogue ? catalogue.weapons : []).find(w => w.nickname === nick);
+}
+
+function renderDPS() {
+  if (!catalogue) return '<p class="empty">reading the game data…</p>';
+  const chosen = loadout.map(gunByNick).filter(Boolean);
+  let out = '';
+
+  if (chosen.length) {
+    out += '<div class="gunhead"><span class="nm">weapon</span>' +
+           '<span class="num">hull dps</span><span class="num">shield dps</span>' +
+           '<span class="rf">refire</span><span class="pad"></span></div>' +
+      chosen.map((w, i) =>
+        `<div class="gun"><span class="nm">${esc(w.name)}` +
+        (w.turret ? ' <span class="loot">turret</span>' : '') + '</span>' +
+        `<span class="num h">${w.hull_dps.toFixed(1)}</span>` +
+        `<span class="num s">${w.shield_dps.toFixed(1)}</span>` +
+        `<span class="rf">${w.refire.toFixed(2)}s</span>` +
+        `<button class="kill" data-drop="${i}" title="remove">&times;</button></div>`).join('') +
+      `<div class="gun sum"><span class="nm">${chosen.length} mounted</span>` +
+      `<span class="num h">${chosen.reduce((a, w) => a + w.hull_dps, 0).toFixed(1)}</span>` +
+      `<span class="num s">${chosen.reduce((a, w) => a + w.shield_dps, 0).toFixed(1)}</span>` +
+      '<span class="rf"></span><span class="pad"></span></div>';
+  } else {
+    out += '<p class="empty">Nothing mounted. Add a weapon to see what it does.</p>';
+  }
+
+  const full = chosen.length >= catalogue.max;
+  if (gunQuery === null) {
+    out += `<p><button class="addgun" id="addgun"${full ? ' disabled' : ''}>` +
+           (full ? `${catalogue.max} is the limit` : '+ Add weapon') + '</button></p>';
+    return out;
+  }
+
+  // 40 is enough to see whether the search is working without turning the
+  // panel into the whole catalogue again.
+  const q = gunQuery.trim().toLowerCase();
+  const hits = catalogue.weapons
+    .filter(w => !q || w.name.toLowerCase().includes(q))
+    .slice(0, 40);
+  out += '<p><input id="gunsearch" placeholder="type a weapon name" ' +
+         `value="${esc(gunQuery)}" autocomplete="off"></p><div class="hits">` +
+    (hits.length ? hits.map(w =>
+      `<button class="hit" data-add="${esc(w.nickname)}">` +
+      `<span class="nm">${esc(w.name)}` +
+      (w.turret ? ' <span class="loot">turret</span>' : '') + '</span>' +
+      `<span class="num">${w.hull_dps.toFixed(0)}</span>` +
+      `<span class="num">${w.shield_dps.toFixed(0)}</span></button>`).join('')
+      : '<p class="empty">Nothing by that name.</p>') +
+    '</div>';
+  return out;
+}
+
+function wireDPS() {
+  const add = $('#addgun');
+  if (add) add.addEventListener('click', () => { gunQuery = ''; render(); });
+  document.querySelectorAll('.gun .kill').forEach(b =>
+    b.addEventListener('click', () => {
+      loadout.splice(Number(b.dataset.drop), 1);
+      saveLoadout();
+      render();
+    }));
+  document.querySelectorAll('.hit').forEach(b =>
+    b.addEventListener('click', () => {
+      if (loadout.length < catalogue.max) loadout.push(b.dataset.add);
+      saveLoadout();
+      gunQuery = null;
+      render();
+    }));
+  const box = $('#gunsearch');
+  if (box) {
+    // Re-rendering replaces the input, so put the caret back where it was or
+    // typing a second character would send it to the front of the box.
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+    box.addEventListener('input', e => { gunQuery = e.target.value; render(); });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { gunQuery = null; render(); }
+    });
+  }
+}
+
+function renderLog(d) {
+  const rows = logNewestFirst ? d.log : d.log.slice().reverse();
+  if (!rows.length) return '<p class="empty">The log is empty.</p>';
+  const starred = rows.filter(e => marks.star[e.key]).length;
+  const read = rows.filter(e => marks.read[e.key]).length;
+  return '<div class="logbar">' +
+    `<button id="logsort">${logNewestFirst ? 'Newest first' : 'Oldest first'}</button>` +
+    `<span class="count">${rows.length} entries · ${starred} interesting · ` +
+    `${read} read</span></div>` +
+    rows.map(e => {
+      const star = !!marks.star[e.key], done = !!marks.read[e.key];
+      const cls = ['entry', star ? 'star' : '', done ? 'read' : ''].filter(Boolean).join(' ');
+      const subs = e.subs.length
+        ? `<ul class="subs">${e.subs.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : '';
+      const key = esc(e.key);
+      return `<div class="${cls}"><div class="body">${esc(e.text)}</div>${subs}` +
+        `<div class="acts">` +
+        `<button data-star="${key}" class="${star ? 'on' : ''}">` +
+        `${star ? '★' : '☆'} interesting</button>` +
+        `<button data-read="${key}" class="${done ? 'on done' : ''}">` +
+        `${done ? '✓ read' : 'mark read'}</button></div></div>`;
+    }).join('');
+}
+
+function wireLog() {
+  const sort = $('#logsort');
+  if (sort) sort.addEventListener('click', () => {
+    logNewestFirst = !logNewestFirst;
+    render();
+  });
+  const flip = (which, key) => {
+    if (marks[which][key]) delete marks[which][key];
+    else marks[which][key] = true;
+    saveMarks();
+    render();
+  };
+  document.querySelectorAll('[data-star]').forEach(b =>
+    b.addEventListener('click', () => flip('star', b.dataset.star)));
+  document.querySelectorAll('[data-read]').forEach(b =>
+    b.addEventListener('click', () => flip('read', b.dataset.read)));
+}
+
+async function loadCatalogue() {
+  if (catalogue) return;
+  try {
+    const r = await fetch('api/weapons', { cache: 'no-store' });
+    if (r.ok) { catalogue = await r.json(); render(); }
+  } catch (e) { /* the tab shows its loading line until this succeeds */ }
+}
+
 function render() {
   // The Speed tab reads the running process rather than the save, so it carries
   // neither the totals row nor the Show All box. Cruise and thrusters live on it
   // together: they are one question, "how fast does this ship go".
   const live = tab === 'speed';
-  $('#totals').hidden = live;
-  $('#togglewrap').hidden = live;
+  // Only the two per-system reports want the totals row and the Show All box.
+  // The rest carry their own controls, or none.
+  const bare = live || tab === 'dps' || tab === 'log';
+  $('#totals').hidden = bare;
+  $('#togglewrap').hidden = bare;
+  if (tab === 'dps') {
+    $('#sub').textContent = 'damage per second, from the weapon stats alone';
+    $('#list').innerHTML = renderDPS();
+    wireDPS();
+    return;
+  }
   if (live) {
     $('#sub').textContent = 'live speed of the running game';
     $('#list').innerHTML = renderSpeed() + renderThrusters();
@@ -533,6 +792,11 @@ function render() {
   const d = latest;
   $('#sub').textContent =
     `${d.save} · updated ${new Date(d.saved_at * 1000).toLocaleTimeString()}`;
+  if (tab === 'log') {
+    $('#list').innerHTML = renderLog(d);
+    wireLog();
+    return;
+  }
   $('#extlabel').textContent = tab === 'visits'
     ? 'show every system and the bases you have not found'
     : 'show every system, the wrecks you have not found, and what they hold';
@@ -589,6 +853,11 @@ def make_handler(game, save_path):
                     self._send(200, body, "application/json")
                 except FileNotFoundError:
                     self._send(404, b'{"error":"save not found"}', "application/json")
+            elif path == "/api/weapons":
+                # Static game data, so it is fetched once and never polled.
+                body = json.dumps({"weapons": game.weapons,
+                                   "max": MAX_LOADOUT}).encode("utf-8")
+                self._send(200, body, "application/json")
             elif path == "/api/speed":
                 self._send_speed()
             elif path == "/api/thrusters":
