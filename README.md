@@ -155,8 +155,8 @@ that no save can ever record, 15 are the Asteroid and Gas Miners, which look
 dockable in the data but refuse in play, and 3 are in Tohoku and Alaska,
 which are story-gated. `docking.py` explains how each group is told apart, and
 is honest that the last three are the one exclusion no rule in the data
-produces: they are excluded because no save on disk has ever recorded a visit
-to them.
+produces, and that they rest on knowing the game rather than on anything
+checkable in the files.
 
 **Wrecks** are the 157 objects the game marks as secrets, spread over 33
 systems. Found is found: a wreck counts once whether or not you emptied it, so

@@ -86,9 +86,11 @@ here, because it is the one that would have gone quietly wrong.
   object pointing at the same base, so counting objects double counts every
   planet. 197 then narrows to 181 reachable and 164 dockable; `docking.py` owns
   that and says why. 164 rather than 167 because Tohoku's two and Alaska's one
-  are excluded by name: both systems are story-gated, nothing in the data says
-  so, and no `visit` for any of the three exists in any of the 34 saves on
-  disk. `docking.py` states that plainly rather than hiding behind a rule.
+  are excluded by name: both systems are story-gated and nothing in the data
+  says so. That rests on the owner's knowledge of the game, not on evidence.
+  An earlier note here cited the saves, which was wrong: Tohoku is M09 and
+  Alaska is M11, the save is on Mission_05, so their absence means only that
+  he has not reached them. `docking.py` carries the correction.
 
 ## Known gaps, deliberately not fixed
 

@@ -62,13 +62,19 @@ BERTH = "berth"
 # The player still cannot dock at any of them. Both systems are story-gated,
 # and the story visit does not let you dock either.
 #
-# **The evidence is empirical and it is strong.** Across all 34 saves on disk,
-# covering a campaign played past both, not one of these three bases has a
-# `visit` record. Alaska in particular is early-story and certainly flown
-# through, so a story landing demonstrably does not write one. They cannot be
-# recorded, so counting them puts a permanent floor under the percentage.
+# **This rests on the owner's knowledge of the game, and nothing else. Do not
+# claim otherwise.** An earlier version of this comment offered the 34 saves on
+# disk as evidence, none of which holds a `visit` for these three, and called
+# that strong. It is worthless: Tohoku is reached in M09 and Alaska in M11,
+# while the save is on Mission_05, so the player has been to neither. The
+# absence proves only that he has not got there yet, which is equally true of
+# every base he has not reached. It discriminates nothing.
 #
-# Four data-side candidates were tried first and none isolates them:
+# To actually test this, read a save from a campaign taken past M11 and look
+# for a `visit` on these three. Until someone does, the exclusion is play
+# knowledge and this comment says so.
+#
+# Four data-side candidates were tried and none isolates them:
 #   * `visit = 0` on the object. 41 bases carry it, Buffalo and Rochester in
 #     New York among them, both of which the owner has docked at. It marks a
 #     base you have to find, not one you are locked out of.
@@ -80,8 +86,9 @@ BERTH = "berth"
 #     (`locked_gate`), not static data.
 #
 # So this is play knowledge, written down as an exception rather than dressed
-# up as a rule. Add to it only for somewhere equally unreachable, say why, and
-# check the saves first the way these were checked.
+# up as a rule. Add to it only for somewhere equally unreachable, and say why.
+# If you reach for a save to justify it, first check the campaign in that save
+# actually got that far.
 STORY_LOCKED = {
     "ku07_01_base",  # Ryuku Base, Tohoku
     "ku07_02_base",  # Tekagi's Base, Tohoku
