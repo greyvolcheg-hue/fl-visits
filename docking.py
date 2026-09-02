@@ -56,25 +56,36 @@ import navmap  # noqa: E402
 BERTH = "berth"
 
 # The one thing here that is NOT derived from the data, and it is marked so it
-# stays visible. Tohoku's two bases pass every test the data offers: both carry
-# `dock_with`, both have a berth, and the system is reachable through jump holes
-# from Hokkaido and Chugoku. The player still cannot dock at either, ever. The
-# system is story-gated, and during the story mission that takes you there
-# docking is refused as well, so these two can never be recorded.
+# stays visible. These bases pass every test the data offers: they carry
+# `dock_with`, they have a berth, and both systems are reachable, Alaska by a
+# jump gate from New York and Tohoku by jump holes from Hokkaido and Chugoku.
+# The player still cannot dock at any of them. Both systems are story-gated,
+# and the story visit does not let you dock either.
 #
-# Three data-side candidates were tried first and none isolates them:
+# **The evidence is empirical and it is strong.** Across all 34 saves on disk,
+# covering a campaign played past both, not one of these three bases has a
+# `visit` record. Alaska in particular is early-story and certainly flown
+# through, so a story landing demonstrably does not write one. They cannot be
+# recorded, so counting them puts a permanent floor under the percentage.
+#
+# Four data-side candidates were tried first and none isolates them:
 #   * `visit = 0` on the object. 41 bases carry it, Buffalo and Rochester in
 #     New York among them, both of which the owner has docked at. It marks a
 #     base you have to find, not one you are locked out of.
-#   * no inbound jump link. True of Omicron Major, not of Tohoku.
-#   * the berth rule that catches the miners. Both pass it.
+#   * no inbound jump link. True of Omicron Major, not of these.
+#   * the `prison` archetype, which looked promising for Alaska. Six bases use
+#     it and most are ordinary ports.
+#   * a lock on the jump object leading in. There is none: those gates and
+#     holes carry nothing to mark them, because the locking is save state
+#     (`locked_gate`), not static data.
 #
-# So this is the owner's play knowledge, written down as an exception rather
-# than dressed up as a rule. Add to it only for somewhere equally unreachable,
-# and say why.
+# So this is play knowledge, written down as an exception rather than dressed
+# up as a rule. Add to it only for somewhere equally unreachable, say why, and
+# check the saves first the way these were checked.
 STORY_LOCKED = {
     "ku07_01_base",  # Ryuku Base, Tohoku
     "ku07_02_base",  # Tekagi's Base, Tohoku
+    "li05_01_base",  # Prison Station Mitchell, Alaska
 }
 
 
