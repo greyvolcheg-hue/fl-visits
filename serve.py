@@ -35,11 +35,11 @@ import wrecks as wr  # noqa: E402
 # Offered on the Speed tab. 300 is roughly vanilla, 1000 is what constants.ini
 # carries, and the top of the range is where ANOM_LIMITS_MAX_VELOCITY sits, so
 # 10000 may clamp: that cap is a separate constant this does not touch.
-SPEED_CHOICES = [300, 500, 1000, 2000, 5000, 7500, 10000]
+SPEED_CHOICES = [300, 500, 750, 1000, 1500, 2000, 2500, 5000]
 
 # Trade lane speed. 2500 is vanilla and 10000 is flhack's own ceiling, which
 # this keeps rather than inventing a different one.
-TRADELANE_CHOICES = [2500, 4000, 6000, 8000, 10000]
+TRADELANE_CHOICES = [2500, 5000, 7500, 10000]
 
 REVEALED = 1  # story put it on the nav map; the player has never docked there
 
@@ -592,8 +592,9 @@ function renderSpeed() {
     `${!s.error && Math.abs(s.value - v) < 0.5 ? ' class="on"' : ''}>${v}</button>`
   ).join('');
   return head + msg + `<div class="speeds">${buttons}</div>` +
-    `<p class="note">10000 is where ANOM_LIMITS_MAX_VELOCITY sits, so it may
-     clamp; that cap is a separate constant this does not touch.</p>`;
+    `<p class="note">A separate constant, ANOM_LIMITS_MAX_VELOCITY in
+     <code>constants.ini</code>, caps velocity at 10000 and is not touched
+     here. Nothing offered above reaches it.</p>`;
 }
 
 function renderTradeLane() {

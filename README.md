@@ -33,7 +33,7 @@ checkbox: ticked, it shows every system, the things still to find, and what the
 wrecks contain; unticked, only progress. Both group their systems by house,
 Liberty through Edge Worlds, with a running count per house.
 
-**Speed** changes the cruise speed of the running game, from 300 to 10000, and
+**Speed** changes the cruise speed of the running game, from 300 to 5000, and
 it applies to the next cruise burn with no reload. It is the one thing here that
 writes rather than reads, and it writes to the game's memory, never to a save or
 a file. Close the game and the setting is gone; `constants.ini` is still the
@@ -43,9 +43,9 @@ This exists because cruise speed is a single global read once at startup, with
 no per-zone version anywhere in the game data, so "fast in open space, slow in
 an asteroid field" is not expressible in the files at all.
 
-**Thrusters** does the same for the six thrusters, from 120 to 1000. These are
-**bonuses added to your normal speed, not the speed itself**: setting 300 gives
-you base plus 300. Vanilla is 120 on all six. All of them are listed rather than
+**Thrusters** does the same for the six thrusters, from 120 to 420. These are
+**bonuses added to your normal speed, not the speed itself**: setting 320 gives
+you base plus 320. Vanilla is 120 on all six. All of them are listed rather than
 just the one fitted, so swapping thrusters needs no code change. Same rules as
 Speed: memory only, gone when the game closes.
 

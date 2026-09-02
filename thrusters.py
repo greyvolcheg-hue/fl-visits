@@ -56,7 +56,7 @@ THRUSTERS = {
 }
 
 # Offered in the UI. 120 is vanilla.
-SPEED_CHOICES = [120, 170, 250, 350, 500, 1000]
+SPEED_CHOICES = [120, 170, 220, 270, 320, 370, 420]
 
 # A thruster below this is useless and above it the ship is unflyable; the range
 # exists to turn a wrong address into a refusal rather than into a wrecked save.
