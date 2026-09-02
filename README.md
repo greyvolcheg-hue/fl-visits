@@ -49,10 +49,15 @@ you base plus 300. Vanilla is 120 on all six. All of them are listed rather than
 just the one fitted, so swapping thrusters needs no code change. Same rules as
 Speed: memory only, gone when the game closes.
 
-**DPS** adds up to five weapons and shows what they do per second, hull and
-shield side by side. `+ Add weapon` opens a search box over the 247 guns a ship
-can carry; the picks survive a reload. It needs neither a save nor a running
-game, since it is reading the game's own equipment files.
+**DPS** adds up as many weapons as you like and shows what they do per second,
+hull and shield side by side. `+ Add weapon` opens a search box over the 247
+guns a ship can carry; the picks survive a reload. It needs neither a save nor
+a running game, since it is reading the game's own equipment files.
+
+The `hull` and `shield` columns are damage per shot and `rate` is shots per
+second, all three printed the way the dealer screen prints them, so you can
+check a row against the game directly. `refire` is the same rate as a delay in
+seconds, which is what the file actually stores.
 
 Shield damage per shot is `hull_damage x 0.5 + energy_damage`, where the 0.5 is
 `HULL_DAMAGE_FACTOR` from `constants.ini`, read from the file rather than

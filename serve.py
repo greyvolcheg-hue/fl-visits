@@ -30,8 +30,6 @@ import thrusters as th  # noqa: E402
 import weapons as wp  # noqa: E402
 import wrecks as wr  # noqa: E402
 
-MAX_LOADOUT = 5  # weapons the DPS tab will hold at once, the owner's number
-
 # Offered on the Speed tab. 300 is roughly vanilla, 1000 is what constants.ini
 # carries, and the top of the range is where ANOM_LIMITS_MAX_VELOCITY sits, so
 # 10000 may clamp: that cap is a separate constant this does not touch.
@@ -265,30 +263,34 @@ PAGE = """<!doctype html>
                       border: 1px solid var(--line); border-radius: 6px;
                       font: inherit; font-size: .78rem; padding: .25rem .6rem; }
   .groupacts button:hover { color: var(--text); border-color: var(--docked); }
-  /* DPS tab */
-  .gun { display: flex; align-items: baseline; gap: .75rem; padding: .55rem .9rem;
-         background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-         margin-bottom: .4rem; }
-  .gun .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  /* DPS tab. One grid for the head, the rows and the total, so the columns
+     line up without every cell carrying a hardcoded width. */
+  .guns { overflow-x: auto; }
+  .guntable { min-width: 46rem; }
+  .gun, .gunhead {
+    display: grid; align-items: baseline; gap: .5rem;
+    grid-template-columns: minmax(9rem, 1fr) repeat(2, 4.2rem) repeat(2, 5rem)
+                           4.2rem 4.2rem 1.4rem;
+  }
+  .gun { padding: .55rem .9rem; background: var(--card); border: 1px solid var(--line);
+         border-radius: 8px; margin-bottom: .4rem; }
+  .gun .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis;
              white-space: nowrap; }
-  .gun .num { flex: none; width: 5.5rem; text-align: right;
-              font-variant-numeric: tabular-nums; }
+  .gun .num { text-align: right; font-variant-numeric: tabular-nums; }
   .gun .num.h { color: var(--docked); }
   .gun .num.s { color: var(--revealed); }
-  .gun .num.e { color: #58a6ff; }
-  .gun .rf { flex: none; width: 4.5rem; text-align: right; color: var(--dim);
-             font-size: .8rem; font-variant-numeric: tabular-nums; }
-  .gun .kill { flex: none; background: none; border: none; color: var(--dim);
-               cursor: pointer; font: inherit; padding: 0 .25rem; }
+  .gun .num.raw { color: var(--dim); font-size: .85rem; }
+  .gun .kill { background: none; border: none; color: var(--dim); cursor: pointer;
+               font: inherit; padding: 0; text-align: right; }
   .gun .kill:hover { color: #f85149; }
-  .gun.sum { background: none; border-color: transparent; border-top: 1px solid var(--line);
-             border-radius: 0; margin-top: .4rem; font-weight: 650; }
-  .gunhead { display: flex; gap: .75rem; padding: 0 .9rem .35rem; color: var(--dim);
-             font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
-  .gunhead .nm { flex: 1; }
-  .gunhead .num { flex: none; width: 5.5rem; text-align: right; }
-  .gunhead .rf { flex: none; width: 4.5rem; text-align: right; }
-  .gunhead .pad { flex: none; width: 1.5rem; }
+  .gun.sum { background: none; border-color: transparent;
+             border-top: 1px solid var(--line); border-radius: 0; margin-top: .4rem;
+             font-weight: 650; }
+  .gunhead { padding: 0 .9rem .35rem; color: var(--dim); font-size: .7rem;
+             text-transform: uppercase; letter-spacing: .05em; }
+  .gunhead span { text-align: right; }
+  .gunhead .nm { text-align: left; }
+  .gunhead .grp { color: var(--text); opacity: .55; }
   #gunsearch { width: 100%; padding: .5rem .75rem; background: var(--card);
                color: var(--text); border: 1px solid var(--line); border-radius: 8px;
                font: inherit; }
@@ -636,32 +638,45 @@ function gunByNick(nick) {
 
 function renderDPS() {
   if (!catalogue) return '<p class="empty">reading the game data…</p>';
-  const chosen = loadout.map(gunByNick).filter(Boolean);
+  // Keep each weapon's slot in `loadout` beside it. The remove button splices
+  // `loadout`, so indexing a filtered copy would delete the wrong gun the
+  // moment one nickname failed to resolve.
+  const chosen = loadout
+    .map((nick, slot) => ({ w: gunByNick(nick), slot }))
+    .filter(x => x.w);
   let out = '';
 
   if (chosen.length) {
-    const col = (v, cls) => `<span class="num ${cls}">${v.toFixed(1)}</span>`;
-    out += '<div class="gunhead"><span class="nm">weapon</span>' +
-           '<span class="num">hull dps</span><span class="num">shield dps</span>' +
-           '<span class="rf">refire</span><span class="pad"></span></div>' +
-      chosen.map((w, i) =>
+    const dps = (v, cls) => `<span class="num ${cls}">${v.toFixed(1)}</span>`;
+    // Per-shot figures are floored, which is what the game itself prints: the
+    // Adv. Skyrail is 121.2 in the files and 121 on the dealer screen. Showing
+    // them the game's way is the point, since these columns exist to be
+    // checked against it. The DPS columns keep the full precision.
+    const shot = v => `<span class="num raw">${Math.floor(v)}</span>`;
+    out += '<div class="guns"><div class="guntable">' +
+      '<div class="gunhead"><span class="nm">weapon</span>' +
+      '<span class="grp">hull</span><span class="grp">shield</span>' +
+      '<span>hull dps</span><span>shield dps</span>' +
+      '<span>rate</span><span>refire</span><span></span></div>' +
+      chosen.map(({ w, slot }) =>
         `<div class="gun"><span class="nm">${esc(w.name)}` +
         (w.turret ? ' <span class="loot">turret</span>' : '') + '</span>' +
-        col(w.hull_dps, 'h') + col(w.shield_dps, 's') +
-        `<span class="rf">${w.refire.toFixed(2)}s</span>` +
-        `<button class="kill" data-drop="${i}" title="remove">&times;</button></div>`).join('') +
+        shot(w.hull) + shot(w.shield) +
+        dps(w.hull_dps, 'h') + dps(w.shield_dps, 's') +
+        `<span class="num raw">${(1 / w.refire).toFixed(2)}</span>` +
+        `<span class="num raw">${w.refire.toFixed(2)}s</span>` +
+        `<button class="kill" data-drop="${slot}" title="remove">&times;</button></div>`).join('') +
       `<div class="gun sum"><span class="nm">${chosen.length} mounted</span>` +
-      col(chosen.reduce((a, w) => a + w.hull_dps, 0), 'h') +
-      col(chosen.reduce((a, w) => a + w.shield_dps, 0), 's') +
-      '<span class="rf"></span><span class="pad"></span></div>';
+      '<span></span><span></span>' +
+      dps(chosen.reduce((a, x) => a + x.w.hull_dps, 0), 'h') +
+      dps(chosen.reduce((a, x) => a + x.w.shield_dps, 0), 's') +
+      '<span></span><span></span><span></span></div></div></div>';
   } else {
     out += '<p class="empty">Nothing mounted. Add a weapon to see what it does.</p>';
   }
 
-  const full = chosen.length >= catalogue.max;
   if (gunQuery === null) {
-    out += `<p><button class="addgun" id="addgun"${full ? ' disabled' : ''}>` +
-           (full ? `${catalogue.max} is the limit` : '+ Add weapon') + '</button></p>';
+    out += '<p><button class="addgun" id="addgun">+ Add weapon</button></p>';
     return out;
   }
 
@@ -695,7 +710,7 @@ function wireDPS() {
     }));
   document.querySelectorAll('.hit').forEach(b =>
     b.addEventListener('click', () => {
-      if (loadout.length < catalogue.max) loadout.push(b.dataset.add);
+      loadout.push(b.dataset.add);
       saveLoadout();
       gunQuery = null;
       render();
@@ -868,8 +883,7 @@ def make_handler(game, save_path):
                     self._send(404, b'{"error":"save not found"}', "application/json")
             elif path == "/api/weapons":
                 # Static game data, so it is fetched once and never polled.
-                body = json.dumps({"weapons": game.weapons,
-                                   "max": MAX_LOADOUT}).encode("utf-8")
+                body = json.dumps({"weapons": game.weapons}).encode("utf-8")
                 self._send(200, body, "application/json")
             elif path == "/api/speed":
                 self._send_speed()
