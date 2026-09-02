@@ -49,6 +49,32 @@ you base plus 300. Vanilla is 120 on all six. All of them are listed rather than
 just the one fitted, so swapping thrusters needs no code change. Same rules as
 Speed: memory only, gone when the game closes.
 
+**Trade lanes** sets the speed inside a lane, 2500 (vanilla) to 10000. This one
+is not in any data file at all: `constants.ini` has no key for it, the
+`Trade_Lane_Ring` archetype has none, and `[TradeLane] basic_trade_lane_eq`
+carries only timings and ring spin. It is a constant inside `common.dll`.
+
+Beside it, **the HUD refuses to print a speed over 999**, so raising the lane
+speed without raising that shows a dash instead of a number. The same panel
+lifts it to 9999.
+
+Addresses for both come from [flhack](https://github.com/adoxa/flhack) by Jason
+Hood, whose source settles what a memory scan cannot: an earlier attempt here
+found a lone 2500.0 near the cruise constant and it was the wrong one, sitting
+in the loaded copy of `constants.ini`. The address is followed from a pointer in
+the code rather than hardcoded, so it works on either build of `common.dll` and
+checks itself: if what it points at is not a plausible speed, it refuses.
+
+**Write to the game files** takes the cruise and thruster speeds you have set
+live and puts them in `constants.ini` and `st_equip.ini`, so the next launch
+starts with them. Safe to press while playing, since Freelancer reads both once
+at startup; nothing changes until you relaunch. It backs each file up to
+`.vanilla` the first time, never overwriting a backup that already exists, and
+replaces atomically after checking the result decodes back to what was intended.
+
+Trade lane speed and the HUD cap are **not** written to files, because they are
+not in files to begin with.
+
 **DPS** adds up as many weapons as you like and shows what they do per second,
 hull and shield side by side. `+ Add weapon` opens a search box over the 247
 guns a ship can carry; the picks survive a reload. It needs neither a save nor

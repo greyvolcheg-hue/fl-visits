@@ -11,6 +11,8 @@ system. Own git repo; the history in this folder is the undo button.
 | `navmap.py` | world position to nav map cell |
 | `speed.py` | reads and writes the cruise speed of the *running* game |
 | `thrusters.py` | the same for the six thruster bonuses |
+| `tradelane.py` | trade lane speed and the 999 cap on the HUD readout, live |
+| `persist.py` | writes the live cruise and thruster speeds back into the game's files |
 | `weapons.py` | gun and munition stats turned into DPS, static game data |
 | `netlog.py` | the Neural Net log out of a save, as readable text |
 | `serve.py` | local web view on 127.0.0.1:8731, five tabs |

@@ -25,8 +25,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docking as dk  # noqa: E402
 import flvisits as fl  # noqa: E402
 import netlog as nl  # noqa: E402
+import persist as pe  # noqa: E402
 import speed as sp  # noqa: E402
 import thrusters as th  # noqa: E402
+import tradelane as tl  # noqa: E402
 import weapons as wp  # noqa: E402
 import wrecks as wr  # noqa: E402
 
@@ -34,6 +36,10 @@ import wrecks as wr  # noqa: E402
 # carries, and the top of the range is where ANOM_LIMITS_MAX_VELOCITY sits, so
 # 10000 may clamp: that cap is a separate constant this does not touch.
 SPEED_CHOICES = [300, 500, 1000, 2000, 5000, 7500, 10000]
+
+# Trade lane speed. 2500 is vanilla and 10000 is flhack's own ceiling, which
+# this keeps rather than inventing a different one.
+TRADELANE_CHOICES = [2500, 4000, 6000, 8000, 10000]
 
 REVEALED = 1  # story put it on the nav map; the player has never docked there
 
@@ -107,6 +113,7 @@ class GameData:
     """
 
     def __init__(self, game_dir):
+        self.dir = game_dir  # persist.py needs it to find the files to write
         data_dir = fl.ipath(game_dir, "DATA")
         bases, systems = fl.load_universe(data_dir)
         self.objects = fl.load_objects(data_dir, systems)
@@ -410,7 +417,7 @@ const $ = s => document.querySelector(s);
 const extended = { visits: false, wrecks: false };
 // Which house headings are folded, per tab, same reasoning as the checkbox.
 const collapsed = { visits: {}, wrecks: {} };
-let latest = null, speed = null, thrusters = null, tab = 'visits';
+let latest = null, speed = null, thrusters = null, lane = null, tab = 'visits';
 
 // DPS tab. `catalogue` is the game's own data, fetched once because it cannot
 // change while the page is open; `loadout` is the player's pick, held as
@@ -432,6 +439,10 @@ function saveLoadout() {
 // wrong line when the game writes a new entry at the top. Newest first is the
 // default because that is the end the game appends to.
 let logNewestFirst = true, logPersonalOnly = false;
+
+// The write-to-files button on the Speed tab. Not remembered anywhere: it
+// reports the last press and nothing more.
+let persistBusy = false, persistOk = false, persistMsg = null;
 let marks = { star: {}, read: {} };
 try {
   const held = JSON.parse(localStorage.getItem('fl.netlog') || '{}');
@@ -583,6 +594,71 @@ function renderSpeed() {
   return head + msg + `<div class="speeds">${buttons}</div>` +
     `<p class="note">10000 is where ANOM_LIMITS_MAX_VELOCITY sits, so it may
      clamp; that cap is a separate constant this does not touch.</p>`;
+}
+
+function renderTradeLane() {
+  const t = lane;
+  if (!t) return '';
+  const head = '<h2 class="house">Trade lanes</h2>' + (t.error
+    ? `<p class="note warn">${esc(t.error)}</p>`
+    : `<p class="note">Lane speed is <b>${t.value}</b>, vanilla is
+       ${t.vanilla}. Not in any data file: it is a constant inside
+       <code>common.dll</code>, so this is memory only and lasts until the game
+       closes.</p>`);
+  const msg = t.message ? `<p class="note">${esc(t.message)}</p>` : '';
+  const buttons = t.choices.map(v =>
+    `<button data-lane="${v}" ${t.error ? 'disabled' : ''}` +
+    `${!t.error && Math.abs(t.value - v) < 0.5 ? ' class="on"' : ''}>${v}</button>`
+  ).join('');
+  const cap = t.error ? '' :
+    `<p class="note">The HUD refuses to print a speed over
+     <b>${t.shown}</b>. Raising the lane speed without raising that shows a
+     dash instead of a number.</p>` +
+    `<div class="speeds"><button id="uncap" class="${t.uncapped ? 'on' : ''}">` +
+    `${t.uncapped ? '✓ readout raised to 9999' : 'Raise the readout to 9999'}` +
+    '</button></div>';
+  return head + msg + `<div class="speeds">${buttons}</div>` + cap;
+}
+
+async function setLane(body) {
+  document.querySelectorAll('.speeds button').forEach(b => b.disabled = true);
+  try {
+    const r = await fetch('api/tradelane', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) { lane = await r.json(); render(); }
+  } catch (e) { /* leave the buttons as they were */ }
+}
+
+function renderPersist() {
+  if (!speed || speed.error) return '';
+  const note = persistMsg
+    ? `<p class="note${persistOk ? '' : ' warn'}">${esc(persistMsg)}</p>` : '';
+  return '<h2 class="house">Keep these</h2>' +
+    `<p class="note">Writes the speeds above into <code>constants.ini</code> and
+     <code>st_equip.ini</code>, so the next launch starts with them. Safe to
+     press while the game is running: it reads those files once at startup, so
+     nothing changes until you relaunch.</p>` +
+    `<div class="speeds"><button id="persist"${persistBusy ? ' disabled' : ''}>` +
+    `${persistBusy ? 'writing…' : 'Write to the game files'}</button></div>` + note;
+}
+
+async function doPersist() {
+  persistBusy = true; persistMsg = null; render();
+  try {
+    const r = await fetch('api/persist', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const d = await r.json();
+    persistOk = !!d.ok;
+    persistMsg = d.message;
+  } catch (e) {
+    persistOk = false;
+    persistMsg = 'the server went away';
+  }
+  persistBusy = false;
+  render();
 }
 
 function renderThrusters() {
@@ -807,13 +883,25 @@ function render() {
   }
   if (live) {
     $('#sub').textContent = 'live speed of the running game';
-    $('#list').innerHTML = renderSpeed() + renderThrusters();
-    // A thruster button carries the thruster it belongs to; a cruise button
-    // does not, and that is what tells the two apart.
-    document.querySelectorAll('.speeds button').forEach(b =>
-      b.addEventListener('click', () => b.dataset.ids
-        ? setThruster(Number(b.dataset.ids), Number(b.dataset.speed))
-        : setSpeed(Number(b.dataset.speed))));
+    $('#list').innerHTML =
+      renderSpeed() + renderThrusters() + renderTradeLane() + renderPersist();
+    // Every button in a .speeds row is told apart by the data it carries: a
+    // thruster names its thruster, a lane button names its speed, a cruise
+    // button carries neither. The two by-id buttons are bound separately.
+    document.querySelectorAll('.speeds button').forEach(b => {
+      if (b.id === 'persist' || b.id === 'uncap') return;
+      b.addEventListener('click', () => {
+        if (b.dataset.lane) setLane({ value: Number(b.dataset.lane) });
+        else if (b.dataset.ids)
+          setThruster(Number(b.dataset.ids), Number(b.dataset.speed));
+        else setSpeed(Number(b.dataset.speed));
+      });
+    });
+    const keep = $('#persist');
+    if (keep) keep.addEventListener('click', doPersist);
+    const uncap = $('#uncap');
+    if (uncap) uncap.addEventListener('click',
+      () => setLane({ uncapped: !(lane && lane.uncapped) }));
     return;
   }
   if (!latest) return;
@@ -841,12 +929,14 @@ async function poll() {
   // seconds would burn real CPU to refresh a panel nobody has open.
   try {
     if (tab === 'speed') {
-      const [a, b] = await Promise.all([
+      const [a, b, c] = await Promise.all([
         fetch('api/speed', { cache: 'no-store' }),
-        fetch('api/thrusters', { cache: 'no-store' })
+        fetch('api/thrusters', { cache: 'no-store' }),
+        fetch('api/tradelane', { cache: 'no-store' })
       ]);
       if (a.ok) { const s = await a.json(); speed = { ...s, message: speed && speed.message }; }
       if (b.ok) { const s = await b.json(); thrusters = { ...s, message: thrusters && thrusters.message }; }
+      if (c.ok) { const s = await c.json(); lane = { ...s, message: lane && lane.message }; }
     }
   } catch (e) { /* the game went away; keep showing the last good state */ }
   render();
@@ -889,8 +979,23 @@ def make_handler(game, save_path):
                 self._send_speed()
             elif path == "/api/thrusters":
                 self._send_thrusters()
+            elif path == "/api/tradelane":
+                self._send_tradelane()
             else:
                 self._send(404, b"not found", "text/plain")
+
+        def _send_tradelane(self, message=None):
+            """Trade lane speed and the HUD's own ceiling, or why not."""
+            body = {"choices": TRADELANE_CHOICES, "vanilla": tl.VANILLA,
+                    "value": None, "uncapped": False, "shown": None,
+                    "error": None, "message": message}
+            try:
+                value, _version = tl.read()
+                body["value"] = round(value, 1)
+                body["uncapped"], body["shown"] = tl.read_cap()
+            except (tl.NotRunning, OSError) as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
 
         def _send_thrusters(self, message=None):
             """Every thruster and its bonus, or why they cannot be read."""
@@ -928,6 +1033,35 @@ def make_handler(game, save_path):
 
         def do_POST(self):
             path = self.path.split("?", 1)[0]
+            if path == "/api/persist":
+                try:
+                    with lock:
+                        told = pe.write(game.dir)
+                    body = {"ok": True, "message": "; ".join(told)}
+                except (sp.NotRunning, pe.WriteFailed, OSError) as exc:
+                    body = {"ok": False, "message": str(exc)}
+                self._send(200, json.dumps(body).encode("utf-8"), "application/json")
+                return
+            if path == "/api/tradelane":
+                try:
+                    size = int(self.headers.get("Content-Length") or 0)
+                    sent = json.loads(self.rfile.read(size) or b"{}")
+                    with lock:
+                        if "uncapped" in sent:
+                            on, shown = tl.set_cap(bool(sent["uncapped"]))
+                            note = (f"speed readout {'uncapped' if on else 'capped'}"
+                                    f", max {shown}")
+                        else:
+                            got = tl.set_speed(float(sent["value"]))
+                            note = f"trade lane speed set to {got:g}"
+                    self._send_tradelane(message=note)
+                except (ValueError, KeyError, TypeError, tl.NotRunning, OSError) as exc:
+                    body = {"choices": TRADELANE_CHOICES, "vanilla": tl.VANILLA,
+                            "value": None, "uncapped": False, "shown": None,
+                            "error": str(exc), "message": None}
+                    self._send(200, json.dumps(body).encode("utf-8"),
+                               "application/json")
+                return
             if path not in ("/api/speed", "/api/thrusters"):
                 self._send(404, b"not found", "text/plain")
                 return
