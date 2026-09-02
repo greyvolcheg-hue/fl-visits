@@ -50,6 +50,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 import bini  # noqa: E402
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import navmap  # noqa: E402
+
 BERTH = "berth"
 
 
@@ -143,6 +146,43 @@ def dockable_bases(game_dir, data_dir, system_files, ipath):
             if BERTH in spheres.get(arch, ()):
                 has_berth.add(key)
     return is_planet | has_berth
+
+
+def base_sectors(data_dir, system_files, scales):
+    """base nickname (lower) -> "E6 UR", the nav map cell and where in it.
+
+    Lives here rather than in a file of its own because it is the same walk of
+    the same `[Object]` sections `dockable_bases` already does, and a third
+    copy of that walk is worse than one more function beside the second.
+
+    23 bases are pointed at by more than one object, a planet and its mooring
+    fixture, and the first in file order wins. They sit within a few hundred
+    metres of each other, far inside one cell of a map eight cells across, so
+    which one is picked cannot change the answer.
+    """
+    out = {}
+    for path, system in system_files(data_dir):
+        scale = scales.get(system, 1.0)
+        for section, pairs in read_multi(path):
+            if section.lower() != "object":
+                continue
+            entry = _entries(pairs)
+            base, pos = entry.get("base"), entry.get("pos")
+            if not base or not pos or len(pos[0]) < 3:
+                continue
+            key = str(base[0][0]).lower()
+            if key in out:
+                continue
+            try:
+                x, z = float(pos[0][0]), float(pos[0][2])
+            except (TypeError, ValueError):
+                continue
+            cell = navmap.sector(x, z, scale)
+            if not cell:
+                continue
+            spot = navmap.subcell(x, z, scale)
+            out[key] = f"{cell} {spot}".strip()
+    return out
 
 
 def main():

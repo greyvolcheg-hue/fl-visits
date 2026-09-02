@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docking as dk  # noqa: E402
 import drawdist as dd  # noqa: E402
 import flvisits as fl  # noqa: E402
+import navmap  # noqa: E402
 import netlog as nl  # noqa: E402
 import persist as pe  # noqa: E402
 import speed as sp  # noqa: E402
@@ -134,6 +135,11 @@ class GameData:
         self.system_ids = {nick.lower(): ids for nick, ids in systems.items()}
         self.by_hash = {fl.fl_hash(nick): nick for nick in self.objects}
         self.wrecks = wr.load_wrecks(game_dir)
+        # Where each base sits on the nav map, from the same walk that decided
+        # which bases are dockable at all.
+        self.sectors = dk.base_sectors(
+            data_dir, fl.system_files,
+            navmap.load_scales(data_dir, fl.read_ini, fl.ipath))
         # Static: no save and no running game needed, so the DPS tab works with
         # Freelancer closed.
         self.weapons = wp.load_weapons(game_dir)
@@ -200,12 +206,13 @@ def read_state(game, save_path):
         )
         flag = flags.get(key)
         bucket = "docked" if flag in fl.DOCKED else "revealed" if flag == REVEALED else "unknown"
-        row[bucket].append(game.label(ids, key))
+        row[bucket].append({"name": game.label(ids, key),
+                            "at": game.sectors.get(key, "")})
 
     out = []
     for row in systems.values():
         for bucket in ("docked", "revealed", "unknown"):
-            row[bucket].sort()
+            row[bucket].sort(key=lambda base: base["name"])
         row["total"] = len(row["docked"]) + len(row["revealed"]) + len(row["unknown"])
         row["remaining"] = row["total"] - len(row["docked"])
         row["percent"] = round(100 * len(row["docked"]) / row["total"]) if row["total"] else 0
@@ -380,6 +387,8 @@ PAGE = """<!doctype html>
   .wreck.m .nm { color: var(--dim); }
   .wreck .nm { flex: none; min-width: 12rem; }
   .loot { color: var(--dim); font-size: .82rem; }
+  .atlist { display: flex; flex-direction: column; gap: .15rem; }
+  .atrow { display: flex; gap: .5rem; align-items: baseline; }
   .cell { flex: none; width: 3.4rem; color: var(--dim);
           font-variant-numeric: tabular-nums; }
   .speeds { display: flex; flex-wrap: wrap; gap: .5rem; margin: .25rem 0 1rem; }
@@ -496,10 +505,18 @@ document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () =>
 
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-function line(cls, tag, items) {
+function line(cls, tag, items, withAt) {
   if (!items.length) return '';
+  // Docked bases stay a comma-separated run: you have been there and the
+  // coordinate is no use. The two you have not visited get one line each so
+  // the cell is readable beside the name.
+  const body = withAt
+    ? '<span class="atlist">' + items.map(b =>
+        `<span class="atrow"><span class="cell">${esc(b.at)}</span>` +
+        `<span>${esc(b.name)}</span></span>`).join('') + '</span>'
+    : `<span>${items.map(b => esc(b.name)).join(', ')}</span>`;
   return `<div class="row ${cls}"><span class="tag ${cls}">${tag} ${items.length}</span>` +
-         `<span>${items.map(esc).join(', ')}</span></div>`;
+         body + '</div>';
 }
 
 function totals(pairs) {
@@ -544,8 +561,8 @@ function renderVisits(d) {
   if (!rows.length) return '<p class="empty">Nothing docked at yet.</p>';
   return byHouse(d, rows,
     s => card(s.system, s.docked.length, s.total, s.percent,
-      line('d', 'docked', s.docked) + line('r', 'revealed', s.revealed) +
-      (ext ? line('u', 'unknown', s.unknown) : '')),
+      line('d', 'docked', s.docked) + line('r', 'revealed', s.revealed, true) +
+      (ext ? line('u', 'unknown', s.unknown, true) : '')),
     rs => [rs.reduce((n, s) => n + s.docked.length, 0),
            rs.reduce((n, s) => n + s.total, 0)]);
 }
