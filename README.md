@@ -149,11 +149,12 @@ the save holds no dates** at all, only the order the entries were written in.
 
 **Bases** fall into three buckets. *Docked* is where you have actually landed.
 *Revealed* is a base the story has put on your nav map that you have never
-visited. *Unknown* is the rest. The denominator is 167, not the 197 entries in
+visited. *Unknown* is the rest. The denominator is 165, not the 197 entries in
 the game's own universe list: 16 are cutscene copies and story-only locations
-that no save can ever record, and 15 are the Asteroid and Gas Miners, which look
-dockable in the data but refuse in play. `docking.py` explains how they are
-told apart.
+that no save can ever record, 15 are the Asteroid and Gas Miners, which look
+dockable in the data but refuse in play, and 2 are Tohoku's, which are
+story-gated. `docking.py` explains how each group is told apart, and is honest
+that Tohoku is the one exclusion no rule in the data produces.
 
 **Wrecks** are the 157 objects the game marks as secrets, spread over 33
 systems. Found is found: a wreck counts once whether or not you emptied it, so

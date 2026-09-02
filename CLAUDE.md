@@ -84,8 +84,10 @@ here, because it is the one that would have gone quietly wrong.
 - Denominator starts from the `[Base]` list in `universe.ini` (197), not the
   count of dockable space objects (250). A planet's mooring fixture is a second
   object pointing at the same base, so counting objects double counts every
-  planet. 197 then narrows to 181 reachable and 167 dockable; `docking.py` owns
-  that and says why.
+  planet. 197 then narrows to 181 reachable and 165 dockable; `docking.py` owns
+  that and says why. 165 rather than 167 because Tohoku's two are excluded by
+  name: that system is story-gated and nothing in the data says so, which
+  `docking.py` states plainly rather than hiding behind a rule.
 
 ## Known gaps, deliberately not fixed
 

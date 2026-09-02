@@ -55,6 +55,28 @@ import navmap  # noqa: E402
 
 BERTH = "berth"
 
+# The one thing here that is NOT derived from the data, and it is marked so it
+# stays visible. Tohoku's two bases pass every test the data offers: both carry
+# `dock_with`, both have a berth, and the system is reachable through jump holes
+# from Hokkaido and Chugoku. The player still cannot dock at either, ever. The
+# system is story-gated, and during the story mission that takes you there
+# docking is refused as well, so these two can never be recorded.
+#
+# Three data-side candidates were tried first and none isolates them:
+#   * `visit = 0` on the object. 41 bases carry it, Buffalo and Rochester in
+#     New York among them, both of which the owner has docked at. It marks a
+#     base you have to find, not one you are locked out of.
+#   * no inbound jump link. True of Omicron Major, not of Tohoku.
+#   * the berth rule that catches the miners. Both pass it.
+#
+# So this is the owner's play knowledge, written down as an exception rather
+# than dressed up as a rule. Add to it only for somewhere equally unreachable,
+# and say why.
+STORY_LOCKED = {
+    "ku07_01_base",  # Ryuku Base, Tohoku
+    "ku07_02_base",  # Tekagi's Base, Tohoku
+}
+
 
 def read_multi(path):
     """[(section, [(key, values), ...])] with repeated keys preserved."""
@@ -145,7 +167,7 @@ def dockable_bases(game_dir, data_dir, system_files, ipath):
                 is_planet.add(key)
             if BERTH in spheres.get(arch, ()):
                 has_berth.add(key)
-    return is_planet | has_berth
+    return (is_planet | has_berth) - STORY_LOCKED
 
 
 def base_sectors(data_dir, system_files, scales):
