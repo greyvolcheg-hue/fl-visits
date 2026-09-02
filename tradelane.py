@@ -54,6 +54,13 @@ from speed import NotRunning, find_pid  # noqa: F401  (re-exported deliberately)
 COMMON_BASE = 0x6260000  # what the flhack addresses are relative to
 CHECKS = ((10, 0x62C1485, 0x639F39C), (11, 0x62C14E5, 0x639F3CC))
 
+# How fast a ship winds up to lane speed, as a double. Stock is 0.125 and
+# flhack's "instant" is 1.0. Keyed by the same version the speed check found,
+# since the two builds put it in different places.
+ACCEL = {10: 0x639F410, 11: 0x639F440}
+ACCEL_STOCK = 0.125
+ACCEL_INSTANT = 1.0
+
 VANILLA = 2500.0
 SANE = (100.0, 10000.0)  # flhack caps at 10000; below 100 a lane is unusable
 
@@ -114,8 +121,38 @@ def read(pid=None):
         return struct.unpack("<f", fh.read(4))[0], version
 
 
-def set_speed(value, pid=None):
-    """Set the trade lane speed, read it back, and confirm."""
+def _accel_addr(pid, version):
+    return ACCEL[version] - COMMON_BASE + _base(pid, "common.dll")
+
+
+def read_accel(pid=None, version=None):
+    """(wind-up rate, is it instant?) for the running game."""
+    pid = pid or find_pid()
+    if version is None:
+        _addr, version = locate(pid)
+    with open(f"/proc/{pid}/mem", "rb") as fh:
+        fh.seek(_accel_addr(pid, version))
+        value = struct.unpack("<d", fh.read(8))[0]
+    return value, value >= ACCEL_INSTANT - 1e-9
+
+
+def set_accel(instant, pid=None):
+    """Switch the wind-up between stock and near-instant."""
+    pid = pid or find_pid()
+    _addr, version = locate(pid)
+    with open(f"/proc/{pid}/mem", "r+b") as fh:
+        fh.seek(_accel_addr(pid, version))
+        fh.write(struct.pack("<d", ACCEL_INSTANT if instant else ACCEL_STOCK))
+    return read_accel(pid, version)
+
+
+def set_speed(value, pid=None, instant=True):
+    """Set the trade lane speed, read it back, and confirm.
+
+    `instant` comes along by default because the two are one setting in
+    practice: at the stock wind-up of 0.125 a ship spends most of a short lane
+    still accelerating, so raising the speed alone is barely felt.
+    """
     low, high = SANE
     if not low <= value <= high:
         raise ValueError(f"{value:g} is outside {low:g} to {high:g}")
@@ -128,6 +165,8 @@ def set_speed(value, pid=None):
         got = struct.unpack("<f", fh.read(4))[0]
     if abs(got - value) > 0.5:
         raise NotRunning(f"wrote {value:g} but read back {got:g}")
+    if instant:
+        set_accel(True, pid)
     return got
 
 
@@ -162,6 +201,8 @@ def main():
     ap.add_argument("speed", nargs="?", type=float, help="new trade lane speed")
     ap.add_argument("--uncap", action="store_true", help="show speeds over 999")
     ap.add_argument("--recap", action="store_true", help="restore the 999 limit")
+    ap.add_argument("--stock", action="store_true",
+                    help="put the wind-up back to 0.125")
     args = ap.parse_args()
 
     try:
@@ -171,11 +212,16 @@ def main():
         if args.uncap or args.recap:
             on, shown = set_cap(args.uncap, pid)
             print(f"speed readout {'uncapped' if on else 'capped'}, max {shown}")
-        if args.speed is None and not (args.uncap or args.recap):
+        if args.stock:
+            rate, _ = set_accel(False, pid)
+            print(f"wind-up back to stock ({rate:g})")
+        if args.speed is None and not (args.uncap or args.recap or args.stock):
             value, version = read(pid)
             on, shown = read_cap(pid)
+            rate, instant = read_accel(pid, version)
             print(f"common.dll v{version}, trade lane speed {value:g} "
                   f"(vanilla {VANILLA:g})")
+            print(f"wind-up {rate:g} ({'instant' if instant else 'stock'})")
             print(f"speed readout {'uncapped' if on else 'capped'}, max {shown}")
     except (NotRunning, ValueError, OSError) as exc:
         sys.exit(str(exc))

@@ -54,6 +54,16 @@ is not in any data file at all: `constants.ini` has no key for it, the
 `Trade_Lane_Ring` archetype has none, and `[TradeLane] basic_trade_lane_eq`
 carries only timings and ring spin. It is a constant inside `common.dll`.
 
+Picking a speed also sets the **wind-up to near-instant**, because the two are
+one setting in practice: at the stock rate of 0.125 a ship spends most of a
+short lane still accelerating, so a higher number on its own is barely felt.
+There is a toggle if you want the stock ramp back.
+
+Deceleration is deliberately left alone. flhack changes that too, but by
+injecting a code stub that holds full speed until 90% through the ring, and
+injecting code needs executable memory allocated inside the game. Changing a
+number does not.
+
 Beside it, **the HUD refuses to print a speed over 999**, so raising the lane
 speed without raising that shows a dash instead of a number. The same panel
 lifts it to 9999.

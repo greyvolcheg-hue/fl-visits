@@ -610,14 +610,20 @@ function renderTradeLane() {
     `<button data-lane="${v}" ${t.error ? 'disabled' : ''}` +
     `${!t.error && Math.abs(t.value - v) < 0.5 ? ' class="on"' : ''}>${v}</button>`
   ).join('');
-  const cap = t.error ? '' :
-    `<p class="note">The HUD refuses to print a speed over
-     <b>${t.shown}</b>. Raising the lane speed without raising that shows a
-     dash instead of a number.</p>` +
-    `<div class="speeds"><button id="uncap" class="${t.uncapped ? 'on' : ''}">` +
+  const extras = t.error ? '' :
+    `<p class="note">Picking a speed also sets the wind-up to near-instant,
+     since at the stock rate a ship spends most of a short lane still
+     accelerating and the higher number is barely felt. Deceleration is left
+     alone: that one needs code injected into the game, not a number changed.
+     <br>The HUD refuses to print a speed over <b>${t.shown}</b>, and a lane
+     faster than that shows a dash instead of a number.</p>` +
+    '<div class="speeds">' +
+    `<button id="instant" class="${t.instant ? 'on' : ''}">` +
+    `${t.instant ? '✓ wind-up near-instant' : 'Wind-up: stock'}</button>` +
+    `<button id="uncap" class="${t.uncapped ? 'on' : ''}">` +
     `${t.uncapped ? '✓ readout raised to 9999' : 'Raise the readout to 9999'}` +
     '</button></div>';
-  return head + msg + `<div class="speeds">${buttons}</div>` + cap;
+  return head + msg + `<div class="speeds">${buttons}</div>` + extras;
 }
 
 async function setLane(body) {
@@ -889,7 +895,7 @@ function render() {
     // thruster names its thruster, a lane button names its speed, a cruise
     // button carries neither. The two by-id buttons are bound separately.
     document.querySelectorAll('.speeds button').forEach(b => {
-      if (b.id === 'persist' || b.id === 'uncap') return;
+      if (b.id === 'persist' || b.id === 'uncap' || b.id === 'instant') return;
       b.addEventListener('click', () => {
         if (b.dataset.lane) setLane({ value: Number(b.dataset.lane) });
         else if (b.dataset.ids)
@@ -902,6 +908,9 @@ function render() {
     const uncap = $('#uncap');
     if (uncap) uncap.addEventListener('click',
       () => setLane({ uncapped: !(lane && lane.uncapped) }));
+    const inst = $('#instant');
+    if (inst) inst.addEventListener('click',
+      () => setLane({ instant: !(lane && lane.instant) }));
     return;
   }
   if (!latest) return;
@@ -988,10 +997,11 @@ def make_handler(game, save_path):
             """Trade lane speed and the HUD's own ceiling, or why not."""
             body = {"choices": TRADELANE_CHOICES, "vanilla": tl.VANILLA,
                     "value": None, "uncapped": False, "shown": None,
-                    "error": None, "message": message}
+                    "instant": False, "error": None, "message": message}
             try:
-                value, _version = tl.read()
+                value, version = tl.read()
                 body["value"] = round(value, 1)
+                _rate, body["instant"] = tl.read_accel(version=version)
                 body["uncapped"], body["shown"] = tl.read_cap()
             except (tl.NotRunning, OSError) as exc:
                 body["error"] = str(exc)
@@ -1051,6 +1061,10 @@ def make_handler(game, save_path):
                             on, shown = tl.set_cap(bool(sent["uncapped"]))
                             note = (f"speed readout {'uncapped' if on else 'capped'}"
                                     f", max {shown}")
+                        elif "instant" in sent:
+                            rate, on = tl.set_accel(bool(sent["instant"]))
+                            note = (f"wind-up {rate:g}, "
+                                    f"{'near-instant' if on else 'stock'}")
                         else:
                             got = tl.set_speed(float(sent["value"]))
                             note = f"trade lane speed set to {got:g}"
