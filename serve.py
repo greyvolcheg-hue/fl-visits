@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docking as dk  # noqa: E402
+import drawdist as dd  # noqa: E402
 import flvisits as fl  # noqa: E402
 import netlog as nl  # noqa: E402
 import persist as pe  # noqa: E402
@@ -40,6 +41,10 @@ SPEED_CHOICES = [300, 500, 750, 1000, 1500, 2000, 2500, 5000]
 # Trade lane speed. 2500 is vanilla and 10000 is flhack's own ceiling, which
 # this keeps rather than inventing a different one.
 TRADELANE_CHOICES = [2500, 5000, 7500, 10000]
+
+# Asteroid draw distance, as a multiple of each field's own vanilla value.
+# Geometry grows with the cube of the radius, so 2x is roughly 8x the rocks.
+DRAWDIST_CHOICES = [1, 1.25, 1.5, 2]
 
 REVEALED = 1  # story put it on the nav map; the player has never docked there
 
@@ -417,7 +422,8 @@ const $ = s => document.querySelector(s);
 const extended = { visits: false, wrecks: false };
 // Which house headings are folded, per tab, same reasoning as the checkbox.
 const collapsed = { visits: {}, wrecks: {} };
-let latest = null, speed = null, thrusters = null, lane = null, tab = 'visits';
+let latest = null, speed = null, thrusters = null, lane = null,
+    draw = null, tab = 'visits';
 
 // DPS tab. `catalogue` is the game's own data, fetched once because it cannot
 // change while the page is open; `loadout` is the player's pick, held as
@@ -635,6 +641,39 @@ async function setLane(body) {
       body: JSON.stringify(body),
     });
     if (r.ok) { lane = await r.json(); render(); }
+  } catch (e) { /* leave the buttons as they were */ }
+}
+
+function renderDrawDist() {
+  const d = draw;
+  if (!d) return '';
+  if (d.error) return '<h2 class="house">Asteroid draw distance</h2>' +
+    `<p class="note warn">${esc(d.error)}</p>`;
+  const msg = d.message ? `<p class="note">${esc(d.message)}</p>` : '';
+  const buttons = d.choices.map(v =>
+    `<button data-draw="${v}"${Math.abs(d.factor - v) < 0.02 ? ' class="on"' : ''}>` +
+    `${v}x</button>`).join('');
+  return '<h2 class="house">Asteroid draw distance</h2>' +
+    `<p class="note">${d.fields} fields, median <b>${d.median}</b> against a
+     vanilla ${d.vanilla}. This is a file change, so it lands the next time a
+     system loads, and each field is scaled from its own vanilla value rather
+     than from wherever it is now, so pressing 1.5x twice is still 1.5x.</p>` +
+    `<p class="note">Rocks fill a sphere, so 2x the distance is about 8x the
+     geometry on a single-threaded 2003 renderer. Billboards are deliberately
+     left alone: they are scattered independently of the real rocks, which is
+     why a sprite vanishes and a rock turns up somewhere else, and adding more
+     of them makes that worse rather than better.</p>` +
+    `<div class="speeds">${buttons}</div>` + msg;
+}
+
+async function setDraw(body) {
+  document.querySelectorAll('.speeds button').forEach(b => b.disabled = true);
+  try {
+    const r = await fetch('api/drawdist', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) { draw = await r.json(); render(); }
   } catch (e) { /* leave the buttons as they were */ }
 }
 
@@ -891,12 +930,18 @@ function render() {
   if (live) {
     $('#sub').textContent = 'live speed of the running game';
     $('#list').innerHTML =
-      renderSpeed() + renderThrusters() + renderTradeLane() + renderPersist();
+      renderSpeed() + renderThrusters() + renderTradeLane() +
+      renderDrawDist() + renderPersist();
     // Every button in a .speeds row is told apart by the data it carries: a
     // thruster names its thruster, a lane button names its speed, a cruise
     // button carries neither. The two by-id buttons are bound separately.
     document.querySelectorAll('.speeds button').forEach(b => {
       if (b.id === 'persist' || b.id === 'uncap' || b.id === 'instant') return;
+      if (b.dataset.draw) {
+        b.addEventListener('click',
+          () => setDraw({ factor: Number(b.dataset.draw) }));
+        return;
+      }
       b.addEventListener('click', () => {
         if (b.dataset.lane) setLane({ value: Number(b.dataset.lane) });
         else if (b.dataset.ids)
@@ -939,14 +984,16 @@ async function poll() {
   // seconds would burn real CPU to refresh a panel nobody has open.
   try {
     if (tab === 'speed') {
-      const [a, b, c] = await Promise.all([
+      const [a, b, c, e] = await Promise.all([
         fetch('api/speed', { cache: 'no-store' }),
         fetch('api/thrusters', { cache: 'no-store' }),
-        fetch('api/tradelane', { cache: 'no-store' })
+        fetch('api/tradelane', { cache: 'no-store' }),
+        fetch('api/drawdist', { cache: 'no-store' })
       ]);
       if (a.ok) { const s = await a.json(); speed = { ...s, message: speed && speed.message }; }
       if (b.ok) { const s = await b.json(); thrusters = { ...s, message: thrusters && thrusters.message }; }
       if (c.ok) { const s = await c.json(); lane = { ...s, message: lane && lane.message }; }
+      if (e.ok) { const s = await e.json(); draw = { ...s, message: draw && draw.message }; }
     }
   } catch (e) { /* the game went away; keep showing the last good state */ }
   render();
@@ -991,8 +1038,31 @@ def make_handler(game, save_path):
                 self._send_thrusters()
             elif path == "/api/tradelane":
                 self._send_tradelane()
+            elif path == "/api/drawdist":
+                self._send_drawdist()
             else:
                 self._send(404, b"not found", "text/plain")
+
+        def _send_drawdist(self, message=None):
+            """Where asteroid fields currently start being real rocks."""
+            body = {"choices": DRAWDIST_CHOICES, "factor": None, "fields": 0,
+                    "median": None, "vanilla": None,
+                    "error": None, "message": message}
+            try:
+                rows = dd.survey(game.dir)
+                if rows:
+                    base = sorted(r[1] for r in rows)
+                    now = sorted(r[2] for r in rows)
+                    mid = len(rows) // 2
+                    body["fields"] = len(rows)
+                    body["vanilla"] = round(base[mid])
+                    body["median"] = round(now[mid])
+                    # One number for the whole set only makes sense because
+                    # every field is scaled from its own vanilla value.
+                    body["factor"] = round(now[mid] / base[mid], 3)
+            except (dd.WriteFailed, OSError) as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
 
         def _send_tradelane(self, message=None):
             """Trade lane speed and the HUD's own ceiling, or why not."""
@@ -1052,6 +1122,26 @@ def make_handler(game, save_path):
                 except (sp.NotRunning, pe.WriteFailed, OSError) as exc:
                     body = {"ok": False, "message": str(exc)}
                 self._send(200, json.dumps(body).encode("utf-8"), "application/json")
+                return
+            if path == "/api/drawdist":
+                try:
+                    size = int(self.headers.get("Content-Length") or 0)
+                    sent = json.loads(self.rfile.read(size) or b"{}")
+                    with lock:
+                        if sent.get("restore"):
+                            note = f"{dd.restore(game.dir)} fields back to vanilla"
+                        else:
+                            factor = float(sent["factor"])
+                            n = dd.apply(factor, game.dir)
+                            note = (f"{n} fields scaled to {factor:g}x; takes "
+                                    "effect the next time a system loads")
+                    self._send_drawdist(message=note)
+                except (ValueError, KeyError, TypeError, dd.WriteFailed, OSError) as exc:
+                    body = {"choices": DRAWDIST_CHOICES, "factor": None,
+                            "fields": 0, "median": None, "vanilla": None,
+                            "error": str(exc), "message": None}
+                    self._send(200, json.dumps(body).encode("utf-8"),
+                               "application/json")
                 return
             if path == "/api/tradelane":
                 try:

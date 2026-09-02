@@ -85,6 +85,22 @@ replaces atomically after checking the result decodes back to what was intended.
 Trade lane speed and the HUD cap are **not** written to files, because they are
 not in files to begin with.
 
+**Asteroid draw distance** scales `[Field] fill_dist` across the 153 field
+definitions in `DATA/SOLAR/ASTEROIDS/`. Vanilla runs 1000 to 2500 with a median
+of 1400, which is why a field reads as empty until you are nearly inside it. A
+file change, so it lands the next time a system loads, backed up to `.vanilla`
+and restorable.
+
+Each field scales from **its own vanilla value, not from wherever it is now**,
+so pressing 1.5x twice is still 1.5x rather than 2.25x.
+
+Two things worth knowing before turning it up. Rocks fill a sphere, so 2x the
+distance is roughly 8x the geometry, from a median 385 filled cubes to 3077, on
+a single-threaded 2003 renderer. And the billboards are deliberately left alone:
+`[AsteroidBillboards]` is a few hundred sprites scattered independently of the
+`[Cube]` grid that places the real rocks, which is why a sprite winks out and a
+rock appears somewhere else. More sprites makes that worse, not better.
+
 **DPS** adds up as many weapons as you like and shows what they do per second,
 hull and shield side by side. `+ Add weapon` opens a search box over the 247
 guns a ship can carry; the picks survive a reload. It needs neither a save nor
