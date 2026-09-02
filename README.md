@@ -175,8 +175,8 @@ each tab remembers its own folds and its own checkbox.
 
 **Coordinates** are the nav map cell and roughly where in it, `E6 C` or
 `D6 UR`, the same notation the guides use. Wrecks carry them, and so do the
-bases you have not docked at yet, revealed and unknown alike; docked ones stay
-a plain comma-separated run, since you have already been there. The cell is reliable. The `UR`/`C`
+unknown bases. Docked and revealed stay plain comma-separated runs: one you
+have flown to, the other the story has already marked on your nav map. The cell is reliable. The `UR`/`C`
 part is a hint: it agrees with the GameFAQs wrecks FAQ about three times in
 four, which is as well as two people eyeballing "upper right" ever agree.
 

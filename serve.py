@@ -507,9 +507,10 @@ function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt
 
 function line(cls, tag, items, withAt) {
   if (!items.length) return '';
-  // Docked bases stay a comma-separated run: you have been there and the
-  // coordinate is no use. The two you have not visited get one line each so
-  // the cell is readable beside the name.
+  // Only the unknown bucket gets coordinates, one base per line. Docked and
+  // revealed stay comma-separated runs: docked you have flown to already, and
+  // revealed the story has put on your nav map, so both are findable without
+  // a cell reference and the extra column would only make the card taller.
   const body = withAt
     ? '<span class="atlist">' + items.map(b =>
         `<span class="atrow"><span class="cell">${esc(b.at)}</span>` +
@@ -561,7 +562,7 @@ function renderVisits(d) {
   if (!rows.length) return '<p class="empty">Nothing docked at yet.</p>';
   return byHouse(d, rows,
     s => card(s.system, s.docked.length, s.total, s.percent,
-      line('d', 'docked', s.docked) + line('r', 'revealed', s.revealed, true) +
+      line('d', 'docked', s.docked) + line('r', 'revealed', s.revealed) +
       (ext ? line('u', 'unknown', s.unknown, true) : '')),
     rs => [rs.reduce((n, s) => n + s.docked.length, 0),
            rs.reduce((n, s) => n + s.total, 0)]);
