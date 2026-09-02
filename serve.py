@@ -275,6 +275,7 @@ PAGE = """<!doctype html>
               font-variant-numeric: tabular-nums; }
   .gun .num.h { color: var(--docked); }
   .gun .num.s { color: var(--revealed); }
+  .gun .num.e { color: #58a6ff; }
   .gun .rf { flex: none; width: 4.5rem; text-align: right; color: var(--dim);
              font-size: .8rem; font-variant-numeric: tabular-nums; }
   .gun .kill { flex: none; background: none; border: none; color: var(--dim);
@@ -310,6 +311,7 @@ PAGE = """<!doctype html>
                    border: 1px solid var(--line); border-radius: 8px; font: inherit;
                    font-size: .85rem; padding: .35rem .8rem; }
   .logbar button:hover { border-color: var(--docked); }
+  .logbar button.on { color: var(--docked); border-color: var(--docked); }
   .logbar .count { color: var(--dim); font-size: .85rem; margin-left: auto; }
   .entry { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
            padding: .85rem 1.1rem; margin-bottom: .5rem; }
@@ -427,7 +429,7 @@ function saveLoadout() {
 // duplicates up from the oldest end precisely so these do not slide onto the
 // wrong line when the game writes a new entry at the top. Newest first is the
 // default because that is the end the game appends to.
-let logNewestFirst = true;
+let logNewestFirst = true, logPersonalOnly = false;
 let marks = { star: {}, read: {} };
 try {
   const held = JSON.parse(localStorage.getItem('fl.netlog') || '{}');
@@ -638,19 +640,19 @@ function renderDPS() {
   let out = '';
 
   if (chosen.length) {
+    const col = (v, cls) => `<span class="num ${cls}">${v.toFixed(1)}</span>`;
     out += '<div class="gunhead"><span class="nm">weapon</span>' +
            '<span class="num">hull dps</span><span class="num">shield dps</span>' +
            '<span class="rf">refire</span><span class="pad"></span></div>' +
       chosen.map((w, i) =>
         `<div class="gun"><span class="nm">${esc(w.name)}` +
         (w.turret ? ' <span class="loot">turret</span>' : '') + '</span>' +
-        `<span class="num h">${w.hull_dps.toFixed(1)}</span>` +
-        `<span class="num s">${w.shield_dps.toFixed(1)}</span>` +
+        col(w.hull_dps, 'h') + col(w.shield_dps, 's') +
         `<span class="rf">${w.refire.toFixed(2)}s</span>` +
         `<button class="kill" data-drop="${i}" title="remove">&times;</button></div>`).join('') +
       `<div class="gun sum"><span class="nm">${chosen.length} mounted</span>` +
-      `<span class="num h">${chosen.reduce((a, w) => a + w.hull_dps, 0).toFixed(1)}</span>` +
-      `<span class="num s">${chosen.reduce((a, w) => a + w.shield_dps, 0).toFixed(1)}</span>` +
+      col(chosen.reduce((a, w) => a + w.hull_dps, 0), 'h') +
+      col(chosen.reduce((a, w) => a + w.shield_dps, 0), 's') +
       '<span class="rf"></span><span class="pad"></span></div>';
   } else {
     out += '<p class="empty">Nothing mounted. Add a weapon to see what it does.</p>';
@@ -712,14 +714,20 @@ function wireDPS() {
 }
 
 function renderLog(d) {
-  const rows = logNewestFirst ? d.log : d.log.slice().reverse();
-  if (!rows.length) return '<p class="empty">The log is empty.</p>';
+  const all = logNewestFirst ? d.log : d.log.slice().reverse();
+  const rows = logPersonalOnly ? all.filter(e => e.personal) : all;
+  const personal = all.filter(e => e.personal).length;
+  if (!all.length) return '<p class="empty">The log is empty.</p>';
   const starred = rows.filter(e => marks.star[e.key]).length;
   const read = rows.filter(e => marks.read[e.key]).length;
   return '<div class="logbar">' +
     `<button id="logsort">${logNewestFirst ? 'Newest first' : 'Oldest first'}</button>` +
-    `<span class="count">${rows.length} entries · ${starred} interesting · ` +
-    `${read} read</span></div>` +
+    `<button id="logpersonal" class="${logPersonalOnly ? 'on' : ''}">` +
+    `${logPersonalOnly ? '✓ ' : ''}Personal only (${personal})</button>` +
+    `<span class="count">${rows.length}` +
+    (logPersonalOnly ? ` of ${all.length}` : '') +
+    ` entries · ${starred} interesting · ${read} read</span></div>` +
+    (rows.length ? '' : '<p class="empty">No personal entries yet.</p>') +
     rows.map(e => {
       const star = !!marks.star[e.key], done = !!marks.read[e.key];
       const cls = ['entry', star ? 'star' : '', done ? 'read' : ''].filter(Boolean).join(' ');
@@ -739,6 +747,11 @@ function wireLog() {
   const sort = $('#logsort');
   if (sort) sort.addEventListener('click', () => {
     logNewestFirst = !logNewestFirst;
+    render();
+  });
+  const only = $('#logpersonal');
+  if (only) only.addEventListener('click', () => {
+    logPersonalOnly = !logPersonalOnly;
     render();
   });
   const flip = (which, key) => {

@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import flvisits as fl  # noqa: E402
 
 LINE = re.compile(r"^\s*log\s*=\s*([^\n]+)$", re.M)
+PERSONAL = "*PERSONAL ENTRY"  # the game's own heading on the pilot's diary
 
 
 def raw_lines(save_text):
@@ -94,11 +95,16 @@ def entries(save_text, names):
                 continue
             if filled not in subs:
                 subs.append(filled)
+        body = text or f"(no text for id {nums[0]})"
         out.append({
             "key": key,
             "ids": nums[0],
-            "text": text or f"(no text for id {nums[0]})",
+            "text": body,
             "known": text is not None,
+            # The pilot's own diary, 66 of the 113 entries in a mid-campaign
+            # save. The game marks them itself with this heading, so this reads
+            # a label rather than guessing from the prose.
+            "personal": body.lstrip().upper().startswith(PERSONAL),
             "subs": subs,
         })
     return out

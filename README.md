@@ -54,12 +54,27 @@ shield side by side. `+ Add weapon` opens a search box over the 247 guns a ship
 can carry; the picks survive a reload. It needs neither a save nor a running
 game, since it is reading the game's own equipment files.
 
-The two columns are the split the game itself makes, not the same number twice.
-A laser does 19.6 hull and 0 shield per shot; a pulse gun does 10.1 hull and 303
-shield, which is what makes pulse weapons the anti-shield ones. Station and
-battleship fixtures are left out: 190 of the 437 damaging guns cannot be mounted
-on a ship, and they are where the confusing name clashes live, five different
-guns called "Battleship Defense Turret" from 82 to 1060 DPS.
+Shield damage per shot is `hull_damage x 0.5 + energy_damage`, where the 0.5 is
+`HULL_DAMAGE_FACTOR` from `constants.ini`, read from the file rather than
+assumed. Checked against five dealer screens, all matching to the integer the
+game prints:
+
+| weapon | hull | shield | game says |
+|---|---|---|---|
+| Adv. Starbeam | 18.4 | 18.4 x 0.5 + 0 = 9.2 | 18 / 9 |
+| Heavy Starbeam | 22.4 | 22.4 x 0.5 + 0 = 11.2 | 22 / 11 |
+| Adv. Skyrail | 121.2 | 121.2 x 0.5 + 0 = 60.6 | 121 / 60 |
+| Stunpulse | 4.6 | 4.6 x 0.5 + 153 = 155.3 | 4 / 155 |
+| Adv. Stunpulse | 5.6 | 5.6 x 0.5 + 186.8 = 189.6 | 5 / 189 |
+
+The game truncates for display. Both terms are needed: `energy_damage` alone
+gives 153 and 186 for the Stunpulses, and hull alone gives 2.3 for a weapon
+sold as an anti-shield gun. Note that "Energy Usage" on the dealer screen is a
+third field, `power_usage`, which is what a shot costs your own ship.
+
+Station and battleship fixtures are left out: 190 of the 437 damaging guns
+cannot be mounted on a ship, and they are where the confusing name clashes live,
+five different guns called "Battleship Defense Turret" from 82 to 1060 DPS.
 
 The figures are the weapon's own. Freelancer also carries a weapon-type against
 shield-type table in `weaponmoddb.ini`, worth 0.8 to 1.2, and this deliberately
@@ -70,6 +85,8 @@ happens to be flying.
 interesting or read; the marks live in your browser and survive reloads. Sorting
 is newest first with a button to flip it, and there is **no date column, because
 the save holds no dates** at all, only the order the entries were written in.
+*Personal only* narrows it to the pilot's diary, which the game heads with
+`*PERSONAL ENTRY`, 66 of the 113 entries in a mid-campaign save.
 
 ## What the numbers mean
 
