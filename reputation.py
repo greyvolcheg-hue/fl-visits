@@ -133,6 +133,21 @@ def load_model(game_dir=None):
         # the nickname rather than showing nothing.
         names[key] = label.strip() or key
 
+    # Three display names are worn by two factions each: li_n_grp and fc_ln_grp
+    # are both "Liberty Navy", and the same for Kusari Naval Forces and
+    # Rheinland Military. The `fc_` ones are the encounter factions and sit far
+    # lower than the house navy the player actually deals with, so an
+    # undecorated list sorted by standing puts the wrong "Liberty Navy" on top
+    # and the reading is nonsense against what the game shows. Tag the
+    # nickname on, but only where the name is genuinely ambiguous.
+    seen = {}
+    for key, label in names.items():
+        seen.setdefault(label, []).append(key)
+    for label, keys in seen.items():
+        if len(keys) > 1:
+            for key in keys:
+                names[key] = f"{label} ({key})"
+
     legality = {}
     prop = fl.ipath(fl.ipath(data_dir, "MISSIONS"), "faction_prop.ini")
     for section, pairs in wr.read_multi(prop):
