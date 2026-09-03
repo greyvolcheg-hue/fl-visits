@@ -300,6 +300,10 @@ PAGE = """<!doctype html>
   .repline { display: grid; gap: .5rem; padding: .15rem 0; font-size: .85rem;
              grid-template-columns: minmax(12rem, 1fr) 4.5rem 4.5rem 4.5rem; }
   .repline .nm { color: var(--dim); }
+  .repline span:not(.nm) { text-align: right; }
+  .rephead { color: var(--dim); font-size: .7rem; text-transform: uppercase;
+             letter-spacing: .05em; padding-bottom: .1rem; }
+  .rephead .nm { text-align: left; }
   .reppick { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1rem; }
   .reppick select { background: var(--card); color: var(--text); font: inherit;
                     border: 1px solid var(--line); border-radius: 8px;
@@ -1008,7 +1012,10 @@ function renderRep() {
       const gain = r.collateral.filter(c => c.change > 0);
       const worst = loss.length
         ? ` ${esc(loss[0].name)} ${loss[0].change.toFixed(3)}` : '';
-      const body = repOpen[i] ? '<div class="repwhy">' + r.collateral.map(c =>
+      const body = repOpen[i] ? '<div class="repwhy">' +
+        '<span class="repline rephead"><span class="nm">also moves</span>' +
+        '<span>now</span><span>after</span><span>change</span></span>' +
+        r.collateral.map(c =>
         `<span class="repline"><span class="nm">${esc(c.name)}` +
         (c.pinned ? ' <span class="loot">pinned</span>' : '') + '</span>' +
         `<span class="num raw">${c.before >= 0 ? '+' : ''}${c.before.toFixed(3)}</span>` +
