@@ -141,6 +141,23 @@ shield-type table in `weaponmoddb.ini`, worth 0.8 to 1.2, and this deliberately
 ignores it: putting it in would make every number depend on what the target
 happens to be flying.
 
+**Reputation** answers what to actually do about a faction. Pick one and a
+target standing, enemy (-0.5), neutral (0) or friend (+0.5), and it lists every
+repeatable action that moves it the right way, with how many times. All of them,
+never truncated: "1400 kills" is a real answer and a cut-off list would hide it.
+
+Each row also says what the run costs elsewhere, because a plan to fix one
+standing is a plan to wreck several others. `+n/-n` counts the factions it helps
+and hurts and names the worst loss; clicking the row lists every faction it
+moves, before and after, with the ones pinned at the +/-0.9 bound marked.
+
+The model is `DATA/MISSIONS/empathy.ini`: an action against a faction moves your
+standing with it by that event's delta and with everyone else by
+`delta x empathy_rate`. All four events are scored, 55 factions x 4 = 220
+actions, and the abort rows are not filler: aborting a mission for an enemy of
+your target raises your standing with the target, since abortion is negative to
+the faction offering it and the empathy rate between enemies is negative too.
+
 **Neural Net** is the in-game log, readable while you fly. Mark an entry
 interesting or read; the marks live in your browser and survive reloads. Sorting
 is newest first with a button to flip it, and there is **no date column, because

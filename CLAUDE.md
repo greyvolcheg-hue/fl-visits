@@ -16,7 +16,8 @@ system. Own git repo; the history in this folder is the undo button.
 | `drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
 | `weapons.py` | gun and munition stats turned into DPS, static game data |
 | `netlog.py` | the Neural Net log out of a save, as readable text |
-| `serve.py` | local web view on 127.0.0.1:8731, five tabs |
+| `reputation.py` | the empathy model: what an action does to every faction |
+| `serve.py` | local web view on 127.0.0.1:8731, six tabs |
 | `run.sh` | start the server and open a browser on it |
 
 Everything new goes in its own file. `flvisits.py` supplies the primitives;

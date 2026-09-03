@@ -28,6 +28,7 @@ import flvisits as fl  # noqa: E402
 import navmap  # noqa: E402
 import netlog as nl  # noqa: E402
 import persist as pe  # noqa: E402
+import reputation as rep  # noqa: E402
 import speed as sp  # noqa: E402
 import thrusters as th  # noqa: E402
 import tradelane as tl  # noqa: E402
@@ -143,6 +144,9 @@ class GameData:
         # Static: no save and no running game needed, so the DPS tab works with
         # Freelancer closed.
         self.weapons = wp.load_weapons(game_dir)
+        # The empathy table never changes; only the player's own
+        # standings come from the save, and those are read per request.
+        self.repmodel = rep.load_model(game_dir)
 
     def label(self, ids, fallback):
         try:
@@ -286,6 +290,21 @@ PAGE = """<!doctype html>
      line up without every cell carrying a hardcoded width. */
   .guns { overflow-x: auto; }
   .guntable { min-width: 46rem; }
+  .reptable { min-width: 42rem; }
+  .reptable .gun, .reptable .gunhead {
+    grid-template-columns: minmax(14rem, 1fr) 5rem 4rem 14rem; }
+  .reprow { cursor: pointer; }
+  .reprow:hover { border-color: var(--docked); }
+  .repwhy { margin: -.2rem 0 .5rem 1rem; padding-left: .9rem;
+            border-left: 2px solid var(--line); }
+  .repline { display: grid; gap: .5rem; padding: .15rem 0; font-size: .85rem;
+             grid-template-columns: minmax(12rem, 1fr) 4.5rem 4.5rem 4.5rem; }
+  .repline .nm { color: var(--dim); }
+  .reppick { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .reppick select { background: var(--card); color: var(--text); font: inherit;
+                    border: 1px solid var(--line); border-radius: 8px;
+                    padding: .45rem .7rem; }
+  .reppick select:focus { outline: none; border-color: var(--docked); }
   .gun, .gunhead {
     display: grid; align-items: baseline; gap: .5rem;
     grid-template-columns: minmax(9rem, 1fr) repeat(2, 4.2rem) repeat(2, 5rem)
@@ -411,6 +430,7 @@ PAGE = """<!doctype html>
     <button class="tab" data-tab="speed">Speed</button>
     <button class="tab" data-tab="dps">DPS</button>
     <button class="tab" data-tab="log">Neural Net</button>
+    <button class="tab" data-tab="rep">Reputation</button>
   </nav>
   <div class="totals" id="totals"></div>
   <div class="controls" id="togglewrap">
@@ -461,6 +481,12 @@ function saveLoadout() {
 // default because that is the end the game appends to.
 let logNewestFirst = true, logPersonalOnly = false;
 
+// Reputation tab. `repData` is whatever the server last worked out; `repOpen`
+// is which action rows have their collateral expanded, by index, because the
+// damage a plan does is the half people skip and it has to be one click away.
+let repData = null, repTarget = '', repGoal = 'neutral';
+const repOpen = {};
+
 // The write-to-files button on the Speed tab. Not remembered anywhere: it
 // reports the last press and nothing more.
 let persistBusy = false, persistOk = false, persistMsg = null;
@@ -509,6 +535,7 @@ document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () =>
   // The live tab is only polled while it is open, so opening it has to ask.
   if (tab === 'speed') poll();
   if (tab === 'dps') loadCatalogue();
+  if (tab === 'rep' && !repData) loadRep();
 }));
 
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -946,6 +973,93 @@ async function loadCatalogue() {
   } catch (e) { /* the tab shows its loading line until this succeeds */ }
 }
 
+function renderRep() {
+  const d = repData;
+  if (!d) return '<p class="empty">reading the save…</p>';
+  if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
+
+  const opts = d.factions.map(f =>
+    `<option value="${esc(f.nickname)}"${f.nickname === repTarget ? ' selected' : ''}>` +
+    `${esc(f.name)} (${f.current >= 0 ? '+' : ''}${f.current.toFixed(2)})</option>`).join('');
+  const goals = d.goals.map(g =>
+    `<option value="${g}"${g === repGoal ? ' selected' : ''}>${g}</option>`).join('');
+  let out = '<div class="reppick">' +
+    `<select id="reptarget"><option value="">pick a faction…</option>${opts}</select>` +
+    `<select id="repgoal">${goals}</select></div>`;
+
+  if (!d.target) return out + '<p class="empty">Pick a faction and a target standing.</p>';
+
+  const head = `<p class="note">${esc(nameOf(d, d.target))} is at ` +
+    `<b>${d.current >= 0 ? '+' : ''}${d.current.toFixed(4)}</b>, ` +
+    `you want <b>${d.goal}</b>. Gap ${d.needed >= 0 ? '+' : ''}${d.needed.toFixed(4)}.</p>`;
+  if (!d.rows.length)
+    return out + head + '<p class="empty">Already there. Nothing to do.</p>';
+
+  out += head + `<p class="note">${d.rows.length} of 220 repeatable actions move it
+    the right way, all listed. The count is rounded up, so the last one takes you
+    past the goal rather than onto it. <b>+n/-n</b> is how many other factions the
+    run helps and hurts; click a row for the full list.</p>`;
+
+  out += '<div class="guns"><div class="reptable">' +
+    '<div class="gunhead"><span class="nm">action</span><span>each</span>' +
+    '<span>times</span><span>others</span></div>' +
+    d.rows.map((r, i) => {
+      const loss = r.collateral.filter(c => c.change < 0);
+      const gain = r.collateral.filter(c => c.change > 0);
+      const worst = loss.length
+        ? ` ${esc(loss[0].name)} ${loss[0].change.toFixed(3)}` : '';
+      const body = repOpen[i] ? '<div class="repwhy">' + r.collateral.map(c =>
+        `<span class="repline"><span class="nm">${esc(c.name)}` +
+        (c.pinned ? ' <span class="loot">pinned</span>' : '') + '</span>' +
+        `<span class="num raw">${c.before >= 0 ? '+' : ''}${c.before.toFixed(3)}</span>` +
+        `<span class="num raw">${c.after >= 0 ? '+' : ''}${c.after.toFixed(3)}</span>` +
+        `<span class="num ${c.change < 0 ? 's' : 'h'}">` +
+        `${c.change >= 0 ? '+' : ''}${c.change.toFixed(3)}</span></span>`).join('')
+        + '</div>' : '';
+      return `<div class="gun reprow" data-row="${i}">` +
+        `<span class="nm">${esc(r.event_label)} &middot; ${esc(r.doer_name)}` +
+        (r.legality ? ` <span class="loot">${esc(r.legality)}</span>` : '') + '</span>' +
+        `<span class="num raw">${r.effect >= 0 ? '+' : ''}${r.effect.toFixed(4)}</span>` +
+        `<span class="num h">${r.repeats}</span>` +
+        `<span class="num raw">+${gain.length}/-${loss.length}${worst}</span>` +
+        '</div>' + body;
+    }).join('') + '</div></div>';
+  return out;
+}
+
+function nameOf(d, nick) {
+  const f = d.factions.find(x => x.nickname === nick);
+  return f ? f.name : nick;
+}
+
+async function loadRep() {
+  const q = repTarget ? `?to=${encodeURIComponent(repTarget)}&goal=${repGoal}` : '';
+  try {
+    const r = await fetch('api/reputation' + q, { cache: 'no-store' });
+    if (r.ok) { repData = await r.json(); render(); }
+  } catch (e) { /* the tab keeps its loading line */ }
+}
+
+function wireRep() {
+  const t = $('#reptarget'), g = $('#repgoal');
+  if (t) t.addEventListener('change', e => {
+    repTarget = e.target.value;
+    for (const k in repOpen) delete repOpen[k];
+    loadRep();
+  });
+  if (g) g.addEventListener('change', e => {
+    repGoal = e.target.value;
+    for (const k in repOpen) delete repOpen[k];
+    loadRep();
+  });
+  document.querySelectorAll('.reprow').forEach(b =>
+    b.addEventListener('click', () => {
+      const i = b.dataset.row;
+      repOpen[i] = !repOpen[i];
+      render();
+    }));
+}
+
 function render() {
   // The Speed tab reads the running process rather than the save, so it carries
   // neither the totals row nor the Show All box. Cruise and thrusters live on it
@@ -956,6 +1070,14 @@ function render() {
   const bare = live || tab === 'dps' || tab === 'log';
   $('#totals').hidden = bare;
   $('#togglewrap').hidden = bare;
+  if (tab === 'rep') {
+    $('#totals').hidden = true;
+    $('#togglewrap').hidden = true;
+    $('#sub').textContent = 'what it takes to change how a faction feels';
+    $('#list').innerHTML = renderRep();
+    wireRep();
+    return;
+  }
   if (tab === 'dps') {
     $('#sub').textContent = 'damage per second, from the weapon stats alone';
     $('#list').innerHTML = renderDPS();
@@ -1076,10 +1198,42 @@ def make_handler(game, save_path):
                 self._send_thrusters()
             elif path == "/api/tradelane":
                 self._send_tradelane()
+            elif path == "/api/reputation":
+                self._send_reputation()
             elif path == "/api/drawdist":
                 self._send_drawdist()
             else:
                 self._send(404, b"not found", "text/plain")
+
+        def _send_reputation(self):
+            """The faction list, or a worked plan when one is asked for."""
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            body = {"goals": sorted(rep.GOALS), "factions": [],
+                    "target": None, "goal": None, "current": None,
+                    "needed": None, "rows": [], "error": None}
+            try:
+                with lock:
+                    reps = rep.player_reps(fl.decode_save(save_path))
+                    model = game.repmodel
+                events, empathy, names, legality = model
+                body["factions"] = sorted(
+                    ({"nickname": k, "name": names.get(k, k),
+                      "legality": legality.get(k, ""),
+                      "current": round(reps.get(k, 0.0), 4)}
+                     for k in events),
+                    key=lambda f: f["name"])
+                want = (query.get("to") or [None])[0]
+                goal = (query.get("goal") or ["neutral"])[0]
+                if want and want.lower() in events and goal in rep.GOALS:
+                    current, needed, rows = rep.plan(
+                        want.lower(), rep.GOALS[goal], reps, *model)
+                    body.update(target=want.lower(), goal=goal,
+                                current=round(current, 4),
+                                needed=round(needed, 4), rows=rows)
+            except (OSError, ValueError, KeyError) as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
 
         def _send_drawdist(self, message=None):
             """Where asteroid fields currently start being real rocks."""
