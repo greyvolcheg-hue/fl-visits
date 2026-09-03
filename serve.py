@@ -997,8 +997,8 @@ function renderRep() {
   if (!d.target) return out + '<p class="empty">Pick a faction and a target standing.</p>';
 
   const head = `<p class="note">${esc(nameOf(d, d.target))} is at ` +
-    `<b>${d.current >= 0 ? '+' : ''}${d.current.toFixed(4)}</b>, ` +
-    `you want <b>${d.goal}</b>. Gap ${d.needed >= 0 ? '+' : ''}${d.needed.toFixed(4)}.</p>`;
+    `<b>${d.current >= 0 ? '+' : ''}${d.current.toFixed(2)}</b>, ` +
+    `you want <b>${d.goal}</b>. Gap ${d.needed >= 0 ? '+' : ''}${d.needed.toFixed(2)}.</p>`;
   if (!d.rows.length)
     return out + head + '<p class="empty">Already there. Nothing to do.</p>';
 
@@ -1018,22 +1018,26 @@ function renderRep() {
       // Spelled out. Read as "+2/-21 Bretonia -0.280" the middle number looks
       // like it belongs to the name, and the owner read a fall as a rise.
       const worst = loss.length
-        ? `, worst hit ${esc(loss[0].name)} ${loss[0].change.toFixed(3)}` : '';
+        ? `, worst hit ${esc(loss[0].name)} ${loss[0].change.toFixed(2)}` : '';
       const body = repOpen[i] ? '<div class="repwhy">' +
         '<span class="repline rephead"><span class="nm">also moves</span>' +
         '<span>now</span><span>after</span><span>change</span></span>' +
         r.collateral.map(c =>
         `<span class="repline"><span class="nm">${esc(c.name)}` +
         (c.pinned ? ' <span class="loot">pinned</span>' : '') + '</span>' +
-        `<span class="num raw">${c.before >= 0 ? '+' : ''}${c.before.toFixed(3)}</span>` +
-        `<span class="num raw">${c.after >= 0 ? '+' : ''}${c.after.toFixed(3)}</span>` +
+        `<span class="num raw">${c.before >= 0 ? '+' : ''}${c.before.toFixed(2)}</span>` +
+        `<span class="num raw">${c.after >= 0 ? '+' : ''}${c.after.toFixed(2)}</span>` +
         `<span class="num ${c.change < 0 ? 's' : 'h'}">` +
-        `${c.change >= 0 ? '+' : ''}${c.change.toFixed(3)}</span></span>`).join('')
+        `${c.change >= 0 ? '+' : ''}${c.change.toFixed(2)}</span></span>`).join('')
         + '</div>' : '';
       return `<div class="gun reprow" data-row="${i}">` +
         `<span class="nm">${esc(r.event_label)} &middot; ${esc(r.doer_name)}` +
         (r.bartenders ? ` <span class="loot">${r.bartenders} bars</span>` : '') +
         (r.legality ? ` <span class="loot">${esc(r.legality)}</span>` : '') + '</span>' +
+        // Standings round to two, but not this: 18 of the 69 Corsair rows are
+        // worth under 0.005 a go and would all read +0.00, turning "142 times"
+        // into nonsense. The small numbers here are the whole reason the repeat
+        // counts are large.
         `<span class="num raw">${r.effect >= 0 ? '+' : ''}${r.effect.toFixed(4)}</span>` +
         `<span class="num h">${r.price ? r.price.toLocaleString() + ' cr' : r.repeats}</span>` +
         `<span class="others">${gain.length} up, ${loss.length} down${worst}</span>` +
