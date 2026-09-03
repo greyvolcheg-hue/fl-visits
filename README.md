@@ -146,8 +146,10 @@ shield-type table in `weaponmoddb.ini`, worth 0.8 to 1.2, and this deliberately
 ignores it: putting it in would make every number depend on what the target
 happens to be flying.
 
-**Reputation** answers what to actually do about a faction. Pick one and a
-target standing, enemy (-0.5), neutral (0) or friend (+0.5), and it lists every
+**Reputation** answers what to actually do about a faction. The dropdown is
+ordered by how each one currently feels about you, worst first, since the
+faction worth acting on is the one at the bottom rather than the one filed
+under A. Pick one and a target standing, enemy (-0.5), neutral (0) or friend (+0.5), and it lists every
 repeatable action that moves it the right way, with how many times. All of them,
 never truncated: "1400 kills" is a real answer and a cut-off list would hide it.
 
@@ -182,7 +184,9 @@ interesting or read; the marks live in your browser and survive reloads. Sorting
 is newest first with a button to flip it, and there is **no date column, because
 the save holds no dates** at all, only the order the entries were written in.
 *Personal only* narrows it to the pilot's diary, which the game heads with
-`*PERSONAL ENTRY`, 66 of the 113 entries in a mid-campaign save.
+`*PERSONAL ENTRY`, 66 of the 113 entries in a mid-campaign save. **It starts
+on**, since the diary is the half worth reading; untick it for the objective
+lines as well.
 
 ## What the numbers mean
 

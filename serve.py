@@ -496,7 +496,7 @@ function saveLoadout() {
 // duplicates up from the oldest end precisely so these do not slide onto the
 // wrong line when the game writes a new entry at the top. Newest first is the
 // default because that is the end the game appends to.
-let logNewestFirst = true, logPersonalOnly = false;
+let logNewestFirst = true, logPersonalOnly = true;
 
 // Reputation tab. `repData` is whatever the server last worked out; `repOpen`
 // is which action rows have their collateral expanded, by index, because the
@@ -1248,12 +1248,16 @@ def make_handler(game, save_path):
                     reps = rep.player_reps(fl.decode_save(save_path))
                     model = game.repmodel
                 events, empathy, names, legality, _bribes = model
+                # Ordered by standing rather than by name: the faction you
+                # want to do something about is the one at the bottom of the
+                # list of how everyone feels, so it should be the first thing
+                # in the dropdown, not filed under its initial letter.
                 body["factions"] = sorted(
                     ({"nickname": k, "name": names.get(k, k),
                       "legality": legality.get(k, ""),
                       "current": round(reps.get(k, 0.0), 4)}
                      for k in events),
-                    key=lambda f: f["name"])
+                    key=lambda f: (f["current"], f["name"]))
                 want = (query.get("to") or [None])[0]
                 goal = (query.get("goal") or ["neutral"])[0]
                 if want and want.lower() in events and goal in rep.GOALS:
