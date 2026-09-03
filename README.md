@@ -28,13 +28,18 @@ Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
-The web page has five tabs. Visits and Wrecks each have their own state for the
+The web page has six tabs. Visits and Wrecks each have their own state for the
 two checkboxes. *Show all* ticked shows every system, the things still to find,
 and what the wrecks contain; unticked, only progress. *Hide completed* drops the
 systems with nothing left in them, which on Visits means every base docked at
 and on Wrecks means every wreck stripped, so a system whose wrecks are all found
 but not all emptied stays in the list. Both tabs group their systems by house,
 Liberty through Edge Worlds, with a running count per house.
+
+**Both tabs open with both boxes ticked and every house folded**, so the first
+thing on screen is a short list of what is left rather than everything you have
+already done. The folding happens once per tab: open a house and the five-second
+poll will not shut it again.
 
 **Speed** changes the cruise speed of the running game, from 300 to 5000, and
 it applies to the next cruise burn with no reload. It is the one thing here that

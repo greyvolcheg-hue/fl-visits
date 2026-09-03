@@ -442,10 +442,10 @@ PAGE = """<!doctype html>
   <div class="totals" id="totals"></div>
   <div class="controls" id="togglewrap">
     <label class="toggle">
-      <input type="checkbox" id="ext"> <span id="extlabel"></span>
+      <input type="checkbox" id="ext" checked> <span id="extlabel"></span>
     </label>
     <label class="toggle">
-      <input type="checkbox" id="hidedone"> <span id="hidelabel"></span>
+      <input type="checkbox" id="hidedone" checked> <span id="hidelabel"></span>
     </label>
     <span class="groupacts">
       <button id="collapseall">Collapse all</button>
@@ -458,12 +458,22 @@ PAGE = """<!doctype html>
 const $ = s => document.querySelector(s);
 // One checkbox, but its state belongs to the tab, not to the page: what you
 // want expanded on Visits has nothing to do with what you want on Wrecks.
-const extended = { visits: false, wrecks: false };
+const extended = { visits: true, wrecks: true };
 // Per tab, same as the checkbox above it: what counts as finished differs
 // between the two, so remembering one answer for both would be wrong.
-const hideDone = { visits: false, wrecks: false };
+const hideDone = { visits: true, wrecks: true };
 // Which house headings are folded, per tab, same reasoning as the checkbox.
 const collapsed = { visits: {}, wrecks: {} };
+// Everything starts folded, but only once per tab. Doing it on every render
+// would re-fold a house the moment the five-second poll came back, and the
+// page would fight whoever opened it.
+const folded = { visits: false, wrecks: false };
+
+function foldOnFirstSight(d) {
+  if (folded[tab] || !d || !d.house_order) return;
+  folded[tab] = true;
+  d.house_order.forEach(h => { collapsed[tab][h] = true; });
+}
 let latest = null, speed = null, thrusters = null, lane = null,
     draw = null, tab = 'visits';
 
@@ -521,6 +531,7 @@ $('#list').addEventListener('click', e => {
 function foldAll(shut) {
   const d = latest;
   if (!d) return;
+  folded[tab] = true;  // the owner has decided; stop opening on our own
   collapsed[tab] = {};
   if (shut) (d.house_order || []).forEach(h => { collapsed[tab][h] = true; });
   render();
@@ -1150,6 +1161,7 @@ function render() {
   $('#hidelabel').textContent = tab === 'visits'
     ? 'hide systems where every base is docked at'
     : 'hide systems where every wreck is stripped';
+  foldOnFirstSight(d);
   $('#list').innerHTML = tab === 'visits' ? renderVisits(d) : renderWrecks(d);
 }
 
