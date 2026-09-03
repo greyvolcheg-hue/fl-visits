@@ -151,6 +151,20 @@ standing is a plan to wreck several others. `+n/-n` counts the factions it helps
 and hurts and names the worst loss; clicking the row lists every faction it
 moves, before and after, with the ones pinned at the +/-0.9 bound marked.
 
+**Bribes** are in the same list, as a one-purchase row with a price instead of
+a repeat count, plus how many bars will take it. A bribe **sets** your standing
+to 0.6 rather than adding to it, so it never appears once you are already above
+that, buying a second changes nothing, and it is no help when the goal is to be
+hated. 41 of the 55 factions can be bribed at all, at 610 bartenders.
+
+Price is `100000 x (0.6 - current)`, so about 124k for a faction at -0.64 and
+7.6k for one at +0.52. **That rate is derived, not measured.** The `bribe` lines
+in `mbases.ini` all read a flat 10000, all 2386 of them, so the engine computes
+the real figure; flhack's flexible-bribe options price +0.3, -0.6 and -0.4 at
+30000, 60000 and 40000, which agree on 100000 a point. Worth checking against a
+bartender before trusting it to the credit. Bribes spread through empathy like
+anything else, which is why flhack has a costs-double option to switch that off.
+
 The model is `DATA/MISSIONS/empathy.ini`: an action against a faction moves your
 standing with it by that event's delta and with everyone else by
 `delta x empathy_rate`. All four events are scored, 55 factions x 4 = 220

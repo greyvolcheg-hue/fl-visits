@@ -35,6 +35,10 @@ grind pins bystanders at the bound and the collateral figures clamp there.
 Whose numbers are hurt is half the answer. A plan that fixes one standing is
 also a plan to wreck several others, so every action carries what it does to
 everyone else at the repeat count it would actually be performed.
+
+Bribes are in too, as a one-purchase row with a price instead of a repeat
+count. A bribe *sets* your standing to 0.6 rather than adding to it, so it is
+worth nothing above that and buying a second changes nothing. See BRIBE_TO.
 """
 
 import argparse
@@ -48,6 +52,25 @@ import wrecks as wr  # noqa: E402
 
 BOUND = 0.9
 GOALS = {"enemy": -0.5, "neutral": 0.0, "friend": 0.5}
+
+# A bribe SETS your standing to 0.6. It does not add to it, so it is worth
+# nothing once you are already above that, and buying two changes nothing.
+#
+# Established from flhack, not from the game's files, which carry no usable
+# number: the `bribe` lines in `mbases.ini` all read a flat 10000, all 2386 of
+# them, so that is a placeholder and the engine computes the real price.
+# flhack's flexible bribes shift the result by 0.3, -0.6 and -0.4 from a base,
+# landing on the 0.9, 0.0 and 0.2 its own documentation quotes, which puts the
+# base at 0.6. Its assembly divides the price by the change in reputation
+# before scaling it, so price is proportional to distance travelled.
+#
+# **The rate is derived, not measured.** flhack documents those three options as
+# costing +30000, -60000 and -40000, and 30000/0.3, 60000/0.6 and 40000/0.4 all
+# come to 100000 per point of reputation. Consistent across three figures, but
+# nobody has read a bartender's price and checked. Verify before trusting it to
+# the credit: a bribe for a faction at -0.44 should ask about 104000.
+BRIBE_TO = 0.6
+BRIBE_RATE = 100000
 
 # The four repeatable things a player can do to a faction, in the order they
 # read best: the one you do in space, then the three you do to a job.
@@ -68,7 +91,7 @@ def _entries(pairs):
 
 
 def load_model(game_dir=None):
-    """(events, empathy, names, legality) keyed by faction nickname, lowered."""
+    """(events, empathy, names, legality, bribes), keyed by lowered nickname."""
     game_dir = game_dir or fl.DEFAULT_GAME
     data_dir = fl.ipath(game_dir, "DATA")
     strings = fl.load_names(game_dir)
@@ -120,7 +143,26 @@ def load_model(game_dir=None):
         if aff and legal:
             legality[str(aff[0][0]).lower()] = str(legal[0][0]).lower()
 
-    return events, empathy, names, legality
+    return events, empathy, names, legality, load_bribes(data_dir)
+
+
+def load_bribes(data_dir):
+    """faction (lower) -> how many bartenders will take a bribe for it.
+
+    41 of the 55 factions can be bribed at all, across 610 of the game's
+    bar NPCs. The count is worth carrying because "nobody will take your money
+    for this faction" is a real answer and an empty row is not.
+    """
+    out = {}
+    path = fl.ipath(fl.ipath(data_dir, "MISSIONS"), "mbases.ini")
+    for section, pairs in wr.read_multi(path):
+        if section.lower() != "gf_npc":
+            continue
+        for key, values in pairs:
+            if key.lower() == "bribe" and values:
+                faction = str(values[0]).lower()
+                out[faction] = out.get(faction, 0) + 1
+    return out
 
 
 def player_reps(save_text):
@@ -153,7 +195,7 @@ def clamp(value):
     return max(-BOUND, min(BOUND, value))
 
 
-def plan(target, goal, reps, events, empathy, names, legality):
+def plan(target, goal, reps, events, empathy, names, legality, bribes=None):
     """Every action that moves `target` towards `goal`, cheapest first.
 
     Actions worth nothing to the target are dropped, and so are the ones that
@@ -167,6 +209,30 @@ def plan(target, goal, reps, events, empathy, names, legality):
         return current, needed, []
 
     rows = []
+    bribes = bribes or {}
+    # A bribe is one purchase rather than a grind, so it goes in as a row with
+    # repeats of 1 and a price. It only appears when it would actually move the
+    # target the right way: buying a jump to 0.6 is no help when the goal is to
+    # be hated, and none at all once you are already above 0.6.
+    bar = bribes.get(target)
+    if bar and reps.get(target, 0.0) < BRIBE_TO:
+        jump = BRIBE_TO - current
+        if (jump > 0) == (needed > 0):
+            rows.append({
+                "doer": target,
+                "doer_name": names.get(target, target),
+                "legality": legality.get(target, ""),
+                "event": "bribe",
+                "event_label": "bribe a bartender",
+                "effect": jump,
+                "repeats": 1,
+                "price": round(BRIBE_RATE * jump),
+                "bartenders": bar,
+                "reaches": BRIBE_TO,
+                "collateral": collateral(target, None, 1, target, events,
+                                         empathy, names, reps, delta=jump),
+            })
+
     for doer in sorted(events):
         for event, _label in EVENTS:
             effect = effect_on(events, empathy, doer, event, target)
@@ -189,7 +255,8 @@ def plan(target, goal, reps, events, empathy, names, legality):
     return current, needed, rows
 
 
-def collateral(doer, event, repeats, target, events, empathy, names, reps):
+def collateral(doer, event, repeats, target, events, empathy, names, reps,
+               delta=None):
     """Every other faction this run of actions moves, worst loss first.
 
     Computed at the repeat count rather than per action, because the repeat
@@ -200,7 +267,11 @@ def collateral(doer, event, repeats, target, events, empathy, names, reps):
     total is linear and only the endpoint can saturate. Bystanders saturate
     often, which is the point of showing this at all.
     """
-    delta = events.get(doer, {}).get(event)
+    # `delta` is passed in for a bribe, whose size is the jump to 0.6 rather
+    # than a fixed event value. It spreads through empathy like anything else:
+    # flhack's ALT option exists precisely to switch that off, and costs double.
+    if delta is None:
+        delta = events.get(doer, {}).get(event)
     if delta is None:
         return []
     out = []
@@ -234,7 +305,7 @@ def main():
                     help="expand the collateral of the top N rows")
     args = ap.parse_args()
 
-    events, empathy, names, legality = load_model(args.game)
+    events, empathy, names, legality, bribes = load_model(args.game)
     if args.list or not args.target:
         for key in sorted(events):
             print(f"  {key:<14} {names.get(key, key)}")
@@ -248,7 +319,7 @@ def main():
         sys.exit(f"no such faction: {target}")
 
     current, needed, rows = plan(target, GOALS[args.goal], reps,
-                                 events, empathy, names, legality)
+                                 events, empathy, names, legality, bribes)
     label = names.get(target, target)
     print(f"{label}: now {current:+.4f}, want {GOALS[args.goal]:+.2f} "
           f"({args.goal})")
@@ -256,15 +327,18 @@ def main():
         print("  already there, nothing to do" if abs(needed) < 1e-9
               else "  no repeatable action moves this")
         return
-    print(f"  gap {needed:+.4f}, {len(rows)} of 220 actions help\n")
+    bribe = sum(1 for r in rows if r["event"] == "bribe")
+    print(f"  gap {needed:+.4f}, {len(rows) - bribe} of 220 repeatable actions "
+          f"help{', plus a bribe' if bribe else ''}\n")
 
     for i, row in enumerate(rows):
         loss = [c for c in row["collateral"] if c["change"] < 0]
         gain = [c for c in row["collateral"] if c["change"] > 0]
         worst = f", worst {loss[0]['name']} {loss[0]['change']:+.3f}" if loss else ""
+        cost = f"  {row['price']:,} cr" if row.get("price") else ""
         print(f"  {row['repeats']:>5} x {row['event_label']:<18} "
               f"{row['doer_name'][:26]:<27} {row['effect']:+.4f} each"
-              f"  [+{len(gain)}/-{len(loss)}{worst}]")
+              f"{cost}  [+{len(gain)}/-{len(loss)}{worst}]")
         if i < args.show:
             for c in row["collateral"]:
                 pin = " (pinned)" if c["pinned"] else ""

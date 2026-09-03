@@ -294,6 +294,8 @@ PAGE = """<!doctype html>
   .reptable .gun, .reptable .gunhead {
     grid-template-columns: minmax(14rem, 1fr) 5rem 4rem 14rem; }
   .reprow { cursor: pointer; }
+  .reprow .others { text-align: left; color: var(--dim); font-size: .82rem;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .reprow:hover { border-color: var(--docked); }
   .repwhy { margin: -.2rem 0 .5rem 1rem; padding-left: .9rem;
             border-left: 2px solid var(--line); }
@@ -304,6 +306,7 @@ PAGE = """<!doctype html>
   .rephead { color: var(--dim); font-size: .7rem; text-transform: uppercase;
              letter-spacing: .05em; padding-bottom: .1rem; }
   .rephead .nm { text-align: left; }
+  .gunhead .othershead { text-align: left; }
   .reppick { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1rem; }
   .reppick select { background: var(--card); color: var(--text); font: inherit;
                     border: 1px solid var(--line); border-radius: 8px;
@@ -999,19 +1002,23 @@ function renderRep() {
   if (!d.rows.length)
     return out + head + '<p class="empty">Already there. Nothing to do.</p>';
 
-  out += head + `<p class="note">${d.rows.length} of 220 repeatable actions move it
-    the right way, all listed. The count is rounded up, so the last one takes you
-    past the goal rather than onto it. <b>+n/-n</b> is how many other factions the
-    run helps and hurts; click a row for the full list.</p>`;
+  const bribes = d.rows.filter(r => r.event === 'bribe').length;
+  out += head + `<p class="note">${d.rows.length - bribes} of 220 repeatable
+    actions move it the right way${bribes ? ', plus a bribe' : ''}, all listed.
+    Counts are rounded up, so the last one takes you past the goal rather than
+    onto it. <b>+n/-n</b> is how many other factions the run helps and hurts;
+    click a row for the full list.</p>`;
 
   out += '<div class="guns"><div class="reptable">' +
     '<div class="gunhead"><span class="nm">action</span><span>each</span>' +
-    '<span>times</span><span>others</span></div>' +
+    '<span>times / cost</span><span class="othershead">side effects</span></div>' +
     d.rows.map((r, i) => {
       const loss = r.collateral.filter(c => c.change < 0);
       const gain = r.collateral.filter(c => c.change > 0);
+      // Spelled out. Read as "+2/-21 Bretonia -0.280" the middle number looks
+      // like it belongs to the name, and the owner read a fall as a rise.
       const worst = loss.length
-        ? ` ${esc(loss[0].name)} ${loss[0].change.toFixed(3)}` : '';
+        ? `, worst hit ${esc(loss[0].name)} ${loss[0].change.toFixed(3)}` : '';
       const body = repOpen[i] ? '<div class="repwhy">' +
         '<span class="repline rephead"><span class="nm">also moves</span>' +
         '<span>now</span><span>after</span><span>change</span></span>' +
@@ -1025,10 +1032,11 @@ function renderRep() {
         + '</div>' : '';
       return `<div class="gun reprow" data-row="${i}">` +
         `<span class="nm">${esc(r.event_label)} &middot; ${esc(r.doer_name)}` +
+        (r.bartenders ? ` <span class="loot">${r.bartenders} bars</span>` : '') +
         (r.legality ? ` <span class="loot">${esc(r.legality)}</span>` : '') + '</span>' +
         `<span class="num raw">${r.effect >= 0 ? '+' : ''}${r.effect.toFixed(4)}</span>` +
-        `<span class="num h">${r.repeats}</span>` +
-        `<span class="num raw">+${gain.length}/-${loss.length}${worst}</span>` +
+        `<span class="num h">${r.price ? r.price.toLocaleString() + ' cr' : r.repeats}</span>` +
+        `<span class="others">${gain.length} up, ${loss.length} down${worst}</span>` +
         '</div>' + body;
     }).join('') + '</div></div>';
   return out;
@@ -1223,7 +1231,7 @@ def make_handler(game, save_path):
                 with lock:
                     reps = rep.player_reps(fl.decode_save(save_path))
                     model = game.repmodel
-                events, empathy, names, legality = model
+                events, empathy, names, legality, _bribes = model
                 body["factions"] = sorted(
                     ({"nickname": k, "name": names.get(k, k),
                       "legality": legality.get(k, ""),
