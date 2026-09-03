@@ -29,8 +29,11 @@ each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
 The web page has five tabs. Visits and Wrecks each have their own state for the
-checkbox: ticked, it shows every system, the things still to find, and what the
-wrecks contain; unticked, only progress. Both group their systems by house,
+two checkboxes. *Show all* ticked shows every system, the things still to find,
+and what the wrecks contain; unticked, only progress. *Hide completed* drops the
+systems with nothing left in them, which on Visits means every base docked at
+and on Wrecks means every wreck stripped, so a system whose wrecks are all found
+but not all emptied stays in the list. Both tabs group their systems by house,
 Liberty through Edge Worlds, with a running count per house.
 
 **Speed** changes the cruise speed of the running game, from 300 to 5000, and

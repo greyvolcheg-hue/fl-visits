@@ -417,6 +417,9 @@ PAGE = """<!doctype html>
     <label class="toggle">
       <input type="checkbox" id="ext"> <span id="extlabel"></span>
     </label>
+    <label class="toggle">
+      <input type="checkbox" id="hidedone"> <span id="hidelabel"></span>
+    </label>
     <span class="groupacts">
       <button id="collapseall">Collapse all</button>
       <button id="expandall">Expand all</button>
@@ -429,6 +432,9 @@ const $ = s => document.querySelector(s);
 // One checkbox, but its state belongs to the tab, not to the page: what you
 // want expanded on Visits has nothing to do with what you want on Wrecks.
 const extended = { visits: false, wrecks: false };
+// Per tab, same as the checkbox above it: what counts as finished differs
+// between the two, so remembering one answer for both would be wrong.
+const hideDone = { visits: false, wrecks: false };
 // Which house headings are folded, per tab, same reasoning as the checkbox.
 const collapsed = { visits: {}, wrecks: {} };
 let latest = null, speed = null, thrusters = null, lane = null,
@@ -490,10 +496,12 @@ $('#collapseall').addEventListener('click', () => foldAll(true));
 $('#expandall').addEventListener('click', () => foldAll(false));
 
 $('#ext').addEventListener('change', e => { extended[tab] = e.target.checked; render(); });
+$('#hidedone').addEventListener('change', e => { hideDone[tab] = e.target.checked; render(); });
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
   tab = b.dataset.tab;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
   $('#ext').checked = !!extended[tab];
+  $('#hidedone').checked = !!hideDone[tab];
   // Leaving the DPS tab closes the picker, so coming back shows the loadout
   // rather than a half-typed search from last time.
   if (tab !== 'dps') gunQuery = null;
@@ -558,8 +566,14 @@ function renderVisits(d) {
   totals([[d.docked, 'docked'], [d.revealed, 'revealed'],
           [d.bases - d.docked - d.revealed, 'unknown'],
           [`${d.systems_touched}/${d.systems_total}`, 'systems']]);
-  const rows = d.systems.filter(s => ext || s.docked.length || s.revealed.length);
-  if (!rows.length) return '<p class="empty">Nothing docked at yet.</p>';
+  // "Finished" is whatever the card's own counter calls done, so the toggle
+  // agrees with the number the reader is looking at rather than inventing a
+  // second definition beside it.
+  const rows = d.systems.filter(s => (ext || s.docked.length || s.revealed.length)
+                                  && !(hideDone.visits && s.percent === 100));
+  if (!rows.length) return '<p class="empty">' + (hideDone.visits
+    ? 'Every system with anything in it is finished.'
+    : 'Nothing docked at yet.') + '</p>';
   return byHouse(d, rows,
     s => card(s.system, s.docked.length, s.total, s.percent,
       line('d', 'docked', s.docked) + line('r', 'revealed', s.revealed) +
@@ -589,9 +603,12 @@ function renderWrecks(d) {
           [d.wrecks_total - d.wrecks_stripped - d.wrecks_open, 'left'],
           [`${d.wrecks_systems}/${d.wrecks_systems_total}`, 'systems']]);
   const ext = extended.wrecks;
-  const rows = d.wrecks.filter(s => ext || s.found.length);
+  const rows = d.wrecks.filter(s => (ext || s.found.length)
+                                 && !(hideDone.wrecks && s.percent === 100));
   if (!rows.length)
-    return '<p class="empty">No wrecks found yet. Tick the box to see where they are.</p>';
+    return '<p class="empty">' + (hideDone.wrecks
+      ? 'Every system with a wreck in it is stripped.'
+      : 'No wrecks found yet. Tick the box to see where they are.') + '</p>';
   return byHouse(d, rows,
     s => card(s.system, s.stripped, s.total, s.percent,
       s.found.map(w => wreckLine(w, true)).join('') +
@@ -989,6 +1006,9 @@ function render() {
   $('#extlabel').textContent = tab === 'visits'
     ? 'show every system and the bases you have not found'
     : 'show every system, the wrecks you have not found, and what they hold';
+  $('#hidelabel').textContent = tab === 'visits'
+    ? 'hide systems where every base is docked at'
+    : 'hide systems where every wreck is stripped';
   $('#list').innerHTML = tab === 'visits' ? renderVisits(d) : renderWrecks(d);
 }
 
