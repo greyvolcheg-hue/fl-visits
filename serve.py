@@ -29,7 +29,9 @@ import flvisits as fl  # noqa: E402
 import navmap  # noqa: E402
 import netlog as nl  # noqa: E402
 import persist as pe  # noqa: E402
+import equipment as eqp  # noqa: E402
 import reputation as rep  # noqa: E402
+import ships as sh  # noqa: E402
 import speed as sp  # noqa: E402
 import thrusters as th  # noqa: E402
 import trade as td  # noqa: E402
@@ -152,6 +154,10 @@ class GameData:
         # Prices never change while the game runs; only which bases
         # you have seen does, and that comes from the save.
         self.market = td.load_market(game_dir)
+        # Guns and shields with their stats, prices and dealers. Static too,
+        # and it reuses `weapons` and `trade.base_index` rather than parsing
+        # any of it a second time.
+        self.gear = eqp.load_catalogue(game_dir)
 
     def label(self, ids, fallback):
         try:
@@ -469,6 +475,32 @@ PAGE = """<!doctype html>
   .routetable .gun, .routetable .gunhead {
     grid-template-columns: minmax(10rem, 1fr) 4.5rem 4.5rem 5rem
                            minmax(9rem, 1fr) minmax(9rem, 1fr); }
+  .geartable { min-width: 40rem; }
+  .geartable .gun, .geartable .gunhead { grid-template-columns: inherit; }
+  .filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
+  .filter { display: flex; align-items: center; gap: .45rem;
+            background: var(--card); border: 1px solid var(--line);
+            border-radius: 8px; padding: .3rem .5rem .3rem .7rem; }
+  .filter .nm { font-size: .85rem; }
+  .filter select, .filter input { background: none; color: var(--text);
+            font: inherit; font-size: .85rem; border: 1px solid var(--line);
+            border-radius: 6px; padding: .2rem .4rem; }
+  .filter input { width: 5.5rem; text-align: right;
+                  font-variant-numeric: tabular-nums; }
+  .filter select:focus, .filter input:focus {
+    outline: none; border-color: var(--docked); }
+  /* A sibling of the row, not a cell in it: .gun is its own grid, so the
+     expansion sits outside and is tied to the row by the rule down its left. */
+  .gearwhere { display: flex; flex-direction: column; gap: .15rem;
+               margin: .1rem 0 .6rem 1.9rem;
+               padding-left: .9rem; border-left: 2px solid var(--line); }
+  .gearwhere .cell { width: 9rem; }
+  .routetable.withrun { min-width: 52rem; }
+  .routetable.withrun .gun, .routetable.withrun .gunhead {
+    grid-template-columns: minmax(10rem, 1fr) 4.5rem 4.5rem 4.5rem 6rem
+                           minmax(8rem, 1fr) minmax(8rem, 1fr); }
+  /* The full-hold figure is the one being read, so it carries the weight. */
+  .gun .num.big { font-weight: 650; }
   .desttable { min-width: 34rem; }
   .desttable .gun, .desttable .gunhead {
     grid-template-columns: 5rem 5rem minmax(12rem, 1fr) minmax(8rem, 1fr); }
@@ -511,7 +543,8 @@ const TABS = [
   { id: 'map', label: 'Map',
     kids: [['visits', 'Visits'], ['wrecks', 'Wrecks'], ['chart', 'Chart']] },
   { id: 'speed', label: 'Speed' },
-  { id: 'dps', label: 'DPS' },
+  { id: 'gear', label: 'Equipment',
+    kids: [['dps', 'DPS'], ['search', 'Search']] },
   { id: 'log', label: 'Neural Net' },
   { id: 'rep', label: 'Reputation' },
   { id: 'trade', label: 'Trade',
@@ -519,7 +552,7 @@ const TABS = [
 ];
 // Where you were inside each parent, so coming back to Map does not always
 // dump you on Visits.
-const leaf = { map: 'visits', trade: 'data' };
+const leaf = { map: 'visits', gear: 'dps', trade: 'data' };
 // `topTab`, not `top`: `window.top` is a non-configurable global property, so
 // a global `let top` is a SyntaxError that kills the entire script before a
 // line of it runs. The page came up bare, no tabs and a stuck "loading…",
@@ -580,6 +613,11 @@ let tradeData = null, tradeGood = '', tradeVisitedOnly = false;
 // bases is well past what a dropdown is for.
 let deltaData = null, deltaBase = '', deltaGood = '',
     deltaVisitedOnly = false, deltaQuery = null;
+// Equipment search. `gearFilters` is [{key, kind, value}]; a "num" filter is a
+// minimum and a "pick" is an exact match. The order never comes from them: the
+// headline number stays in charge, so a threshold narrows without reshuffling.
+let gearData = null, gearKind = 'guns', gearFilters = [],
+    gearOpen = '', gearVisitedOnly = false;
 // Routes sub-tab. Two systems by nickname, never by display name: several
 // systems share a label and only the nickname tells them apart.
 let routeData = null, routeFrom = '', routeTo = '', routeVisitedOnly = false;
@@ -661,6 +699,7 @@ function go(parent, child) {
   if (tab === 'data' && !tradeData) loadTrade();
   if (tab === 'deltas' && !deltaData) loadDeltas();
   if (tab === 'routes' && !routeData) loadRoutes();
+  if (tab === 'search' && !gearData) loadGear();
 }
 drawTabs();
 
@@ -1389,6 +1428,157 @@ function wireDeltas() {
   }
 }
 
+// Equipment search. Pick a kind, stack thresholds, read the list.
+function renderGear() {
+  const d = gearData;
+  if (!d) return '<p class="empty">reading the catalogue…</p>';
+  if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
+
+  const params = d.parameters;
+  const param = k => params.find(p => p.key === k) || { label: k, unit: '' };
+  const money = v => (v === null || v === undefined) ? '-' : v.toLocaleString();
+  const fmt = (v, p) => {
+    if (v === null || v === undefined || v === '') return '-';
+    if (p.kind === 'pick') return esc(String(v));
+    const n = Number(v);
+    return (Math.abs(n) >= 1000 ? Math.round(n).toLocaleString()
+                                : n.toFixed(n % 1 ? 1 : 0)) + (p.unit ? ' ' + p.unit : '');
+  };
+
+  let out = '<div class="reppick">' +
+    `<select id="gearkind">` +
+    d.kinds.map(k => `<option value="${esc(k.key)}"` +
+      (k.key === gearKind ? ' selected' : '') +
+      `>${esc(k.label)} (${k.count})</option>`).join('') +
+    '</select>' +
+    '<label class="toggle"><input type="checkbox" id="gearseen"' +
+    (gearVisitedOnly ? ' checked' : '') +
+    '> <span>only bases I have docked at</span></label></div>';
+
+  // The filters, each its own removable row. A numeric one takes a minimum, a
+  // categorical one takes a value from the list, because "at least Graviton"
+  // is not a thing anybody means.
+  out += '<div class="filters">';
+  gearFilters.forEach((f, i) => {
+    const p = param(f.key);
+    out += `<div class="filter"><span class="nm">${esc(p.label)}</span>` +
+      (p.kind === 'pick'
+        ? `<select data-pick="${i}">` + (d.choices[f.key] || []).map(c =>
+            `<option${String(c) === String(f.value) ? ' selected' : ''}>${esc(c)}</option>`
+          ).join('') + '</select>'
+        : `<span class="sys">at least</span>` +
+          `<input type="number" data-min="${i}" value="${esc(String(f.value))}">` +
+          (p.unit ? `<span class="sys">${esc(p.unit)}</span>` : '')) +
+      `<button class="kill" data-drop="${i}" title="remove">&times;</button></div>`;
+  });
+  const spare = params.filter(p => !gearFilters.some(f => f.key === p.key));
+  if (spare.length)
+    out += '<div class="filter"><select id="gearadd">' +
+      '<option value="">+ add a parameter…</option>' +
+      spare.map(p => `<option value="${esc(p.key)}">${esc(p.label)}</option>`).join('') +
+      '</select></div>';
+  out += '</div>';
+
+  if (!d.rows.length)
+    return out + '<p class="empty">Nothing matches all of those.</p>';
+
+  const order = param(d.order);
+  // The default column never repeats itself as a filter column.
+  const extra = gearFilters.map(f => f.key).filter(k => k !== d.order);
+  out += `<p class="note">${d.rows.length} of ${d.total}, by ${esc(order.label)}.
+    Ordering stays on that whatever you filter by. Prices are the same at every
+    dealer in the game, so the list under a row is where, not where cheapest.</p>`;
+
+  out += '<div class="guns"><div class="geartable" ' +
+    `style="grid-template-columns: minmax(12rem,1fr) 6rem ${'5.5rem '.repeat(extra.length)}6rem 5rem">` +
+    '<div class="gunhead"><span class="nm">item</span>' +
+    `<span>${esc(order.label)}</span>` +
+    extra.map(k => `<span>${esc(param(k).label)}</span>`).join('') +
+    '<span>price</span><span>where</span></div>' +
+    d.rows.map(r => {
+      const open = r.nickname === gearOpen;
+      let line = `<div class="gun good${open ? ' on' : ''}" data-item="${esc(r.nickname)}">` +
+        `<span class="nm">${esc(r.name)}` +
+        (r.rank ? ` <span class="loot">rank ${r.rank}</span>` : '') + '</span>' +
+        `<span class="num h">${fmt(r[d.order], order)}</span>` +
+        extra.map(k => `<span class="num raw">${fmt(r[k], param(k))}</span>`).join('') +
+        `<span class="num">${r.price ? money(Math.round(r.price)) : '-'}</span>` +
+        `<span class="num raw">${r.bases.length || (r.wrecks.length ? 'wreck' : '-')}</span>` +
+        '</div>';
+      if (!open) return line;
+      const where = r.bases.length
+        ? r.bases.map(b =>
+            `<div class="atrow"><span class="cell">${esc(b.system)}</span>` +
+            `<span>${esc(b.base_name)}</span></div>`).join('')
+        : r.wrecks.length
+          ? r.wrecks.map(w =>
+              `<div class="atrow"><span class="cell">${esc(w.system)}</span>` +
+              `<span>the ${esc(w.name)} wreck</span></div>`).join('')
+          : '<p class="empty">Nowhere you have docked sells it.</p>';
+      return line + `<div class="gearwhere">${where}</div>`;
+    }).join('') +
+    '</div></div>';
+  return out;
+}
+
+function wireGear() {
+  const k = $('#gearkind');
+  if (k) k.addEventListener('change', e => {
+    gearKind = e.target.value;
+    // Parameters differ per kind, so a filter carried over would be a key the
+    // new kind does not have and would silently match nothing.
+    gearFilters = [];
+    gearOpen = '';
+    loadGear();
+  });
+  const v = $('#gearseen');
+  if (v) v.addEventListener('change', e => {
+    gearVisitedOnly = e.target.checked;
+    loadGear();
+  });
+  const add = $('#gearadd');
+  if (add) add.addEventListener('change', e => {
+    const key = e.target.value;
+    if (!key) return;
+    const p = gearData.parameters.find(x => x.key === key);
+    gearFilters.push({ key, kind: p.kind,
+                       value: p.kind === 'pick' ? (gearData.choices[key] || [''])[0] : 0 });
+    loadGear();
+  });
+  document.querySelectorAll('.filter .kill').forEach(b =>
+    b.addEventListener('click', () => {
+      gearFilters.splice(Number(b.dataset.drop), 1);
+      loadGear();
+    }));
+  document.querySelectorAll('.filter [data-pick]').forEach(s =>
+    s.addEventListener('change', e => {
+      gearFilters[Number(s.dataset.pick)].value = e.target.value;
+      loadGear();
+    }));
+  document.querySelectorAll('.filter [data-min]').forEach(box => {
+    box.addEventListener('change', e => {
+      gearFilters[Number(box.dataset.min)].value = Number(e.target.value) || 0;
+      loadGear();
+    });
+  });
+  document.querySelectorAll('.geartable .good').forEach(b =>
+    b.addEventListener('click', () => {
+      gearOpen = b.dataset.item === gearOpen ? '' : b.dataset.item;
+      render();
+    }));
+}
+
+async function loadGear() {
+  const q = ['kind=' + encodeURIComponent(gearKind)];
+  gearFilters.forEach(f => q.push('f=' + encodeURIComponent(
+    `${f.key}:${f.kind}:${f.value}`)));
+  if (gearVisitedOnly) q.push('visited=1');
+  try {
+    const r = await fetch('api/equipment?' + q.join('&'), { cache: 'no-store' });
+    if (r.ok) { gearData = await r.json(); render(); }
+  } catch (e) { /* the tab keeps its loading line */ }
+}
+
 // Routes. Two systems in, one hold's worth of advice out.
 function renderRoutes() {
   const d = routeData;
@@ -1429,11 +1619,16 @@ function renderRoutes() {
     ${esc(name(d.from))} to ${esc(name(d.to))}` +
     (losses ? `, out of ${d.traded} traded in both` : '') + `.
     One line per commodity: the cheapest place to buy it at this end against
-    the dearest place to sell it at that one.</p>`;
+    the dearest place to sell it at that one.` +
+    (d.hold
+      ? ` <b>run</b> is a full hold of your ${esc(d.ship)}, ${d.hold} units.`
+      : ' No ship found in the save, so only the per-unit figure is shown.') +
+    '</p>';
 
-  out += '<div class="guns"><div class="routetable">' +
-    '<div class="gunhead"><span class="nm">commodity</span><span>buy</span>' +
+  out += '<div class="guns"><div class="routetable' + (d.hold ? ' withrun' : '') +
+    '"><div class="gunhead"><span class="nm">commodity</span><span>buy</span>' +
     '<span>sell</span><span>gain</span>' +
+    (d.hold ? '<span>run</span>' : '') +
     '<span class="nm">from</span><span class="nm">to</span></div>' +
     d.rows.map(r =>
       '<div class="gun">' +
@@ -1441,6 +1636,7 @@ function renderRoutes() {
       `<span class="num raw">${money(r.buy)}</span>` +
       `<span class="num h">${money(r.sell)}</span>` +
       `<span class="num up">+${money(r.gain)}</span>` +
+      (d.hold ? `<span class="num up big">+${money(r.run)}</span>` : '') +
       `<span class="nm">${esc(r.from_base)}</span>` +
       `<span class="nm">${esc(r.to_base)}</span></div>`).join('') +
     '</div></div>';
@@ -1488,7 +1684,8 @@ function render() {
   const live = tab === 'speed';
   // Only the two per-system reports want the totals row and the Show All box.
   // The rest carry their own controls, or none.
-  const bare = live || tab === 'dps' || tab === 'log' || tab === 'chart';
+  const bare = live || tab === 'dps' || tab === 'log' || tab === 'chart'
+               || tab === 'search';
   $('#totals').hidden = bare;
   $('#togglewrap').hidden = bare;
   // The chart is 2560px wide, so it is the one panel that takes the window
@@ -1504,6 +1701,12 @@ function render() {
         '<p class="note">Click it for the full 2560px image in its own tab.</p>' +
         '<a class="chartimg" href="map.jpg" target="_blank" rel="noopener">' +
         '<img src="map.jpg" alt="Freelancer system chart"></a>';
+    return;
+  }
+  if (tab === 'search') {
+    $('#sub').textContent = 'what to look for, and where it is sold';
+    $('#list').innerHTML = renderGear();
+    wireGear();
     return;
   }
   if (tab === 'routes') {
@@ -1669,6 +1872,8 @@ def make_handler(game, save_path):
                 self._send_deltas()
             elif path == "/api/routes":
                 self._send_routes()
+            elif path == "/api/equipment":
+                self._send_equipment()
             elif path == "/map.jpg":
                 # Beside this script, never an absolute path: the vault sits
                 # somewhere different on each machine.
@@ -1769,14 +1974,72 @@ def make_handler(game, save_path):
                 body["error"] = str(exc)
             self._send(200, json.dumps(body).encode("utf-8"), "application/json")
 
+        def _send_equipment(self):
+            """One kind of gear, narrowed by whatever thresholds were asked for."""
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            body = {"kinds": [], "kind": None, "parameters": [], "choices": {},
+                    "order": None, "rows": [], "total": 0, "error": None}
+            try:
+                cat = game.gear
+                body["kinds"] = [
+                    {"key": k, "label": k.title(), "count": len(cat[k])}
+                    for k in sorted(cat)]
+                kind = (query.get("kind") or ["guns"])[0]
+                if kind not in cat:
+                    kind = "guns"
+                rows, order = cat[kind], eqp.ORDER[kind]
+                body["kind"], body["order"], body["total"] = kind, order, len(rows)
+                body["parameters"] = [
+                    {"key": k, "label": lab, "kind": knd, "unit": unit}
+                    for k, lab, knd, unit in eqp.PARAMETERS[kind]]
+                body["choices"] = {
+                    k: eqp.choices(rows, k)
+                    for k, _lab, knd, _u in eqp.PARAMETERS[kind] if knd == "pick"}
+
+                filters = []
+                for raw in query.get("f", []):
+                    key, _, rest = raw.partition(":")
+                    knd, _, value = rest.partition(":")
+                    if knd == "num":
+                        try:
+                            value = float(value)
+                        except (TypeError, ValueError):
+                            continue
+                    filters.append((key, knd, value))
+                found = eqp.search(rows, filters, order)
+
+                # The docked filter narrows where you can buy, never what
+                # exists: a gun is still a gun if you have not been to its
+                # dealer. So it rewrites `bases` and leaves the row in place,
+                # and the page says "nowhere you have docked" rather than
+                # quietly dropping it.
+                if (query.get("visited") or [""])[0]:
+                    with lock:
+                        state = read_state(game, save_path)
+                    seen = set(state["docked_bases"])
+                    found = [dict(r, bases=[b for b in r["bases"] if b["base"] in seen])
+                             for r in found]
+                body["rows"] = found
+            except (OSError, ValueError, KeyError) as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
+
         def _send_routes(self):
             """What is worth carrying from one system to another."""
             from urllib.parse import parse_qs, urlparse
             query = parse_qs(urlparse(self.path).query)
             _names, rows = game.market
-            body = {"systems": [], "from": None, "to": None,
-                    "rows": [], "traded": 0, "error": None}
+            body = {"systems": [], "from": None, "to": None, "rows": [],
+                    "traded": 0, "ship": None, "hold": None, "error": None}
             try:
+                # Per-unit margin is only half the answer: what a run is worth
+                # is that times what the ship can carry. Read from the save, so
+                # it follows the player into a new hull.
+                ship = sh.player_ship(game.dir, save_path)
+                if ship and ship.get("hold"):
+                    body["ship"] = ship["name"]
+                    body["hold"] = ship["hold"]
                 only = None
                 if (query.get("visited") or [""])[0]:
                     with lock:
@@ -1808,7 +2071,13 @@ def make_handler(game, save_path):
                     # "several are, and every one of them is a loss". A trader
                     # acts on those two differently.
                     body["traded"] = len(found)
-                    body["rows"] = [r for r in found if r["gain"] > 0]
+                    rows = [r for r in found if r["gain"] > 0]
+                    # Every commodity has volume 1.0, checked, so a hold of 70
+                    # carries 70 units of anything and the run is a plain
+                    # multiplication. `ships.py` carries the note.
+                    for row in rows:
+                        row["run"] = row["gain"] * body["hold"] if body["hold"] else None
+                    body["rows"] = rows
             except (OSError, ValueError, KeyError) as exc:
                 body["error"] = str(exc)
             self._send(200, json.dumps(body).encode("utf-8"), "application/json")

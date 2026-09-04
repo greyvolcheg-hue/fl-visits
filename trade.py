@@ -44,6 +44,36 @@ def _first(entry, key):
     return got[0] if got else None
 
 
+def base_index(game_dir, data_dir=None, strings=None):
+    """(dockable, base -> system nick, base -> label, system nick -> label).
+
+    Every market in the game is keyed by a base nickname and has to be turned
+    into somewhere a player can find, so this is shared rather than rebuilt.
+    `equipment.py` needs exactly the same four and must not grow its own copy:
+    that is how `flvisits.py` and `serve.py` drifted apart in August.
+    """
+    data_dir = data_dir or fl.ipath(game_dir, "DATA")
+    strings = strings if strings is not None else fl.load_names(game_dir)
+    dockable = dk.dockable_bases(game_dir, data_dir, fl.system_files, fl.ipath)
+    _bases, systems = fl.load_universe(data_dir)
+    objects = fl.load_objects(data_dir, systems)
+    where, label = {}, {}
+    for _nick, (system, base, ids) in objects.items():
+        key = base.lower()
+        where.setdefault(key, system)
+        try:
+            label.setdefault(key, strings.get(int(ids), key))
+        except (TypeError, ValueError):
+            label.setdefault(key, key)
+    sysname = {}
+    for nick, ids in systems.items():
+        try:
+            sysname[nick.lower()] = strings.get(int(ids), nick)
+        except (TypeError, ValueError):
+            sysname[nick.lower()] = nick
+    return dockable, where, label, sysname
+
+
 def load_market(game_dir=None):
     """(commodities, rows).
 
@@ -94,23 +124,7 @@ def load_market(game_dir=None):
     for key in price:
         names.setdefault(key, key)
 
-    dockable = dk.dockable_bases(game_dir, data_dir, fl.system_files, fl.ipath)
-    bases, systems = fl.load_universe(data_dir)
-    objects = fl.load_objects(data_dir, systems)
-    where, label = {}, {}
-    for _nick, (system, base, ids) in objects.items():
-        key = base.lower()
-        where.setdefault(key, system)
-        try:
-            label.setdefault(key, strings.get(int(ids), key))
-        except (TypeError, ValueError):
-            label.setdefault(key, key)
-    sysname = {}
-    for nick, ids in systems.items():
-        try:
-            sysname[nick.lower()] = strings.get(int(ids), nick)
-        except (TypeError, ValueError):
-            sysname[nick.lower()] = nick
+    dockable, where, label, sysname = base_index(game_dir, data_dir, strings)
 
     rows = []
     market = fl.ipath(equip_dir, "market_commodities.ini")

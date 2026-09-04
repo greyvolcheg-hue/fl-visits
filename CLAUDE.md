@@ -15,10 +15,12 @@ system. Own git repo; the history in this folder is the undo button.
 | `persist.py` | writes the live cruise and thruster speeds back into the game's files |
 | `drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
 | `weapons.py` | gun and munition stats turned into DPS, static game data |
+| `equipment.py` | buyable guns and shields, their stats, and which dealers stock them |
+| `ships.py` | which ship the save is flying, and how big its hold is |
 | `netlog.py` | the Neural Net log out of a save, as readable text |
 | `reputation.py` | the empathy model: what an action does to every faction |
 | `trade.py` | commodity prices per base, which way each trade runs, and the margin between two of them |
-| `serve.py` | local web view on 127.0.0.1:8731, six tabs, two of them with sub-tabs |
+| `serve.py` | local web view on 127.0.0.1:8731, six tabs, three of them with sub-tabs |
 | `freelancer-map.jpg` | the Sirius sector chart, served at `/map.jpg` |
 | `run.sh` | start the server and open a browser on it |
 
@@ -202,6 +204,31 @@ session.
 `kernel.yama.ptrace_scope` is 0 on this machine, so no privileges beyond the
 same user are needed. On a machine where it is not, this stops working and
 should say so rather than being "fixed" by loosening it.
+
+## Settled: equipment costs the same everywhere, and `npc_` gear is not for sale
+
+Both closed 2026-09-04 while building the Equipment search, both by counting
+rather than by assuming, and both shape what the page can offer.
+
+**One price, every dealer.** `market_misc.ini` rows carry the same seven fields
+as a commodity row, but the multiplier is exactly `1.0` on all 10871 of them and
+no item's differs between bases. So there is no cheapest dealer to find: the
+price belongs on the item and the expansion answers *where*. Do not port the
+Trade tab's dearest-versus-cheapest logic over; it has nothing to work on. The
+rank (0 to 30) and reputation (-1 to +0.8) gates are the same everywhere too,
+checked across the 366 goods sold at more than one base.
+
+**No item whose nickname starts with `npc_` is sold anywhere**, guns or shields.
+That plus "has no `[Good]`, so no price and no dealer" is the whole of what the
+catalogue drops, and the counts are in `equipment.py`. The visible symptom if
+the filter is ever removed: the shield list is led by `npc_shield01_mark10` at
+10127 capacity, which no player can buy.
+
+**The rule for what gets listed is acquirability**, not a nickname pattern: sold
+at a dockable base, or present in a wreck. That keeps the 17 codenamed guns,
+which are the hardest hitting in the game and are wreck loot, and drops the 12
+mission weapons that are in neither place. Same shape as `docking.py`'s rule and
+the Trade tab's undockable markets.
 
 ## Systems are identified by nickname, never by display name
 

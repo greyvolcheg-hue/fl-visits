@@ -140,6 +140,17 @@ def load_weapons(game_dir, mountable_only=True):
         except (TypeError, ValueError):
             label = str(nick)
         shield = hull * factor + energy
+
+        # The Equipment search needs these; the DPS tab ignores them. They come
+        # out of entries this loop has already built, which is why they are read
+        # here rather than by a second gun parser somewhere else.
+        def num(source, key):
+            try:
+                return float(_first(source, key))
+            except (TypeError, ValueError):
+                return None
+
+        speed, life = num(entry, "muzzle_velocity"), num(shot, "lifetime")
         out.append({
             "nickname": str(nick),
             "name": label,
@@ -149,6 +160,13 @@ def load_weapons(game_dir, mountable_only=True):
             "refire": refire,
             "hull_dps": hull / refire,
             "shield_dps": shield / refire,
+            "speed": speed,
+            # Range is what a player actually compares, and neither field is it
+            # on its own: the shot lives for `lifetime` seconds and covers
+            # `muzzle_velocity` metres in each of them.
+            "range": speed * life if speed and life else None,
+            "power": num(entry, "power_usage"),
+            "mount": str(mount or "").lower(),
         })
     out.sort(key=lambda w: w["name"])
     return out

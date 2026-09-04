@@ -33,7 +33,8 @@ The web page has six tabs, two of which carry sub-tabs:
 | Tab | Sub-tabs |
 |---|---|
 | **Map** | Visits, Wrecks, Chart |
-| Speed, DPS, Neural Net, Reputation | none |
+| **Equipment** | DPS, Search |
+| Speed, Neural Net, Reputation | none |
 | **Trade** | Data, Deltas, Routes |
 
 Two levels rather than one longer strip because the pairs group naturally, and
@@ -122,10 +123,41 @@ a single-threaded 2003 renderer. And the billboards are deliberately left alone:
 `[Cube]` grid that places the real rocks, which is why a sprite winks out and a
 rock appears somewhere else. More sprites makes that worse, not better.
 
-**DPS** adds up as many weapons as you like and shows what they do per second,
-hull and shield side by side. `+ Add weapon` opens a search box over the 247
-guns a ship can carry; the picks survive a reload. It needs neither a save nor
-a running game, since it is reading the game's own equipment files.
+**Equipment → DPS** adds up as many weapons as you like and shows what they do
+per second, hull and shield side by side. `+ Add weapon` opens a search box over
+the 247 guns a ship can carry; the picks survive a reload. It needs neither a
+save nor a running game, since it is reading the game's own equipment files.
+
+**Equipment → Search** answers the question DPS cannot: *which* gun should I be
+after. Pick guns or shields, then add the parameters you care about. A parameter
+is a threshold **and** a column: choosing projectile speed both narrows the list
+and shows the figure. Filters stack. The order never moves, staying on hull DPS
+for guns and capacity for shields, so a threshold tells you what is left rather
+than reshuffling what you were reading.
+
+Expanding a row says where the thing is sold. **The price is the same at every
+dealer in the game**, so that list answers *where*, not *where cheapest*: the
+multiplier is exactly 1.0 on all 10871 rows of `market_misc.ini` and no item's
+differs between bases. The rank and reputation gates are the same everywhere
+too, so they sit on the row rather than in the expansion.
+
+**The list is what you can actually get**: sold at a dockable base, or sitting
+in a wreck. That is 235 guns of 247 and 79 shields of 121. The 42 shields
+dropped are NPC gear (30 have an `npc_` nickname, and no `npc_` item is sold
+anywhere in the game) or have no `[Good]` at all and so no price and no dealer.
+Left in, they take the top of the list: `npc_shield01_mark10` shows 10127
+capacity where the best buyable shield, the Adv. Brigandine, is 289150 credits.
+The 12 guns dropped are Death's Hand, Adv. Dissolver and Adv. Sunrail, all
+mission or NPC weapons. Same argument as the undockable bases on the Trade tab.
+
+The 17 codenamed guns, ARCHANGEL through SILVER FIRE, stay precisely because
+they are in wrecks, and for them the expansion names the wreck: ARCHANGEL reads
+*the Volsung wreck, Omega-41*. They lead the list, since wreck loot is the
+hardest hitting in the game.
+
+The docked filter narrows where you can buy, never what exists. A gun whose
+every dealer is somewhere you have not been keeps its row and says so; 54 guns
+are in that position on the current save.
 
 The `hull` and `shield` columns are damage per shot and `rate` is shots per
 second, all three printed the way the dealer screen prints them, so you can
@@ -248,6 +280,13 @@ One line per commodity, not per pair of bases: the cheapest place to buy it at
 this end against the dearest place to sell it at that one, which is by
 definition the widest margin. New York alone has 12 market bases, so the
 uncollapsed cross product would be mostly noise.
+
+**`run` is the figure to read**: the margin times a full hold of the ship you
+are actually flying, read from the save. New York → Leeds pays 840 a unit on
+Boron, which in a Sabre's 70-unit hold is 58,800 credits a trip. The
+multiplication is plain because every commodity in the game has `volume = 1.0`,
+so a hold of 70 is 70 units of anything; `ships.py` carries the note, and the
+column disappears rather than guessing if no ship can be read.
 
 Only profitable lines are listed, with a count of what was dropped. There is no
 green on this tab: every "from" base holds stock by construction, so the colour
