@@ -303,7 +303,8 @@ PAGE = """<!doctype html>
   .tradetable .gun, .tradetable .gunhead {
     grid-template-columns: 5rem 3.5rem minmax(12rem, 1fr) minmax(8rem, 1fr); }
   .tradetable .gunhead span:first-child { text-align: right; }
-  .traderow.seen { border-color: var(--docked); }
+  .traderow.sells { border-color: var(--docked); }
+  .note b.ok { color: var(--docked); font-weight: 650; }
   .reptable .gun, .reptable .gunhead {
     grid-template-columns: minmax(14rem, 1fr) 5rem 4rem 14rem; }
   .reprow { cursor: pointer; }
@@ -1131,20 +1132,31 @@ function renderTrade() {
       : 'Nothing trades this.') + '</p>';
 
   const name = (d.goods.find(g => g.nickname === d.good) || {}).name || d.good;
+  // The cheapest row is not always one you can buy at: gold's four cheapest
+  // bases hold none of it. So the run is the cheapest *green* row to the
+  // dearest row of any colour, which is not something the sort alone shows.
+  const stock = rows.filter(r => r.buy);
+  const low = stock[stock.length - 1], high = rows[0];
+  let run = '';
+  if (low && high && high.price > low.price)
+    run = ` Best run here: buy at ${esc(low.base_name)} for
+      ${low.price.toLocaleString()}, sell at ${esc(high.base_name)} for
+      ${high.price.toLocaleString()},
+      <b class="ok">${(high.price - low.price).toLocaleString()} a unit</b>.`;
+
   out += `<p class="note">${esc(name)} at ${rows.length} bases, dearest first.
-    Read it from the top to sell and from the bottom to buy. <b>sell</b> means
-    the base wants it and holds none; <b>buy</b> means it has stock on the
-    shelf. Bases you cannot dock at are not listed at all.</p>`;
+    <b class="ok">Green means the base has it on the shelf</b>, so that is where
+    you can load up; the rest hold none and only want to be sold it.${run}
+    Bases you cannot dock at are not listed at all.</p>`;
 
   out += '<div class="guns"><div class="tradetable">' +
     '<div class="gunhead"><span>price</span><span>way</span>' +
     '<span class="nm">base</span><span class="nm">system</span></div>' +
     rows.map(r =>
-      `<div class="gun traderow${r.visited ? ' seen' : ''}">` +
+      `<div class="gun traderow${r.buy ? ' sells' : ''}">` +
       `<span class="num h">${r.price.toLocaleString()}</span>` +
       `<span class="num raw">${r.buy ? 'buy' : 'sell'}</span>` +
-      `<span class="nm">${esc(r.base_name)}` +
-      (r.visited ? ' <span class="loot">docked</span>' : '') + '</span>' +
+      `<span class="nm">${esc(r.base_name)}</span>` +
       `<span class="nm">${esc(r.system)}</span></div>`).join('') +
     '</div></div>';
   return out;

@@ -180,10 +180,15 @@ your target raises your standing with the target, since abortion is negative to
 the faction offering it and the empathy rate between enemies is negative too.
 
 **Trade** looks a commodity up and lists every base that trades it, dearest
-first. Read the list from the top to sell and from the bottom to buy. *sell*
-means the base wants it and holds no stock; *buy* means it has some on the
-shelf. A toggle narrows the list to bases you have actually docked at, taken
-from the save, and those are marked either way.
+first. **Green marks the bases holding stock**, the only ones you can buy at;
+the rest hold none and will only be sold to. A toggle narrows the list to bases
+you have actually docked at, taken from the save.
+
+Green is on that rather than on where you have docked because the sort alone
+does not answer the question the tab is for. The cheapest row is not always one
+you can buy at: gold's four cheapest bases, all in New London at 255, hold none
+of it. So the run printed above the table is the cheapest *green* row to the
+dearest row of any colour, and being docked somewhere is a filter, not a colour.
 
 Price is the commodity's own price from `goods.ini` times the base's multiplier
 in `market_commodities.ini`: gold is 425 a unit and the multipliers run from
