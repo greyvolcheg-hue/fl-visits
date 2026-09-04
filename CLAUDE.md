@@ -263,6 +263,40 @@ the page and shows whether the strip drew. The shot fires at the load event,
 before the first `fetch` resolves, so an empty body in it is expected and is not
 evidence of anything; the tab strip is the part that tells you.
 
+## Changes made to this install by hand, outside the tool
+
+Not everything in the game files is vanilla, and a value that looks wrong may be
+deliberate. Anything the tool wrote has a `.vanilla` beside it, which is the
+audit trail; this section covers what was changed by hand.
+
+**`DATA/EQUIPMENT/select_equip.ini`, `[TradeLane] basic_trade_lane_eq`, changed
+2026-09-04 at the owner's explicit instruction:**
+
+    activation_start   750 -> 100
+    activation_end     500 ->  50
+
+**Down, not up, and that was checked before writing.** These two are the only
+trade-lane distances in the whole data set: `constants.ini` has none and the
+`Trade_Lane_Ring` archetype in `solararch.ini` has none either. The owner wants
+cruise to hold until the ring is close, so the activation zone shrinks. The
+first reading here was the opposite, raising them so a 5000-speed approach had
+room to slow down, and it was wrong about what was wanted.
+
+What has *not* been established is that `activation_start` is the cruise-drop
+trigger rather than only the ring's spin-up. It is the only candidate in the
+data; the game is the only place that settles it.
+
+Written the way `persist.py` writes: backed up to `select_equip.ini.vanilla`
+first, encoded, decoded again and compared key by key, then swapped in
+atomically. Verified afterwards at 1635 entries before and after with exactly
+two differences. Freelancer reads the file once at startup, so it takes effect
+on the next launch.
+
+Also worth knowing when reading these files: `CRUISING_SPEED` in
+`constants.ini` currently says 5000.0, written by the Speed tab's persist
+button, and 153 asteroid field files carry a scaled `fill_dist` from
+`drawdist.py`. Both have `.vanilla` backups.
+
 ## Dependency
 
 `bini.py` lives in `../scripts/` and is shared with other work in this area. It
