@@ -130,10 +130,27 @@ save nor a running game, since it is reading the game's own equipment files.
 
 **Equipment → Search** answers the question DPS cannot: *which* gun should I be
 after. Pick guns or shields, then add the parameters you care about. A parameter
-is a threshold **and** a column: choosing projectile speed both narrows the list
-and shows the figure. Filters stack. The order never moves, staying on hull DPS
-for guns and capacity for shields, so a threshold tells you what is left rather
-than reshuffling what you were reading.
+is a filter **and** a column. Filters stack, and **filtering never reorders**:
+that is what the column headings are for, and clicking one twice turns it round.
+The default is hull DPS for guns and capacity for shields.
+
+A parameter with few enough values is an exact pick rather than a minimum,
+because some questions have no threshold in them. **Projectile speed is one:**
+there are 14 muzzle velocities in the whole game and the real question is
+"which guns do exactly 600", which no minimum can express. The list offers
+500, 550, 600, 650, 700, 702, 750 and 800.
+
+Those are the raw figures rounded to whole numbers, which is how the game shows
+them: 600.0, 600.3 and 600.4 are three separate values in the files and one
+answer to that question, so 600 gives all 51. The odd 702 is not a rounding
+artefact but ten turrets sitting at exactly 701.8.
+
+**Guns and turrets are separate**, as they must be: `hp_gun_special_6` and
+`hp_turret_special_6` are different sockets on the ship. Until 2026-09-04 the
+mount filter labelled both "6" and quietly merged 32 guns with 19 turrets. The
+class is one parameter now and gun-or-turret is another, so either can be asked
+on its own. It matters more than it sounds: nothing at 600 m/s is a turret, and
+everything at 702 and 800 is.
 
 Expanding a row says where the thing is sold. **The price is the same at every
 dealer in the game**, so that list answers *where*, not *where cheapest*: the

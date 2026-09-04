@@ -52,10 +52,18 @@ PARAMETERS = {
     "guns": [
         ("hull_dps", "hull DPS", "num", ""),
         ("shield_dps", "shield DPS", "num", ""),
-        ("speed", "projectile speed", "num", "m/s"),
+        # A pick, not a threshold: there are only 14 muzzle velocities in the
+        # game and the question people ask is "which guns do exactly 600",
+        # which no minimum can express.
+        ("speed_group", "projectile speed", "pick", "m/s"),
         ("range", "range", "num", "m"),
         ("rate", "refire rate", "num", "/s"),
         ("power", "power per shot", "num", ""),
+        # Two parameters, because a hardpoint is two facts. `hp_gun_special_6`
+        # and `hp_turret_special_6` are different sockets on the ship and were
+        # both labelled "6" until 2026-09-04, which merged 32 guns with 19
+        # turrets under one filter value.
+        ("kind", "gun or turret", "pick", ""),
         ("mount", "mount class", "pick", ""),
         ("price", "price", "num", "cr"),
         ("rank", "rank needed", "num", ""),
@@ -281,6 +289,11 @@ def load_catalogue(game_dir=None, obtainable_only=True):
     for gun in wp.load_weapons(game_dir):
         gun["rate"] = 1 / gun["refire"] if gun["refire"] else None
         gun["mount"] = _mount_label(gun["mount"])
+        gun["kind"] = "turret" if gun["turret"] else "gun"
+        # Rounded to the whole number the game itself shows, at the owner's
+        # call: 600.0, 600.3 and 600.4 are three values in the files and one
+        # answer to "which guns do 600". The column keeps the exact figure.
+        gun["speed_group"] = round(gun["speed"]) if gun["speed"] else None
         if reachable(finish(gun)):
             guns.append(gun)
 
@@ -300,13 +313,13 @@ def choices(rows, key):
     return sorted(seen, key=order)
 
 
-def search(rows, filters, order):
-    """Rows passing every filter, dearest-hitting first.
+def search(rows, filters, order, descending=True):
+    """Rows passing every filter, in the order asked for.
 
     `filters` is [(key, kind, value)]. A "num" filter is a minimum, a "pick" is
-    an exact match. Order never comes from the filters: the owner asked for the
-    headline number to stay in charge, so adding a projectile-speed threshold
-    narrows the list without reshuffling it.
+    an exact match. **Sorting is separate from filtering** and stays that way:
+    adding a threshold narrows the list without reshuffling what you were
+    reading, and the column headers are what change the order.
     """
     out = []
     for row in rows:
@@ -322,8 +335,29 @@ def search(rows, filters, order):
                 break
         if keep:
             out.append(row)
-    out.sort(key=lambda r: (-(r.get(order) or 0), r["name"]))
-    return out
+
+    def key(row):
+        """None for a row with nothing in that column, else a number or text.
+
+        `mount` holds "6" and "10" as text, so a numeric reading is tried
+        first: sorted as words, class 10 lands between 1 and 2.
+        """
+        got = row.get(order)
+        if got is None or got == "":
+            return None
+        try:
+            return float(got)
+        except (TypeError, ValueError):
+            return str(got).lower()
+
+    have = [r for r in out if key(r) is not None]
+    # A gun with no price is not the cheapest gun. Missing values sit at the
+    # end whichever way round the column is turned, never at the top.
+    missing = [r for r in out if key(r) is None]
+    have.sort(key=lambda r: r["name"])
+    have.sort(key=key, reverse=descending)
+    missing.sort(key=lambda r: r["name"])
+    return have + missing
 
 
 def main():

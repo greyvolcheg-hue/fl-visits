@@ -476,6 +476,8 @@ PAGE = """<!doctype html>
     grid-template-columns: minmax(10rem, 1fr) 4.5rem 4.5rem 5rem
                            minmax(9rem, 1fr) minmax(9rem, 1fr); }
   .geartable { min-width: 40rem; }
+  .gunhead .sortby { cursor: pointer; user-select: none; }
+  .gunhead .sortby:hover { color: var(--text); }
   .geartable .gun, .geartable .gunhead { grid-template-columns: inherit; }
   .filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
   .filter { display: flex; align-items: center; gap: .45rem;
@@ -617,7 +619,7 @@ let deltaData = null, deltaBase = '', deltaGood = '',
 // minimum and a "pick" is an exact match. The order never comes from them: the
 // headline number stays in charge, so a threshold narrows without reshuffling.
 let gearData = null, gearKind = 'guns', gearFilters = [],
-    gearOpen = '', gearVisitedOnly = false;
+    gearOpen = '', gearVisitedOnly = false, gearSort = '', gearDir = 'down';
 // Routes sub-tab. Two systems by nickname, never by display name: several
 // systems share a label and only the nickname tells them apart.
 let routeData = null, routeFrom = '', routeTo = '', routeVisitedOnly = false;
@@ -1482,26 +1484,35 @@ function renderGear() {
   if (!d.rows.length)
     return out + '<p class="empty">Nothing matches all of those.</p>';
 
-  const order = param(d.order);
-  // The default column never repeats itself as a filter column.
-  const extra = gearFilters.map(f => f.key).filter(k => k !== d.order);
-  out += `<p class="note">${d.rows.length} of ${d.total}, by ${esc(order.label)}.
-    Ordering stays on that whatever you filter by. Prices are the same at every
-    dealer in the game, so the list under a row is where, not where cheapest.</p>`;
+  // Columns: the kind's headline number, whatever is being sorted on, and
+  // whatever is being filtered on. A key appears once however many of those
+  // it happens to be.
+  // `price` is left out: it has a fixed column of its own further right, and
+  // listing it twice is how a table starts lying about itself.
+  const cols = [];
+  [d.default, d.order].concat(gearFilters.map(f => f.key))
+    .forEach(k => { if (k && k !== 'price' && !cols.includes(k)) cols.push(k); });
+  const arrow = k => k !== d.order ? '' : (d.dir === 'down' ? ' ↓' : ' ↑');
+  out += `<p class="note">${d.rows.length} of ${d.total},
+    by ${esc(param(d.order).label)}${d.dir === 'down' ? ', biggest first' : ', smallest first'}.
+    Click any heading to sort by it; filtering never changes the order on its
+    own. Prices are the same at every dealer in the game, so the list under a
+    row is where, not where cheapest.</p>`;
 
   out += '<div class="guns"><div class="geartable" ' +
-    `style="grid-template-columns: minmax(12rem,1fr) 6rem ${'5.5rem '.repeat(extra.length)}6rem 5rem">` +
+    `style="grid-template-columns: minmax(12rem,1fr) ${'6rem '.repeat(cols.length)}6rem 5rem">` +
     '<div class="gunhead"><span class="nm">item</span>' +
-    `<span>${esc(order.label)}</span>` +
-    extra.map(k => `<span>${esc(param(k).label)}</span>`).join('') +
-    '<span>price</span><span>where</span></div>' +
+    cols.map(k => `<span class="sortby" data-sort="${esc(k)}">` +
+      `${esc(param(k).label)}${arrow(k)}</span>`).join('') +
+    `<span class="sortby" data-sort="price">price${arrow('price')}</span>` +
+    '<span>where</span></div>' +
     d.rows.map(r => {
       const open = r.nickname === gearOpen;
       let line = `<div class="gun good${open ? ' on' : ''}" data-item="${esc(r.nickname)}">` +
         `<span class="nm">${esc(r.name)}` +
         (r.rank ? ` <span class="loot">rank ${r.rank}</span>` : '') + '</span>' +
-        `<span class="num h">${fmt(r[d.order], order)}</span>` +
-        extra.map(k => `<span class="num raw">${fmt(r[k], param(k))}</span>`).join('') +
+        cols.map(k => `<span class="num ${k === d.order ? 'h' : 'raw'}">` +
+          `${fmt(r[k], param(k))}</span>`).join('') +
         `<span class="num">${r.price ? money(Math.round(r.price)) : '-'}</span>` +
         `<span class="num raw">${r.bases.length || (r.wrecks.length ? 'wreck' : '-')}</span>` +
         '</div>';
@@ -1529,6 +1540,10 @@ function wireGear() {
     // new kind does not have and would silently match nothing.
     gearFilters = [];
     gearOpen = '';
+    // The sort column is a parameter too, so it cannot survive the switch
+    // either; the server would fall back silently and the arrow would lie.
+    gearSort = '';
+    gearDir = 'down';
     loadGear();
   });
   const v = $('#gearseen');
@@ -1566,12 +1581,22 @@ function wireGear() {
       gearOpen = b.dataset.item === gearOpen ? '' : b.dataset.item;
       render();
     }));
+  document.querySelectorAll('.sortby').forEach(h =>
+    h.addEventListener('click', () => {
+      // Clicking the column already sorted on turns it round; a new column
+      // starts big-first, which is what you want from every one of them.
+      const key = h.dataset.sort;
+      gearDir = (key === gearData.order && gearDir === 'down') ? 'up' : 'down';
+      gearSort = key;
+      loadGear();
+    }));
 }
 
 async function loadGear() {
   const q = ['kind=' + encodeURIComponent(gearKind)];
   gearFilters.forEach(f => q.push('f=' + encodeURIComponent(
     `${f.key}:${f.kind}:${f.value}`)));
+  if (gearSort) q.push('sort=' + encodeURIComponent(gearSort) + '&dir=' + gearDir);
   if (gearVisitedOnly) q.push('visited=1');
   try {
     const r = await fetch('api/equipment?' + q.join('&'), { cache: 'no-store' });
@@ -1979,7 +2004,8 @@ def make_handler(game, save_path):
             from urllib.parse import parse_qs, urlparse
             query = parse_qs(urlparse(self.path).query)
             body = {"kinds": [], "kind": None, "parameters": [], "choices": {},
-                    "order": None, "rows": [], "total": 0, "error": None}
+                    "order": None, "default": None, "dir": "down",
+                    "rows": [], "total": 0, "error": None}
             try:
                 cat = game.gear
                 body["kinds"] = [
@@ -1988,8 +2014,15 @@ def make_handler(game, save_path):
                 kind = (query.get("kind") or ["guns"])[0]
                 if kind not in cat:
                     kind = "guns"
-                rows, order = cat[kind], eqp.ORDER[kind]
-                body["kind"], body["order"], body["total"] = kind, order, len(rows)
+                rows = cat[kind]
+                keys = {k for k, _l, _kd, _u in eqp.PARAMETERS[kind]}
+                order = (query.get("sort") or [""])[0]
+                if order not in keys:
+                    order = eqp.ORDER[kind]
+                down = (query.get("dir") or ["down"])[0] != "up"
+                body["kind"], body["total"] = kind, len(rows)
+                body["order"], body["default"] = order, eqp.ORDER[kind]
+                body["dir"] = "down" if down else "up"
                 body["parameters"] = [
                     {"key": k, "label": lab, "kind": knd, "unit": unit}
                     for k, lab, knd, unit in eqp.PARAMETERS[kind]]
@@ -2007,7 +2040,7 @@ def make_handler(game, save_path):
                         except (TypeError, ValueError):
                             continue
                     filters.append((key, knd, value))
-                found = eqp.search(rows, filters, order)
+                found = eqp.search(rows, filters, order, down)
 
                 # The docked filter narrows where you can buy, never what
                 # exists: a gun is still a gun if you have not been to its
