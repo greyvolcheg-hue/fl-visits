@@ -203,6 +203,22 @@ session.
 same user are needed. On a machine where it is not, this stops working and
 should say so rather than being "fixed" by loosening it.
 
+## Systems are identified by nickname, never by display name
+
+Found 2026-09-04 while adding the Routes sub-tab. Five system display names are
+shared by more than one system: **Omicron Beta** is `Ew02` and `St02`, **Omicron
+Major** is `St03`, `St03b`, `St02c` and `FP7_system`, and **Unknown** is `Ew05`
+and `Ew06`.
+
+Only one of each group has a market, so keying the trade selectors on labels
+would have worked today, by luck, and broken the moment anything looked at the
+single-player-only or multiplayer-only systems. `trade.py` rows therefore carry
+both `sys_nick` and `system`: the nickname is the identity, the label is what
+gets printed.
+
+Same shape as the three duplicated faction names on the Reputation tab, and the
+same answer: the display string is not a key.
+
 ## The page is one inline script, so a parse error takes all of it
 
 Added 2026-09-04 after the tab strip came up empty. The whole UI lives in one

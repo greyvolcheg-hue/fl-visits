@@ -34,7 +34,7 @@ The web page has six tabs, two of which carry sub-tabs:
 |---|---|
 | **Map** | Visits, Wrecks, Chart |
 | Speed, DPS, Neural Net, Reputation | none |
-| **Trade** | Data, Deltas |
+| **Trade** | Data, Deltas, Routes |
 
 Two levels rather than one longer strip because the pairs group naturally, and
 because eight or nine buttons on one line stops being a strip and becomes a
@@ -237,6 +237,35 @@ Pittsburgh in New York sells exactly one thing, Boron at 120, worth 960 at LD-14
 in Leeds, +840. Ruiz Base in Omicron Beta sells Alien Organisms at 100 against
 2000 at three separate research stations, **+1900, the largest margin in the
 game**.
+
+**Trade → Routes** answers the question you have in flight, which neither of the
+other two does. Data starts from a commodity; Deltas starts from the base under
+your feet and will happily send you across the map. Routes takes a departure
+system and a destination system and says what to put in the hold for a run you
+are making anyway.
+
+One line per commodity, not per pair of bases: the cheapest place to buy it at
+this end against the dearest place to sell it at that one, which is by
+definition the widest margin. New York alone has 12 market bases, so the
+uncollapsed cross product would be mostly noise.
+
+Only profitable lines are listed, with a count of what was dropped. There is no
+green on this tab: every "from" base holds stock by construction, so the colour
+that means *has it on the shelf* everywhere else would mark every row and
+therefore mean nothing.
+
+Three runs to check it against: New York → Leeds gives 14 of the 22 commodities
+traded in both, led by Boron at 120 from Planet Pittsburgh against 960 at LD-14.
+New York → New London gives 17 of 25, led by Optronics +644. Omicron Beta →
+Cambridge gives 4 of 8, led by Alien Organisms +1900, and **that number has to
+match what Deltas says for Ruiz Base**, because it is the same figure reached
+from the other direction.
+
+Two ways for a pair to come back empty, and they read differently because a
+trader does different things about them: 13 of the 1806 ordered pairs trade no
+commodity in common at all, and another 137 trade several but every one of them
+cheaper at the far end. Hudson → Magellan is the first kind, Chugoku → Honshu
+the second.
 
 **Map → Chart** is the Sirius sector map, systems and every jump between them,
 docked here so it is one click away while you are reading the other two. It is

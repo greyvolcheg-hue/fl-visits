@@ -332,6 +332,8 @@ PAGE = """<!doctype html>
                     border: 1px solid var(--line); border-radius: 8px;
                     padding: .45rem .7rem; }
   .reppick select:focus { outline: none; border-color: var(--docked); }
+  .reppick { align-items: center; }
+  .reppick .sys { color: var(--dim); font-size: .85rem; }
   .gun, .gunhead {
     display: grid; align-items: baseline; gap: .5rem;
     grid-template-columns: minmax(9rem, 1fr) repeat(2, 4.2rem) repeat(2, 5rem)
@@ -463,6 +465,10 @@ PAGE = """<!doctype html>
   .goodtable { min-width: 42rem; }
   .goodtable .gun, .goodtable .gunhead {
     grid-template-columns: minmax(11rem, 1fr) 4.5rem 4.5rem 5rem minmax(12rem, 1.4fr); }
+  .routetable { min-width: 46rem; }
+  .routetable .gun, .routetable .gunhead {
+    grid-template-columns: minmax(10rem, 1fr) 4.5rem 4.5rem 5rem
+                           minmax(9rem, 1fr) minmax(9rem, 1fr); }
   .desttable { min-width: 34rem; }
   .desttable .gun, .desttable .gunhead {
     grid-template-columns: 5rem 5rem minmax(12rem, 1fr) minmax(8rem, 1fr); }
@@ -508,7 +514,8 @@ const TABS = [
   { id: 'dps', label: 'DPS' },
   { id: 'log', label: 'Neural Net' },
   { id: 'rep', label: 'Reputation' },
-  { id: 'trade', label: 'Trade', kids: [['data', 'Data'], ['deltas', 'Deltas']] },
+  { id: 'trade', label: 'Trade',
+    kids: [['data', 'Data'], ['deltas', 'Deltas'], ['routes', 'Routes']] },
 ];
 // Where you were inside each parent, so coming back to Map does not always
 // dump you on Visits.
@@ -573,6 +580,9 @@ let tradeData = null, tradeGood = '', tradeVisitedOnly = false;
 // bases is well past what a dropdown is for.
 let deltaData = null, deltaBase = '', deltaGood = '',
     deltaVisitedOnly = false, deltaQuery = null;
+// Routes sub-tab. Two systems by nickname, never by display name: several
+// systems share a label and only the nickname tells them apart.
+let routeData = null, routeFrom = '', routeTo = '', routeVisitedOnly = false;
 const repOpen = {};
 
 // The write-to-files button on the Speed tab. Not remembered anywhere: it
@@ -650,6 +660,7 @@ function go(parent, child) {
   if (tab === 'rep' && !repData) loadRep();
   if (tab === 'data' && !tradeData) loadTrade();
   if (tab === 'deltas' && !deltaData) loadDeltas();
+  if (tab === 'routes' && !routeData) loadRoutes();
 }
 drawTabs();
 
@@ -1378,6 +1389,86 @@ function wireDeltas() {
   }
 }
 
+// Routes. Two systems in, one hold's worth of advice out.
+function renderRoutes() {
+  const d = routeData;
+  if (!d) return '<p class="empty">reading the markets…</p>';
+  if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
+
+  const opts = (sel, skip) => d.systems.map(s =>
+    `<option value="${esc(s.nickname)}"` +
+    (s.nickname === sel ? ' selected' : '') +
+    (s.nickname === skip ? ' disabled' : '') +
+    `>${esc(s.name)} (${s.bases})</option>`).join('');
+
+  let out = '<div class="reppick">' +
+    `<select id="routefrom"><option value="">departure system…</option>` +
+    `${opts(routeFrom, routeTo)}</select>` +
+    '<span class="sys">to</span>' +
+    `<select id="routeto"><option value="">destination system…</option>` +
+    `${opts(routeTo, routeFrom)}</select>` +
+    '<label class="toggle"><input type="checkbox" id="routeseen"' +
+    (routeVisitedOnly ? ' checked' : '') +
+    '> <span>only bases I have docked at</span></label></div>';
+
+  if (!d.from || !d.to) return out + '<p class="empty">Pick both ends.</p>';
+
+  const name = n => (d.systems.find(s => s.nickname === n) || {}).name || n;
+  const money = v => v.toLocaleString();
+  // Two different failures, and a trader does different things about them.
+  if (!d.rows.length)
+    return out + '<p class="empty">' + (d.traded
+      ? `${esc(name(d.from))} and ${esc(name(d.to))} trade ${d.traded} of the
+         same commodities, but every one of them is cheaper at the far end.
+         Nothing to carry this way.`
+      : `Nothing is bought in ${esc(name(d.from))} and traded in
+         ${esc(name(d.to))} at all.`) + '</p>';
+
+  const losses = d.traded - d.rows.length;
+  out += `<p class="note">${d.rows.length} worth carrying from
+    ${esc(name(d.from))} to ${esc(name(d.to))}` +
+    (losses ? `, out of ${d.traded} traded in both` : '') + `.
+    One line per commodity: the cheapest place to buy it at this end against
+    the dearest place to sell it at that one.</p>`;
+
+  out += '<div class="guns"><div class="routetable">' +
+    '<div class="gunhead"><span class="nm">commodity</span><span>buy</span>' +
+    '<span>sell</span><span>gain</span>' +
+    '<span class="nm">from</span><span class="nm">to</span></div>' +
+    d.rows.map(r =>
+      '<div class="gun">' +
+      `<span class="nm">${esc(r.name)}</span>` +
+      `<span class="num raw">${money(r.buy)}</span>` +
+      `<span class="num h">${money(r.sell)}</span>` +
+      `<span class="num up">+${money(r.gain)}</span>` +
+      `<span class="nm">${esc(r.from_base)}</span>` +
+      `<span class="nm">${esc(r.to_base)}</span></div>`).join('') +
+    '</div></div>';
+  return out;
+}
+
+function wireRoutes() {
+  const f = $('#routefrom'), t = $('#routeto'), v = $('#routeseen');
+  if (f) f.addEventListener('change', e => { routeFrom = e.target.value; loadRoutes(); });
+  if (t) t.addEventListener('change', e => { routeTo = e.target.value; loadRoutes(); });
+  if (v) v.addEventListener('change', e => {
+    routeVisitedOnly = e.target.checked;
+    loadRoutes();
+  });
+}
+
+async function loadRoutes() {
+  const q = [];
+  if (routeFrom) q.push('from=' + encodeURIComponent(routeFrom));
+  if (routeTo) q.push('to=' + encodeURIComponent(routeTo));
+  if (routeVisitedOnly) q.push('visited=1');
+  try {
+    const r = await fetch('api/routes' + (q.length ? '?' + q.join('&') : ''),
+                          { cache: 'no-store' });
+    if (r.ok) { routeData = await r.json(); render(); }
+  } catch (e) { /* the tab keeps its loading line */ }
+}
+
 async function loadDeltas() {
   const q = [];
   if (deltaBase) q.push('base=' + encodeURIComponent(deltaBase));
@@ -1413,6 +1504,14 @@ function render() {
         '<p class="note">Click it for the full 2560px image in its own tab.</p>' +
         '<a class="chartimg" href="map.jpg" target="_blank" rel="noopener">' +
         '<img src="map.jpg" alt="Freelancer system chart"></a>';
+    return;
+  }
+  if (tab === 'routes') {
+    $('#totals').hidden = true;
+    $('#togglewrap').hidden = true;
+    $('#sub').textContent = 'what to put in the hold for a run you are making anyway';
+    $('#list').innerHTML = renderRoutes();
+    wireRoutes();
     return;
   }
   if (tab === 'deltas') {
@@ -1568,6 +1667,8 @@ def make_handler(game, save_path):
                 self._send_trade()
             elif path == "/api/deltas":
                 self._send_deltas()
+            elif path == "/api/routes":
+                self._send_routes()
             elif path == "/map.jpg":
                 # Beside this script, never an absolute path: the vault sits
                 # somewhere different on each machine.
@@ -1664,6 +1765,50 @@ def make_handler(game, save_path):
                     if source:
                         body["good"] = good
                         body["rows"] = td.deltas(rows, good, source, only)
+            except (OSError, ValueError, KeyError) as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
+
+        def _send_routes(self):
+            """What is worth carrying from one system to another."""
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            _names, rows = game.market
+            body = {"systems": [], "from": None, "to": None,
+                    "rows": [], "traded": 0, "error": None}
+            try:
+                only = None
+                if (query.get("visited") or [""])[0]:
+                    with lock:
+                        state = read_state(game, save_path)
+                    only = set(state["docked_bases"])
+
+                systems = {}
+                for row in rows:
+                    if only is not None and row["base"] not in only:
+                        continue
+                    seen = systems.setdefault(
+                        row["sys_nick"],
+                        {"nickname": row["sys_nick"], "name": row["system"],
+                         "bases": set()})
+                    seen["bases"].add(row["base"])
+                body["systems"] = sorted(
+                    ({"nickname": s["nickname"], "name": s["name"],
+                      "bases": len(s["bases"])} for s in systems.values()),
+                    key=lambda s: s["name"])
+
+                src = (query.get("from") or [None])[0]
+                dst = (query.get("to") or [None])[0]
+                if src in systems and dst in systems and src != dst:
+                    found = td.routes(rows, src, dst, only)
+                    body["from"] = src
+                    body["to"] = dst
+                    # `traded` counts everything both systems deal in, so the
+                    # page can tell "nothing is traded in both" apart from
+                    # "several are, and every one of them is a loss". A trader
+                    # acts on those two differently.
+                    body["traded"] = len(found)
+                    body["rows"] = [r for r in found if r["gain"] > 0]
             except (OSError, ValueError, KeyError) as exc:
                 body["error"] = str(exc)
             self._send(200, json.dumps(body).encode("utf-8"), "application/json")

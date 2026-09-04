@@ -138,6 +138,11 @@ def load_market(game_dir=None):
             rows.append({
                 "base": key,
                 "base_name": label.get(key, key),
+                # Both, because they are not interchangeable. Display names
+                # collide: "Omicron Beta" is Ew02 and St02, "Omicron Major" is
+                # four systems and "Unknown" is two. The nickname is the
+                # identity, the label is only what gets printed.
+                "sys_nick": system,
                 "system": sysname.get(system, system),
                 "good": good,
                 "good_name": names.get(good, good),
@@ -211,6 +216,49 @@ def best_runs(rows, base, only=None):
     for src in sells(rows, base):
         found = deltas(by_good[src["good"]], src["good"], src, only)
         out.append({**src, "best": found[0] if found else None})
+    return out
+
+
+def routes(rows, src, dst, only=None):
+    """What to buy in system `src` and sell in system `dst`, best margin first.
+
+    Systems by nickname, never by display name: see `sys_nick` above.
+
+    One row per commodity rather than one per pair of bases. New York alone has
+    12 market bases, so the uncollapsed cross product is mostly noise, and the
+    cheapest place to buy against the dearest place to sell is by definition the
+    pair with the widest margin.
+
+    Losing and break-even rows are kept. The caller drops them, because how many
+    there were is worth saying and cannot be recovered afterwards.
+    """
+    buy, sell = {}, {}
+    for row in rows:
+        if only is not None and row["base"] not in only:
+            continue
+        if row["sys_nick"] == src and row["buy"]:
+            cheap = buy.get(row["good"])
+            if cheap is None or row["price"] < cheap["price"]:
+                buy[row["good"]] = row
+        if row["sys_nick"] == dst:
+            dear = sell.get(row["good"])
+            if dear is None or row["price"] > dear["price"]:
+                sell[row["good"]] = row
+    out = []
+    for good, source in buy.items():
+        target = sell.get(good)
+        if target is None or target["base"] == source["base"]:
+            continue
+        out.append({
+            "good": good,
+            "name": source["good_name"],
+            "buy": source["price"],
+            "sell": target["price"],
+            "gain": target["price"] - source["price"],
+            "from_base": source["base_name"],
+            "to_base": target["base_name"],
+        })
+    out.sort(key=lambda r: (-r["gain"], r["name"]))
     return out
 
 
