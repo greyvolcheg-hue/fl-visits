@@ -17,8 +17,9 @@ system. Own git repo; the history in this folder is the undo button.
 | `weapons.py` | gun and munition stats turned into DPS, static game data |
 | `netlog.py` | the Neural Net log out of a save, as readable text |
 | `reputation.py` | the empathy model: what an action does to every faction |
-| `trade.py` | commodity prices per base, and which way each trade runs |
-| `serve.py` | local web view on 127.0.0.1:8731, seven tabs |
+| `trade.py` | commodity prices per base, which way each trade runs, and the margin between two of them |
+| `serve.py` | local web view on 127.0.0.1:8731, six tabs, two of them with sub-tabs |
+| `freelancer-map.jpg` | the Sirius sector chart, served at `/map.jpg` |
 | `run.sh` | start the server and open a browser on it |
 
 Everything new goes in its own file. `flvisits.py` supplies the primitives;
@@ -201,6 +202,23 @@ session.
 `kernel.yama.ptrace_scope` is 0 on this machine, so no privileges beyond the
 same user are needed. On a machine where it is not, this stops working and
 should say so rather than being "fixed" by loosening it.
+
+## The page is one inline script, so a parse error takes all of it
+
+Added 2026-09-04 after the tab strip came up empty. The whole UI lives in one
+`<script>` in `PAGE`, which means a *syntax* error is not a broken feature, it
+is a page with no behaviour at all: static HTML, a stuck "loading…", no tabs.
+The server serves that quite happily, so curl says 200 and the API answers.
+
+The specific cause was `let top = 'map'`. `window.top` is a non-configurable
+property of the global object, and a global `let` or `const` on such a name is a
+SyntaxError rather than a shadowing declaration. `window`, `self`, `location`
+and `document` behave the same way. The variable is `topTab` now.
+
+**Verifying this needs a browser.** `firefox --headless --screenshot` renders
+the page and shows whether the strip drew. The shot fires at the load event,
+before the first `fetch` resolves, so an empty body in it is expected and is not
+evidence of anything; the tab strip is the part that tells you.
 
 ## Dependency
 

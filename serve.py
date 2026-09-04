@@ -21,7 +21,8 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 import docking as dk  # noqa: E402
 import drawdist as dd  # noqa: E402
 import flvisits as fl  # noqa: E402
@@ -277,8 +278,13 @@ PAGE = """<!doctype html>
   body { margin: 0; padding: 2rem 1.5rem 4rem; background: var(--bg); color: var(--text);
          font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; }
   .wrap { max-width: 60rem; margin: 0 auto; }
-  h1 { font-size: 1.4rem; margin: 0 0 .25rem; font-weight: 600; }
-  .sub { color: var(--dim); font-size: .85rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.4rem; margin: 0; font-weight: 600; }
+  .sub { color: var(--dim); font-size: .85rem; margin: 0; }
+  /* One row, baseline aligned, so the grey line sits on the heading's own
+     footing. It wraps rather than overflows: the Visits subtitle is a filename
+     and a timestamp, which is long. */
+  .title { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap;
+           margin-bottom: 1.5rem; }
   .totals { display: flex; gap: 2rem; flex-wrap: wrap; padding: 1rem 1.25rem; margin-bottom: 1.5rem;
             background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
   .totals div span { display: block; }
@@ -418,6 +424,10 @@ PAGE = """<!doctype html>
          cursor: pointer; margin-bottom: -1px; }
   .tab:hover { color: var(--text); }
   .tab.on { color: var(--text); border-bottom-color: var(--docked); }
+  /* Smaller and without a rule under the strip, so two stacked bars do not
+     read as two of the same thing. */
+  .subtabs { display: flex; gap: .25rem; margin: -.9rem 0 1.25rem; }
+  .subtabs .tab { font-size: .85rem; padding: .35rem .7rem; }
   .wreck { display: flex; gap: .6rem; margin: .3rem 0; font-size: .9rem; align-items: baseline; }
   .wreck .mark { flex: none; width: 1rem; text-align: center; }
   .wreck.f .mark { color: var(--docked); }
@@ -441,19 +451,31 @@ PAGE = """<!doctype html>
   .speeds button:disabled { opacity: .4; cursor: default; }
   .note { color: var(--dim); font-size: .85rem; margin: 0 0 1rem; }
   .note.warn { color: var(--revealed); }
+  /* The chart is 2560px wide and unreadable inside a 60rem column, so its
+     panel is the one thing on the page that takes the whole window. */
+  .wrap.chart { max-width: none; }
+  .chartimg { display: block; border: 1px solid var(--line); border-radius: 8px; }
+  .chartimg img { width: 100%; height: auto; display: block; border-radius: 7px; }
+  .pick { display: flex; align-items: baseline; gap: .7rem; margin: 0 0 .8rem; }
+  .pick .nm { font-size: 1rem; font-weight: 600; }
+  .pick .sys { color: var(--dim); font-size: .85rem; }
+  .hit .nm + .nm { flex: none; width: 10rem; color: var(--dim); font-size: .85rem; }
+  .goodtable { min-width: 42rem; }
+  .goodtable .gun, .goodtable .gunhead {
+    grid-template-columns: minmax(11rem, 1fr) 4.5rem 4.5rem 5rem minmax(12rem, 1.4fr); }
+  .desttable { min-width: 34rem; }
+  .desttable .gun, .desttable .gunhead {
+    grid-template-columns: 5rem 5rem minmax(12rem, 1fr) minmax(8rem, 1fr); }
+  /* A good is a button in all but name: clicking one opens its destinations. */
+  .good { cursor: pointer; }
+  .good:hover { border-color: var(--dim); }
+  .good.on { border-color: var(--docked); }
+  .gun .num.up { color: var(--docked); }
 </style>
-<div class="wrap">
-  <h1>Freelancer</h1>
-  <div class="sub" id="sub">loading…</div>
-  <nav class="tabs">
-    <button class="tab on" data-tab="visits">Visits</button>
-    <button class="tab" data-tab="wrecks">Wrecks</button>
-    <button class="tab" data-tab="speed">Speed</button>
-    <button class="tab" data-tab="dps">DPS</button>
-    <button class="tab" data-tab="log">Neural Net</button>
-    <button class="tab" data-tab="rep">Reputation</button>
-    <button class="tab" data-tab="trade">Trade</button>
-  </nav>
+<div class="wrap" id="wrap">
+  <div class="title"><h1>Freelancer</h1><div class="sub" id="sub">loading…</div></div>
+  <nav class="tabs" id="tabs"></nav>
+  <nav class="subtabs" id="subtabs" hidden></nav>
   <div class="totals" id="totals"></div>
   <div class="controls" id="togglewrap">
     <label class="toggle">
@@ -471,6 +493,32 @@ PAGE = """<!doctype html>
 </div>
 <script>
 const $ = s => document.querySelector(s);
+
+// The tab strip, both levels, from one list. A tab now appears in up to two
+// places, so hand-written markup would be a second copy to keep in step.
+//
+// `tab` still holds the leaf, never the parent. Everything below is keyed on
+// it, and so is every branch in render(), so grouping Visits and Wrecks under
+// Map costs those nothing: 'visits' is still 'visits', it just now has a
+// heading above it.
+const TABS = [
+  { id: 'map', label: 'Map',
+    kids: [['visits', 'Visits'], ['wrecks', 'Wrecks'], ['chart', 'Chart']] },
+  { id: 'speed', label: 'Speed' },
+  { id: 'dps', label: 'DPS' },
+  { id: 'log', label: 'Neural Net' },
+  { id: 'rep', label: 'Reputation' },
+  { id: 'trade', label: 'Trade', kids: [['data', 'Data'], ['deltas', 'Deltas']] },
+];
+// Where you were inside each parent, so coming back to Map does not always
+// dump you on Visits.
+const leaf = { map: 'visits', trade: 'data' };
+// `topTab`, not `top`: `window.top` is a non-configurable global property, so
+// a global `let top` is a SyntaxError that kills the entire script before a
+// line of it runs. The page came up bare, no tabs and a stuck "loading…",
+// which is what that failure looks like from the outside.
+let topTab = 'map';
+
 // One checkbox, but its state belongs to the tab, not to the page: what you
 // want expanded on Visits has nothing to do with what you want on Wrecks.
 const extended = { visits: true, wrecks: true };
@@ -520,6 +568,11 @@ let repData = null, repTarget = '', repGoal = 'neutral';
 // Trade tab. The commodity list arrives once; the rows come per commodity,
 // because 1994 of them is more than the page needs at any one moment.
 let tradeData = null, tradeGood = '', tradeVisitedOnly = false;
+// Deltas sub-tab. `deltaQuery` is the base picker's search box, null when it is
+// closed, exactly like `gunQuery` on the DPS tab and for the same reason: 160
+// bases is well past what a dropdown is for.
+let deltaData = null, deltaBase = '', deltaGood = '',
+    deltaVisitedOnly = false, deltaQuery = null;
 const repOpen = {};
 
 // The write-to-files button on the Speed tab. Not remembered anywhere: it
@@ -559,21 +612,46 @@ $('#expandall').addEventListener('click', () => foldAll(false));
 
 $('#ext').addEventListener('change', e => { extended[tab] = e.target.checked; render(); });
 $('#hidedone').addEventListener('change', e => { hideDone[tab] = e.target.checked; render(); });
-document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
-  tab = b.dataset.tab;
-  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+
+function drawTabs() {
+  $('#tabs').innerHTML = TABS.map(t =>
+    `<button class="tab${t.id === topTab ? ' on' : ''}" data-top="${t.id}">` +
+    `${t.label}</button>`).join('');
+  const kids = (TABS.find(t => t.id === topTab) || {}).kids;
+  const bar = $('#subtabs');
+  bar.hidden = !kids;
+  bar.innerHTML = !kids ? '' : kids.map(([id, label]) =>
+    `<button class="tab${id === tab ? ' on' : ''}" data-leaf="${id}">` +
+    `${label}</button>`).join('');
+  $('#tabs').querySelectorAll('.tab').forEach(b =>
+    b.addEventListener('click', () => go(b.dataset.top)));
+  bar.querySelectorAll('.tab').forEach(b =>
+    b.addEventListener('click', () => go(topTab, b.dataset.leaf)));
+}
+
+function go(parent, child) {
+  topTab = parent;
+  const entry = TABS.find(t => t.id === topTab) || {};
+  // A parent with no children is its own leaf, which is why the four plain
+  // tabs need no special case anywhere below this line.
+  tab = entry.kids ? (child || leaf[topTab] || entry.kids[0][0]) : topTab;
+  if (entry.kids) leaf[topTab] = tab;
+  drawTabs();
   $('#ext').checked = !!extended[tab];
   $('#hidedone').checked = !!hideDone[tab];
-  // Leaving the DPS tab closes the picker, so coming back shows the loadout
-  // rather than a half-typed search from last time.
+  // Leaving a picker closes it, so coming back shows the choice rather than a
+  // half-typed search from last time.
   if (tab !== 'dps') gunQuery = null;
+  if (tab !== 'deltas') deltaQuery = null;
   render();
   // The live tab is only polled while it is open, so opening it has to ask.
   if (tab === 'speed') poll();
   if (tab === 'dps') loadCatalogue();
   if (tab === 'rep' && !repData) loadRep();
-  if (tab === 'trade' && !tradeData) loadTrade();
-}));
+  if (tab === 'data' && !tradeData) loadTrade();
+  if (tab === 'deltas' && !deltaData) loadDeltas();
+}
+drawTabs();
 
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
@@ -1180,6 +1258,138 @@ function wireTrade() {
   });
 }
 
+// Deltas. Three steps down one panel: which base you are standing on, what it
+// has on the shelf, and where each of those is worth more.
+function renderDeltas() {
+  const d = deltaData;
+  if (!d) return '<p class="empty">reading the markets…</p>';
+  if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
+
+  let out = '<div class="reppick">' +
+    '<label class="toggle"><input type="checkbox" id="deltaseen"' +
+    (deltaVisitedOnly ? ' checked' : '') +
+    '> <span>only bases I have docked at</span></label></div>';
+
+  // Step one. Closed once a base is picked, because the pick is the context
+  // everything below it is read against and it has to stay on screen.
+  if (!d.base || deltaQuery !== null) {
+    const q = (deltaQuery || '').trim().toLowerCase();
+    const hits = d.bases
+      .filter(b => !q || b.name.toLowerCase().includes(q)
+                      || b.system.toLowerCase().includes(q))
+      .slice(0, 40);
+    out += `<p><input id="basesearch" placeholder="type a base or system name" ` +
+      `value="${esc(deltaQuery || '')}" autocomplete="off"></p><div class="hits">` +
+      (hits.length ? hits.map(b =>
+        `<button class="hit" data-base="${esc(b.nickname)}">` +
+        `<span class="nm">${esc(b.name)}</span>` +
+        `<span class="nm">${esc(b.system)}</span>` +
+        `<span class="num">${b.goods}</span></button>`).join('')
+        : '<p class="empty">Nothing by that name.</p>') + '</div>' +
+      `<p class="note">${d.bases.length} bases sell something` +
+      (deltaVisitedOnly ? ' and are ones you have docked at' : '') +
+      '. The number on the right is how many kinds of cargo it has in stock.</p>';
+    return out;
+  }
+
+  out += '<div class="pick">' +
+    `<span class="nm">${esc(d.base_name)}</span>` +
+    `<span class="sys">${esc(d.system)}</span>` +
+    '<button class="addgun" id="rebase">change base</button></div>';
+
+  if (!d.goods.length)
+    return out + '<p class="empty">This base has nothing in stock.</p>';
+
+  const money = v => v.toLocaleString();
+  out += `<p class="note">${d.goods.length} on the shelf here, dearest first.
+    <b>best</b> is the most anyone will pay for it and <b>gain</b> is what that
+    leaves you a unit. Click a row for every base that trades it.</p>`;
+
+  out += '<div class="guns"><div class="goodtable">' +
+    '<div class="gunhead"><span class="nm">commodity</span><span>buy</span>' +
+    '<span>best</span><span>gain</span><span class="nm">where</span></div>' +
+    d.goods.map(g =>
+      `<div class="gun good${g.nickname === d.good ? ' on' : ''}" ` +
+      `data-good="${esc(g.nickname)}">` +
+      `<span class="nm">${esc(g.name)}</span>` +
+      `<span class="num raw">${money(g.price)}</span>` +
+      (g.best
+        ? `<span class="num">${money(g.best.price)}</span>` +
+          `<span class="num up">+${money(g.best.delta)}</span>` +
+          `<span class="nm">${esc(g.best.base_name)}, ${esc(g.best.system)}</span>`
+        : '<span class="num raw">-</span><span class="num raw">-</span>' +
+          '<span class="nm">nowhere else trades it</span>') +
+      '</div>').join('') + '</div></div>';
+
+  if (!d.good) return out;
+
+  const good = d.goods.find(g => g.nickname === d.good);
+  out += `<p class="note" style="margin-top:1.25rem">${esc(good ? good.name : d.good)}
+    bought here at ${money(good ? good.price : 0)}, and every base that trades
+    it, by what it leaves you.
+    <b class="ok">Green still means the base has it on the shelf</b>, the same
+    as on Data: those will sell it to you as well as buy it.</p>`;
+
+  out += '<div class="guns"><div class="desttable">' +
+    '<div class="gunhead"><span>price</span><span>gain</span>' +
+    '<span class="nm">base</span><span class="nm">system</span></div>' +
+    d.rows.map(r =>
+      `<div class="gun traderow${r.buy ? ' sells' : ''}">` +
+      `<span class="num h">${money(r.price)}</span>` +
+      `<span class="num${r.delta > 0 ? ' up' : ' raw'}">` +
+      `${r.delta > 0 ? '+' : ''}${money(r.delta)}</span>` +
+      `<span class="nm">${esc(r.base_name)}</span>` +
+      `<span class="nm">${esc(r.system)}</span></div>`).join('') +
+    '</div></div>';
+  return out;
+}
+
+function wireDeltas() {
+  const v = $('#deltaseen');
+  if (v) v.addEventListener('change', e => {
+    deltaVisitedOnly = e.target.checked;
+    loadDeltas();
+  });
+  const again = $('#rebase');
+  if (again) again.addEventListener('click', () => { deltaQuery = ''; render(); });
+  document.querySelectorAll('.hit[data-base]').forEach(b =>
+    b.addEventListener('click', () => {
+      deltaBase = b.dataset.base;
+      deltaGood = '';
+      deltaQuery = null;
+      loadDeltas();
+    }));
+  document.querySelectorAll('.good').forEach(b =>
+    b.addEventListener('click', () => {
+      // Clicking the open row shuts it, so the table can be read on its own.
+      deltaGood = b.dataset.good === deltaGood ? '' : b.dataset.good;
+      loadDeltas();
+    }));
+  const box = $('#basesearch');
+  if (box) {
+    // Same as the weapon picker: re-rendering replaces the input, so the caret
+    // has to be put back or the second character types itself at the front.
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+    box.addEventListener('input', e => { deltaQuery = e.target.value; render(); });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && deltaBase) { deltaQuery = null; render(); }
+    });
+  }
+}
+
+async function loadDeltas() {
+  const q = [];
+  if (deltaBase) q.push('base=' + encodeURIComponent(deltaBase));
+  if (deltaGood) q.push('good=' + encodeURIComponent(deltaGood));
+  if (deltaVisitedOnly) q.push('visited=1');
+  try {
+    const r = await fetch('api/deltas' + (q.length ? '?' + q.join('&') : ''),
+                          { cache: 'no-store' });
+    if (r.ok) { deltaData = await r.json(); render(); }
+  } catch (e) { /* the tab keeps its loading line */ }
+}
+
 function render() {
   // The Speed tab reads the running process rather than the save, so it carries
   // neither the totals row nor the Show All box. Cruise and thrusters live on it
@@ -1187,10 +1397,33 @@ function render() {
   const live = tab === 'speed';
   // Only the two per-system reports want the totals row and the Show All box.
   // The rest carry their own controls, or none.
-  const bare = live || tab === 'dps' || tab === 'log';
+  const bare = live || tab === 'dps' || tab === 'log' || tab === 'chart';
   $('#totals').hidden = bare;
   $('#togglewrap').hidden = bare;
-  if (tab === 'trade') {
+  // The chart is 2560px wide, so it is the one panel that takes the window
+  // rather than the 60rem column everything else reads better inside.
+  $('#wrap').classList.toggle('chart', tab === 'chart');
+  if (tab === 'chart') {
+    $('#sub').textContent = 'the Sirius sector and every jump between its systems';
+    // The five-second poll calls render(), and rewriting this innerHTML would
+    // throw away a decoded 2560px image and re-decode it, forever. Nothing on
+    // this panel changes, so it is drawn once.
+    if (!$('#list .chartimg'))
+      $('#list').innerHTML =
+        '<p class="note">Click it for the full 2560px image in its own tab.</p>' +
+        '<a class="chartimg" href="map.jpg" target="_blank" rel="noopener">' +
+        '<img src="map.jpg" alt="Freelancer system chart"></a>';
+    return;
+  }
+  if (tab === 'deltas') {
+    $('#totals').hidden = true;
+    $('#togglewrap').hidden = true;
+    $('#sub').textContent = 'what a base has on the shelf, and where it is worth more';
+    $('#list').innerHTML = renderDeltas();
+    wireDeltas();
+    return;
+  }
+  if (tab === 'data') {
     $('#totals').hidden = true;
     $('#togglewrap').hidden = true;
     $('#sub').textContent = 'who buys and sells what, and for how much';
@@ -1297,11 +1530,15 @@ def make_handler(game, save_path):
     lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
-        def _send(self, code, body, ctype):
+        def _send(self, code, body, ctype, cache="no-store"):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
+            # Everything here is a live reading of a save or a running game, so
+            # no-store is the right default. The chart is the one exception: it
+            # is 840 KB that will never change, and the page redraws every five
+            # seconds.
+            self.send_header("Cache-Control", cache)
             self.end_headers()
             self.wfile.write(body)
 
@@ -1329,6 +1566,18 @@ def make_handler(game, save_path):
                 self._send_tradelane()
             elif path == "/api/trade":
                 self._send_trade()
+            elif path == "/api/deltas":
+                self._send_deltas()
+            elif path == "/map.jpg":
+                # Beside this script, never an absolute path: the vault sits
+                # somewhere different on each machine.
+                chart = os.path.join(HERE, "freelancer-map.jpg")
+                try:
+                    with open(chart, "rb") as fh:
+                        self._send(200, fh.read(), "image/jpeg",
+                                   "public, max-age=86400")
+                except OSError:
+                    self._send(404, b"chart not found", "text/plain")
             elif path == "/api/reputation":
                 self._send_reputation()
             elif path == "/api/drawdist":
@@ -1357,6 +1606,64 @@ def make_handler(game, save_path):
                     visited = set(state["docked_bases"])
                     body["good"] = want.lower()
                     body["rows"] = td.find(rows, want.lower(), visited)
+            except (OSError, ValueError, KeyError) as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
+
+        def _send_deltas(self):
+            """The base list, what one of them sells, and where that is worth more."""
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            _names, rows = game.market
+            body = {"bases": [], "base": None, "base_name": None, "system": None,
+                    "goods": [], "good": None, "rows": [], "error": None}
+            try:
+                only = None
+                if (query.get("visited") or [""])[0]:
+                    with lock:
+                        state = read_state(game, save_path)
+                    only = set(state["docked_bases"])
+
+                # Every base that has anything on the shelf. The filter applies
+                # here as well as to the destinations: offering a base the next
+                # step would then refuse to plan a run from is worse than not
+                # offering it.
+                stock = {}
+                for row in rows:
+                    if not row["buy"]:
+                        continue
+                    if only is not None and row["base"] not in only:
+                        continue
+                    seen = stock.setdefault(row["base"], dict(row, goods=0))
+                    seen["goods"] += 1
+                body["bases"] = sorted(
+                    ({"nickname": b, "name": r["base_name"],
+                      "system": r["system"], "goods": r["goods"]}
+                     for b, r in stock.items()),
+                    key=lambda b: (b["name"], b["system"]))
+
+                base = (query.get("base") or [None])[0]
+                if not base or base.lower() not in stock:
+                    self._send(200, json.dumps(body).encode("utf-8"),
+                               "application/json")
+                    return
+                base = base.lower()
+                body["base"] = base
+                body["base_name"] = stock[base]["base_name"]
+                body["system"] = stock[base]["system"]
+                body["goods"] = [
+                    {"nickname": r["good"], "name": r["good_name"],
+                     "price": r["price"], "best": r["best"]}
+                    for r in td.best_runs(rows, base, only)]
+
+                good = (query.get("good") or [None])[0]
+                if good:
+                    good = good.lower()
+                    source = next((r for r in rows if r["base"] == base
+                                   and r["good"] == good and r["buy"]), None)
+                    if source:
+                        body["good"] = good
+                        body["rows"] = td.deltas(rows, good, source, only)
             except (OSError, ValueError, KeyError) as exc:
                 body["error"] = str(exc)
             self._send(200, json.dumps(body).encode("utf-8"), "application/json")

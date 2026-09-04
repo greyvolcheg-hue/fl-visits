@@ -163,6 +163,57 @@ def find(rows, good, visited=None, only_visited=False):
     return out
 
 
+def sells(rows, base):
+    """What `base` has on the shelf, dearest first.
+
+    Only the flag-0 rows: a base with none of something cannot sell it to you,
+    however much it is willing to pay.
+    """
+    out = [r for r in rows if r["base"] == base and r["buy"]]
+    out.sort(key=lambda r: (-r["price"], r["good_name"]))
+    return out
+
+
+def deltas(rows, good, source, only=None):
+    """Every other base trading `good`, by margin over `source`, biggest first.
+
+    `source` is the row you would buy at, so `delta` is profit a unit. `only`
+    narrows the destinations to a set of base nicknames when the player wants
+    to stay on bases already docked at.
+
+    Bases holding stock are not dropped. Freelancer lets you sell a commodity
+    at any base whose market lists it, and one that also stocks it is a real
+    destination, just usually a cheap one. Which end is which stays readable
+    because the caller keeps the same colour rule as the Data view.
+    """
+    out = []
+    for row in rows:
+        if row["good"] != good or row["base"] == source["base"]:
+            continue
+        if only is not None and row["base"] not in only:
+            continue
+        out.append(dict(row, delta=row["price"] - source["price"]))
+    out.sort(key=lambda r: (-r["delta"], r["base_name"]))
+    return out
+
+
+def best_runs(rows, base, only=None):
+    """Everything `base` sells, each with where it is worth most.
+
+    One pass over the rows per commodity rather than a request per line: the
+    figure is the whole point of the list, so it cannot wait for a click.
+    A good with nowhere to take it carries `best` as None.
+    """
+    by_good = {}
+    for row in rows:
+        by_good.setdefault(row["good"], []).append(row)
+    out = []
+    for src in sells(rows, base):
+        found = deltas(by_good[src["good"]], src["good"], src, only)
+        out.append({**src, "best": found[0] if found else None})
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--game", default=fl.DEFAULT_GAME)

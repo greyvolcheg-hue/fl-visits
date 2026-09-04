@@ -28,7 +28,20 @@ Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
-The web page has seven tabs. Visits and Wrecks each have their own state for the
+The web page has six tabs, two of which carry sub-tabs:
+
+| Tab | Sub-tabs |
+|---|---|
+| **Map** | Visits, Wrecks, Chart |
+| Speed, DPS, Neural Net, Reputation | none |
+| **Trade** | Data, Deltas |
+
+Two levels rather than one longer strip because the pairs group naturally, and
+because eight or nine buttons on one line stops being a strip and becomes a
+menu. Which sub-tab you were last on is remembered per parent, so leaving Wrecks
+for Trade and coming back returns to Wrecks.
+
+**Visits** and **Wrecks** each have their own state for the
 two checkboxes. *Show all* ticked shows every system, the things still to find,
 and what the wrecks contain; unticked, only progress. *Hide completed* drops the
 systems with nothing left in them, which on Visits means every base docked at
@@ -179,10 +192,10 @@ actions, and the abort rows are not filler: aborting a mission for an enemy of
 your target raises your standing with the target, since abortion is negative to
 the faction offering it and the empathy rate between enemies is negative too.
 
-**Trade** looks a commodity up and lists every base that trades it, dearest
-first. **Green marks the bases holding stock**, the only ones you can buy at;
-the rest hold none and will only be sold to. A toggle narrows the list to bases
-you have actually docked at, taken from the save.
+**Trade → Data** looks a commodity up and lists every base that trades it,
+dearest first. **Green marks the bases holding stock**, the only ones you can
+buy at; the rest hold none and will only be sold to. A toggle narrows the list
+to bases you have actually docked at, taken from the save.
 
 Green is on that rather than on where you have docked because the sort alone
 does not answer the question the tab is for. The cheapest row is not always one
@@ -201,6 +214,43 @@ with a stock of exactly zero, and nothing breaks the pattern.
 mining platforms, and three `[Base]` entries that no object in space points at,
 one of which is the cutscene-only Ithaca Research Station. A price you can never
 reach is not information.
+
+**Trade → Deltas** starts from the other end: from where the ship is standing
+rather than from a commodity. Pick a base by name or by system, and it lists
+only what that base actually has on the shelf, each line carrying the buy price,
+the most anyone in the game will pay, the difference, and where that is. Click a
+line for every base trading it, ordered by what it leaves you a unit.
+
+The best price is on the goods list rather than one click away because the pick
+is otherwise blind: a base with 20 kinds of cargo would need 20 clicks to find
+out which one is worth carrying.
+
+All 160 bases with a market sell at least one thing, so the picker is every one
+of them. They hold between 1 and 20 kinds of cargo, 4 being usual. The docked
+filter applies to both lists at once: with it on you get the bases you have been
+to, and destinations are drawn from those same bases, so the figure on the goods
+list is one you can actually collect. Anything else would promise a run the next
+click then refuses to show.
+
+Two runs to check it against, both straight out of the shipped data: Planet
+Pittsburgh in New York sells exactly one thing, Boron at 120, worth 960 at LD-14
+in Leeds, +840. Ruiz Base in Omicron Beta sells Alien Organisms at 100 against
+2000 at three separate research stations, **+1900, the largest margin in the
+game**.
+
+**Map → Chart** is the Sirius sector map, systems and every jump between them,
+docked here so it is one click away while you are reading the other two. It is
+`freelancer-map.jpg` in this folder, served at `/map.jpg`, and clicking it opens
+the full 2560x1826 image in its own browser tab. The file is the community
+"wingless" chart, renamed from `2560px-Freelancer_wingless.jpg` to fit the
+vault's hyphen-lowercase rule.
+
+It is the one response the server marks cacheable. Everything else here is a
+live reading of a save or a running game and is sent `no-store`, but 840 KB that
+will never change, on a page that redraws every five seconds, is not something
+to re-send 12 times a minute. The panel is drawn once for the same reason:
+rewriting its markup on every poll would throw away a decoded 2560px image and
+decode it again.
 
 **Neural Net** is the in-game log, readable while you fly. Mark an entry
 interesting or read; the marks live in your browser and survive reloads. Sorting
@@ -266,6 +316,31 @@ it copes, but do not assume the two paths are related.
 a one-way hash by brute force; a tidy-looking edit can break it silently and
 still print a plausible report. See `CLAUDE.md` for the rule and for what
 clears it.
+
+**Restart the server after every edit.** The page is a string in the process,
+so the browser keeps getting the old markup until the process is replaced.
+
+**A bare page with no tabs means the script never ran at all.** The whole UI is
+one inline `<script>`, so a *parse* error takes out every line of it, not just
+the broken one, and what you see is the static HTML: a title, a stuck
+subtitle, empty controls. It happened here on `let top = 'map'`. `window.top` is
+a non-configurable property of the global object, and a global `let` or `const`
+with a name like that is a SyntaxError, not a shadowing. `window`, `self`,
+`location` and `document` are the others. The tab variable is called `topTab`
+for exactly this reason and should stay that way.
+
+Checking that class of failure needs a browser, not curl, because the server
+serves the broken page perfectly happily:
+
+```bash
+firefox --headless --window-size=1400,900 --screenshot /tmp/shot.png \
+  http://127.0.0.1:8731/
+```
+
+The shot is taken at the load event, before the first `fetch` comes back, so
+"loading…" and an empty body in it are normal and prove nothing. **What it does
+prove is whether the tab strip drew**, which is the part that dies with the
+script.
 
 ## How it works
 
