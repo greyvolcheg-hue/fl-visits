@@ -179,7 +179,16 @@ def group_by_system(wrecks, visits, system_label):
         entry = {"name": wreck["name"], "sector": wreck["sector"],
                  "spot": wreck["spot"], "loot": wreck["loot"],
                  # Bit 8 is the game's own record of the loot having been taken.
-                 "emptied": bool(flag is not None and flag & LOOTED)}
+                 #
+                 # 54 of the 157 wrecks carry nothing, which is the game's own
+                 # design and not a gap in the reader. The game never sets bit 8
+                 # on those, because there was never anything to take, so they
+                 # sat in the report forever as found-but-not-stripped and the
+                 # count could not reach 157 however thoroughly they were
+                 # searched. Finding an empty wreck *is* emptying it: there is
+                 # no second visit that would ever change anything.
+                 "emptied": bool(flag is not None
+                                 and (flag & LOOTED or not wreck["loot"]))}
         rows[wreck["system"]]["found" if flag is not None else "missing"].append(entry)
 
     out = []

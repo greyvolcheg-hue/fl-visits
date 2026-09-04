@@ -124,6 +124,19 @@ their final flags, so the 25/17/17 reading survives only as the earlier entry in
 this document, not as something re-checkable. If you want it on disk, note a
 wreck's flag, empty it, and keep that pair of saves.
 
+**An empty wreck counts as emptied the moment it is found.** 54 of the 157
+carry nothing at all, which is the game's own design and not a gap in the
+reader: the owner confirmed Sigma-13 alone is full of them. The game never sets
+bit 8 on those, because there was never anything to take, so they sat in the
+report as found-but-still-loaded forever and the stripped count could not reach
+157 however thoroughly they were searched. There is no second visit that would
+ever change one, so finding it is emptying it.
+
+Do not chase this as a loot-parsing bug. It was, briefly, on the theory that
+`load_item_names` was dropping items with no display name; the first wreck
+checked turned out to hold eight kinds of cargo and parse correctly. The empty
+ones are simply empty.
+
 **The report shows it, and progress deliberately does not count it.** Found is
 found: a wreck counts once for the totals and the percentage whether or not it
 was emptied, because reaching it is the discovery. The bit only changes how the

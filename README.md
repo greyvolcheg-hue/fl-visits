@@ -202,7 +202,10 @@ produces, and that they rest on knowing the game rather than on anything
 checkable in the files.
 
 **Wrecks** are the 157 objects the game marks as secrets, spread over 33
-systems. Found is found: a wreck counts once whether or not you emptied it, so
+systems. 54 of them hold nothing, which is deliberate on the game's part, and
+those count as emptied as soon as they are found: the game never sets the
+looted bit on a wreck with no loot, so waiting for it would leave them open
+forever. Found is found: a wreck counts once whether or not you emptied it, so
 the total never goes backwards. The list still marks the difference, because the
 game records it. `+` is stripped, `*` is found but still holding its loot, `-`
 is not found yet, and an untouched wreck lists its cargo without the checkbox,
