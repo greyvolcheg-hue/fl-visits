@@ -17,7 +17,8 @@ system. Own git repo; the history in this folder is the undo button.
 | `weapons.py` | gun and munition stats turned into DPS, static game data |
 | `netlog.py` | the Neural Net log out of a save, as readable text |
 | `reputation.py` | the empathy model: what an action does to every faction |
-| `serve.py` | local web view on 127.0.0.1:8731, six tabs |
+| `trade.py` | commodity prices per base, and which way each trade runs |
+| `serve.py` | local web view on 127.0.0.1:8731, seven tabs |
 | `run.sh` | start the server and open a browser on it |
 
 Everything new goes in its own file. `flvisits.py` supplies the primitives;

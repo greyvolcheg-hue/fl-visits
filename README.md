@@ -28,7 +28,7 @@ Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
-The web page has six tabs. Visits and Wrecks each have their own state for the
+The web page has seven tabs. Visits and Wrecks each have their own state for the
 two checkboxes. *Show all* ticked shows every system, the things still to find,
 and what the wrecks contain; unticked, only progress. *Hide completed* drops the
 systems with nothing left in them, which on Visits means every base docked at
@@ -178,6 +178,24 @@ standing with it by that event's delta and with everyone else by
 actions, and the abort rows are not filler: aborting a mission for an enemy of
 your target raises your standing with the target, since abortion is negative to
 the faction offering it and the empathy rate between enemies is negative too.
+
+**Trade** looks a commodity up and lists every base that trades it, dearest
+first. Read the list from the top to sell and from the bottom to buy. *sell*
+means the base wants it and holds no stock; *buy* means it has some on the
+shelf. A toggle narrows the list to bases you have actually docked at, taken
+from the save, and those are marked either way.
+
+Price is the commodity's own price from `goods.ini` times the base's multiplier
+in `market_commodities.ini`: gold is 425 a unit and the multipliers run from
+0.001 to 100, which is how the same cargo fetches 255 at one base and 1530 at
+another. Which way the trade runs comes from a flag the data is unanimous
+about: of the 1994 rows, 844 read flag 0 with real stock and 1150 read flag 1
+with a stock of exactly zero, and nothing breaks the pattern.
+
+18 of the 178 markets are dropped because you cannot dock at them: the 15
+mining platforms, and three `[Base]` entries that no object in space points at,
+one of which is the cutscene-only Ithaca Research Station. A price you can never
+reach is not information.
 
 **Neural Net** is the in-game log, readable while you fly. Mark an entry
 interesting or read; the marks live in your browser and survive reloads. Sorting

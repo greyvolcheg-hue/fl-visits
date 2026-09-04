@@ -31,6 +31,7 @@ import persist as pe  # noqa: E402
 import reputation as rep  # noqa: E402
 import speed as sp  # noqa: E402
 import thrusters as th  # noqa: E402
+import trade as td  # noqa: E402
 import tradelane as tl  # noqa: E402
 import weapons as wp  # noqa: E402
 import wrecks as wr  # noqa: E402
@@ -147,6 +148,9 @@ class GameData:
         # The empathy table never changes; only the player's own
         # standings come from the save, and those are read per request.
         self.repmodel = rep.load_model(game_dir)
+        # Prices never change while the game runs; only which bases
+        # you have seen does, and that comes from the save.
+        self.market = td.load_market(game_dir)
 
     def label(self, ids, fallback):
         try:
@@ -246,6 +250,10 @@ def read_state(game, save_path):
         "bases": sum(r["total"] for r in out),
         "systems_touched": sum(1 for r in out if r["docked"]),
         "systems_total": len(out),
+        # The Trade tab needs to know where you have actually been, and this
+        # is the only place the save has already been read for exactly that.
+        "docked_bases": sorted(k for k, v in game.bases.items()
+                               if flags.get(k) in fl.DOCKED),
     }
 
 
@@ -291,6 +299,11 @@ PAGE = """<!doctype html>
   .guns { overflow-x: auto; }
   .guntable { min-width: 46rem; }
   .reptable { min-width: 42rem; }
+  .tradetable { min-width: 34rem; }
+  .tradetable .gun, .tradetable .gunhead {
+    grid-template-columns: 5rem 3.5rem minmax(12rem, 1fr) minmax(8rem, 1fr); }
+  .tradetable .gunhead span:first-child { text-align: right; }
+  .traderow.seen { border-color: var(--docked); }
   .reptable .gun, .reptable .gunhead {
     grid-template-columns: minmax(14rem, 1fr) 5rem 4rem 14rem; }
   .reprow { cursor: pointer; }
@@ -438,6 +451,7 @@ PAGE = """<!doctype html>
     <button class="tab" data-tab="dps">DPS</button>
     <button class="tab" data-tab="log">Neural Net</button>
     <button class="tab" data-tab="rep">Reputation</button>
+    <button class="tab" data-tab="trade">Trade</button>
   </nav>
   <div class="totals" id="totals"></div>
   <div class="controls" id="togglewrap">
@@ -502,6 +516,9 @@ let logNewestFirst = true, logPersonalOnly = true;
 // is which action rows have their collateral expanded, by index, because the
 // damage a plan does is the half people skip and it has to be one click away.
 let repData = null, repTarget = '', repGoal = 'neutral';
+// Trade tab. The commodity list arrives once; the rows come per commodity,
+// because 1994 of them is more than the page needs at any one moment.
+let tradeData = null, tradeGood = '', tradeVisitedOnly = false;
 const repOpen = {};
 
 // The write-to-files button on the Speed tab. Not remembered anywhere: it
@@ -554,6 +571,7 @@ document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () =>
   if (tab === 'speed') poll();
   if (tab === 'dps') loadCatalogue();
   if (tab === 'rep' && !repData) loadRep();
+  if (tab === 'trade' && !tradeData) loadTrade();
 }));
 
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -1090,6 +1108,66 @@ function wireRep() {
     }));
 }
 
+function renderTrade() {
+  const d = tradeData;
+  if (!d) return '<p class="empty">reading the markets…</p>';
+  if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
+
+  const opts = d.goods.map(g =>
+    `<option value="${esc(g.nickname)}"${g.nickname === tradeGood ? ' selected' : ''}>` +
+    `${esc(g.name)} (${g.bases})</option>`).join('');
+  let out = '<div class="reppick">' +
+    `<select id="tradegood"><option value="">pick a commodity…</option>${opts}</select>` +
+    '<label class="toggle"><input type="checkbox" id="tradeseen"' +
+    (tradeVisitedOnly ? ' checked' : '') + '> <span>only bases I have docked at</span>' +
+    '</label></div>';
+
+  if (!d.good) return out + '<p class="empty">Pick a commodity.</p>';
+
+  const rows = tradeVisitedOnly ? d.rows.filter(r => r.visited) : d.rows;
+  if (!rows.length)
+    return out + '<p class="empty">' + (tradeVisitedOnly
+      ? 'None of the bases trading this are ones you have docked at.'
+      : 'Nothing trades this.') + '</p>';
+
+  const name = (d.goods.find(g => g.nickname === d.good) || {}).name || d.good;
+  out += `<p class="note">${esc(name)} at ${rows.length} bases, dearest first.
+    Read it from the top to sell and from the bottom to buy. <b>sell</b> means
+    the base wants it and holds none; <b>buy</b> means it has stock on the
+    shelf. Bases you cannot dock at are not listed at all.</p>`;
+
+  out += '<div class="guns"><div class="tradetable">' +
+    '<div class="gunhead"><span>price</span><span>way</span>' +
+    '<span class="nm">base</span><span class="nm">system</span></div>' +
+    rows.map(r =>
+      `<div class="gun traderow${r.visited ? ' seen' : ''}">` +
+      `<span class="num h">${r.price.toLocaleString()}</span>` +
+      `<span class="num raw">${r.buy ? 'buy' : 'sell'}</span>` +
+      `<span class="nm">${esc(r.base_name)}` +
+      (r.visited ? ' <span class="loot">docked</span>' : '') + '</span>' +
+      `<span class="nm">${esc(r.system)}</span></div>`).join('') +
+    '</div></div>';
+  return out;
+}
+
+async function loadTrade() {
+  const q = tradeGood ? `?good=${encodeURIComponent(tradeGood)}` : '';
+  try {
+    const r = await fetch('api/trade' + q, { cache: 'no-store' });
+    if (r.ok) { tradeData = await r.json(); render(); }
+  } catch (e) { /* the tab keeps its loading line */ }
+}
+
+function wireTrade() {
+  const g = $('#tradegood');
+  if (g) g.addEventListener('change', e => { tradeGood = e.target.value; loadTrade(); });
+  const v = $('#tradeseen');
+  if (v) v.addEventListener('change', e => {
+    tradeVisitedOnly = e.target.checked;
+    render();
+  });
+}
+
 function render() {
   // The Speed tab reads the running process rather than the save, so it carries
   // neither the totals row nor the Show All box. Cruise and thrusters live on it
@@ -1100,6 +1178,14 @@ function render() {
   const bare = live || tab === 'dps' || tab === 'log';
   $('#totals').hidden = bare;
   $('#togglewrap').hidden = bare;
+  if (tab === 'trade') {
+    $('#totals').hidden = true;
+    $('#togglewrap').hidden = true;
+    $('#sub').textContent = 'who buys and sells what, and for how much';
+    $('#list').innerHTML = renderTrade();
+    wireTrade();
+    return;
+  }
   if (tab === 'rep') {
     $('#totals').hidden = true;
     $('#togglewrap').hidden = true;
@@ -1229,12 +1315,39 @@ def make_handler(game, save_path):
                 self._send_thrusters()
             elif path == "/api/tradelane":
                 self._send_tradelane()
+            elif path == "/api/trade":
+                self._send_trade()
             elif path == "/api/reputation":
                 self._send_reputation()
             elif path == "/api/drawdist":
                 self._send_drawdist()
             else:
                 self._send(404, b"not found", "text/plain")
+
+        def _send_trade(self):
+            """The commodity list, or every base trading one of them."""
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            names, rows = game.market
+            body = {"goods": [], "good": None, "rows": [], "error": None}
+            try:
+                counts = {}
+                for row in rows:
+                    counts[row["good"]] = counts.get(row["good"], 0) + 1
+                body["goods"] = sorted(
+                    ({"nickname": k, "name": names[k], "bases": counts.get(k, 0)}
+                     for k in names),
+                    key=lambda g: g["name"])
+                want = (query.get("good") or [None])[0]
+                if want and want.lower() in names:
+                    with lock:
+                        state = read_state(game, save_path)
+                    visited = set(state["docked_bases"])
+                    body["good"] = want.lower()
+                    body["rows"] = td.find(rows, want.lower(), visited)
+            except (OSError, ValueError, KeyError) as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
 
         def _send_reputation(self):
             """The faction list, or a worked plan when one is asked for."""
