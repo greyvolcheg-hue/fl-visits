@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""Put a few bytes of our own code into the running game, and take them out.
+
+    inject.py            # show the cave, and whether anything is patched
+
+Some things flhack does cannot be done by changing a number. `[ebp+0x50]`, the
+distance at which automatic docking takes over, is a field of a descriptor, so
+the only place to change it is the instruction that loads it. That means a code
+patch, and a code patch needs somewhere to put the code.
+
+**flhack allocates; we do not have to.** On Windows it calls `VirtualAllocEx`
+for an executable block and stores the pointer in the game's own memory, at
+0x67bf40, which used to hold the random intro number. `/proc/<pid>/mem` cannot
+allocate anything, so that route is closed. It is also unnecessary:
+
+    common.dll .text ends at 0x6398730 with 2256 bytes of zero padding,
+    inside a mapping that is already r-xp
+
+That is linker slack between the end of the code and the end of the section.
+The game never writes there, it is mapped executable because the whole section
+is, and `/proc/<pid>/mem` writes straight through the read-only page protection
+the same way `tradelane.py` has written to `.rdata` since 2026-09-02. So the
+stub goes in the padding and the call site gets a `call`. Two ordinary writes.
+
+**Nothing here is remembered on disk, on purpose.** The original bytes of any
+site are read back out of the shipped `common.dll`, so "what was here before"
+and "is a patch applied" are both answered by comparing the process against the
+file. A state file would be a second source of truth that can go stale while
+the game is running, and the one that goes stale is the one that restores
+garbage into a live process.
+
+Everything reverts on the next launch regardless, because nothing on disk is
+touched.
+"""
+
+import os
+import struct
+import sys
+
+import tradelane as tl
+from speed import NotRunning
+
+MODULE = "common.dll"
+COMMON_BASE = tl.COMMON_BASE  # 0x6260000, the base the addresses are quoted at
+
+# How much slack to insist on. The stubs are tens of bytes; asking for a few
+# hundred means a cave that is only just big enough is rejected rather than
+# filled to the brim, and leaves room for the ones still to come.
+CAVE_WANTED = 256
+
+
+def _sections(path):
+    """[(rva, vsize, raw_ptr, raw_size)] for a PE, plus its preferred base."""
+    blob = open(path, "rb").read()
+    pe = struct.unpack_from("<I", blob, 0x3C)[0]
+    if blob[pe:pe + 4] != b"PE\0\0":
+        raise NotRunning(f"{path} is not a PE file")
+    count = struct.unpack_from("<H", blob, pe + 6)[0]
+    opt_size = struct.unpack_from("<H", blob, pe + 20)[0]
+    opt = pe + 24
+    image_base = struct.unpack_from("<I", blob, opt + 28)[0]
+    table = opt + opt_size
+    out = []
+    for i in range(count):
+        head = table + 40 * i
+        vsize, rva, raw_size, raw_ptr = struct.unpack_from("<IIII", blob, head + 8)
+        out.append((rva, vsize, raw_ptr, raw_size))
+    return blob, image_base, out
+
+
+def _dll_path(game_dir=None):
+    import flvisits as fl
+    return fl.ipath(game_dir or fl.DEFAULT_GAME, "EXE", MODULE)
+
+
+def disk_bytes(va, count, game_dir=None):
+    """The bytes the shipped common.dll holds at this virtual address.
+
+    This is the definition of "original". Restoring means writing these back,
+    and "is it patched" means the process disagrees with them.
+    """
+    blob, image_base, sections = _sections(_dll_path(game_dir))
+    rva = va - image_base
+    for sec_rva, vsize, raw_ptr, raw_size in sections:
+        if sec_rva <= rva < sec_rva + max(vsize, raw_size):
+            off = raw_ptr + (rva - sec_rva)
+            return blob[off:off + count]
+    raise NotRunning(f"{va:#x} is not inside any section of {MODULE}")
+
+
+def base(pid):
+    """Where common.dll is loaded in this process."""
+    return tl._base(pid, MODULE)
+
+
+def live_bytes(pid, va, count):
+    """Read from the process, at an address quoted against COMMON_BASE."""
+    addr = va - COMMON_BASE + base(pid)
+    with open(f"/proc/{pid}/mem", "rb") as fh:
+        fh.seek(addr)
+        return fh.read(count)
+
+
+def write_bytes(pid, va, data):
+    """Write, read back, and refuse quietly to believe it worked otherwise."""
+    addr = va - COMMON_BASE + base(pid)
+    with open(f"/proc/{pid}/mem", "r+b") as fh:
+        fh.seek(addr)
+        fh.write(data)
+        fh.seek(addr)
+        got = fh.read(len(data))
+    if got != data:
+        raise NotRunning(
+            f"wrote {len(data)} bytes at {va:#x} but read back "
+            f"{got.hex(' ')} instead of {data.hex(' ')}")
+    return got
+
+
+def find_cave(pid, size=CAVE_WANTED, game_dir=None):
+    """Address of the `.text` padding in common.dll, verified empty right now.
+
+    One place, computed rather than searched: the gap between where `.text`'s
+    code ends (its VirtualSize) and where the section ends on disk (its raw
+    size). That is slack the linker left, the game never writes there, and it
+    is mapped executable because the whole section is.
+
+    Searching for the largest zero run instead picks the relocation table,
+    which is 17 KB and looks tempting. Relocations happen to be dead here only
+    because common.dll loaded at its preferred base, which is a fact about this
+    run, not about the format. Padding is dead by construction.
+
+    **Verified in the live process, not from the file.** The file cannot say
+    whether something else has already claimed the space, and writing a stub
+    over live code is the one mistake in this module that corrupts a running
+    game.
+    """
+    _blob, image_base, sections = _sections(_dll_path(game_dir))
+    text = sections[0]
+    rva, vsize, _raw_ptr, raw_size = text
+    if raw_size <= vsize:
+        raise NotRunning(f"{MODULE} .text has no padding to use")
+    start = image_base + rva + vsize
+    room = raw_size - vsize
+    # Align, so the dwords at the front of the cave are aligned too.
+    addr = (start + 15) & ~15
+    room -= addr - start
+    if room < size:
+        raise NotRunning(
+            f"{MODULE} .text padding is {room} bytes, need {size}")
+
+    for lo, hi, perms, name in _mappings(pid):
+        live = addr - COMMON_BASE + base(pid)
+        if lo <= live < hi and name.endswith(MODULE):
+            if "x" not in perms:
+                raise NotRunning(
+                    f"the padding at {addr:#x} is mapped {perms}, not executable")
+            break
+    else:
+        raise NotRunning(f"the padding at {addr:#x} is not mapped")
+
+    seen = live_bytes(pid, addr, room)
+    if seen.count(0) != len(seen):
+        used = len(seen) - seen.count(0)
+        raise NotRunning(
+            f"the cave at {addr:#x} is not empty ({used} non-zero bytes); "
+            f"something is already there, refusing to overwrite it")
+    return addr, room
+
+
+def find_scratch(pid, size=16):
+    """A few writable zero bytes, for anything the stub writes at runtime.
+
+    **The code cave cannot be used for this, and getting that wrong crashes the
+    game instantly.** `.text` padding is mapped `r-xp`. `/proc/<pid>/mem` writes
+    through that protection, so filling the cave from outside works and looks
+    fine; the moment the game's own `mov [cave], eax` runs it takes an access
+    violation. Learned on 2026-09-05 by doing exactly that.
+
+    flhack has the same split and solves it the same way: its code goes in
+    allocated executable memory, its data at a static address it first makes
+    writable with `VirtualProtect`. We cannot change protection, so the data
+    has to go somewhere already writable.
+
+    Taken from the middle of a long zero run, not the start: a run that turns
+    out to be a live buffer is most likely to be filled from one end.
+
+    **Read in chunks, matched in C, and stopped at the first hit.** The first
+    version pulled whole mappings into Python and walked them byte by byte.
+    This machine is a 7.6 GB tablet that sits at a few hundred MB free with the
+    game up, so that was megabytes of buffer plus millions of interpreter
+    steps, and on 2026-09-06 the desktop stalled hard enough to look like a
+    freeze. Nothing in the journal, because nothing was wrong at the kernel
+    level; it was just this being greedy on a small box.
+    """
+    want = size * 8  # insist on a comfortably long run, then sit in its middle
+    need = bytes(want)
+    for lo, hi, perms, name in _mappings(pid):
+        if "w" not in perms or not name.endswith(MODULE):
+            continue
+        for start, buf in _chunks(pid, lo, hi, overlap=want):
+            at = buf.find(need)
+            if at == -1:
+                continue
+            # Extend to the true end of the run, but no further than this
+            # chunk: a slightly short measurement costs nothing here.
+            end = at + want
+            while end < len(buf) and buf[end] == 0:
+                end += 1
+            middle = (start + at + (end - at) // 2) & ~15
+            live = COMMON_BASE + (middle - base(pid))
+            if live_bytes(pid, live, size) == bytes(size):
+                return live, end - at
+    raise NotRunning(f"no writable run of zeros in {MODULE} for {size} bytes")
+
+
+def _chunks(pid, lo, hi, overlap=0, span=1 << 20):
+    """Walk a mapping a megabyte at a time, overlapping so runs are not split."""
+    try:
+        fh = open(f"/proc/{pid}/mem", "rb")
+    except OSError:
+        return
+    with fh:
+        pos = lo
+        while pos < hi:
+            end = min(pos + span, hi)
+            try:
+                fh.seek(pos)
+                buf = fh.read(end - pos)
+            except OSError:
+                return
+            if not buf:
+                return
+            yield pos, buf
+            pos = end - overlap if end < hi else end
+
+
+def _mappings(pid):
+    try:
+        maps = open(f"/proc/{pid}/maps")
+    except OSError as exc:
+        raise NotRunning(f"cannot read the process map: {exc}") from exc
+    out = []
+    with maps:
+        for line in maps:
+            parts = line.split()
+            lo, hi = (int(x, 16) for x in parts[0].split("-"))
+            name = " ".join(parts[5:]) if len(parts) > 5 else ""
+            out.append((lo, hi, parts[1], name))
+    return out
+
+
+def call_to(site, target, length):
+    """`call <target>` padded with nops to exactly `length` bytes.
+
+    `length` is the size of the instructions being displaced, and it is passed
+    in rather than assumed because getting it wrong leaves half an instruction
+    behind, which is not a crash you can read afterwards.
+    """
+    if length < 5:
+        raise ValueError(f"need 5 bytes for a call, only {length} available")
+    rel = target - (site + 5)
+    if not -0x80000000 <= rel <= 0x7FFFFFFF:
+        raise ValueError(f"{target:#x} is out of reach of a call at {site:#x}")
+    return b"\xe8" + struct.pack("<i", rel) + b"\x90" * (length - 5)
+
+
+def patched(pid, site, length, game_dir=None):
+    """Does the process disagree with the shipped file at this site?"""
+    return live_bytes(pid, site, length) != disk_bytes(site, length, game_dir)
+
+
+def patch(pid, site, replacement, game_dir=None):
+    """Install `replacement` at `site`, but only over the shipped bytes.
+
+    Refusing when what is there is not what the file says is the guard against
+    a different build, a second tool, and this tool run twice. Restoring first
+    is always available and is never ambiguous.
+    """
+    length = len(replacement)
+    original = disk_bytes(site, length, game_dir)
+    current = live_bytes(pid, site, length)
+    if current != original:
+        raise NotRunning(
+            f"{site:#x} holds {current.hex(' ')}, not the shipped "
+            f"{original.hex(' ')}; refusing to write over it")
+    return write_bytes(pid, site, replacement)
+
+
+def restore(pid, site, length, game_dir=None):
+    """Put the shipped bytes back. Safe to call when nothing is patched."""
+    return write_bytes(pid, site, disk_bytes(site, length, game_dir))
+
+
+def main():
+    import speed as sp
+    try:
+        pid = sp.find_pid()
+        print(f"pid {pid}, {MODULE} at {base(pid):#x}")
+        addr, room = find_cave(pid)
+        print(f"cave at {addr:#x}, {room} bytes of .text padding, all zero")
+    except (NotRunning, OSError) as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()

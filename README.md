@@ -107,24 +107,37 @@ replaces atomically after checking the result decodes back to what was intended.
 Trade lane speed and the HUD cap are **not** written to files, because they are
 not in files to begin with.
 
-**`dockdist.py` is a command line only, and on purpose.** It reads and writes
-the distance at which the game cuts your cruise engine on the way to a dock,
-1750 m vanilla, another `common.dll` constant with nothing in the data files
-behind it. At cruise 300 that is 5.8 seconds of approach; at 2500 it is 0.7,
-which is the overshooting you feel at a raised cruise speed.
+**`dockdist.py` is a command line only, and on purpose.** It owns docking, and
+docking turned out to be two separate knobs that are easy to mistake for one.
 
 ```bash
-python3 dockdist.py          # what the running game is using, and what it buys
-python3 dockdist.py 8000     # set it
-python3 dockdist.py --vanilla
+python3 dockdist.py                 # what the running game is using
+python3 dockdist.py --takeover 200  # docking takes over at 200 m
+python3 dockdist.py --takeover-off  # remove the patch, game keeps running
+python3 dockdist.py --vanilla       # everything back to stock
 ```
 
-It stays off the page because **it is unproven**. flhack documents this float as
-the threshold between thrusting to a dock and cruising to it, so raising it
-should cut cruise further out and leave room to slow, but only flying it settles
-that, and the same constant is read by three other instructions in the same
-function. Memory only, so a relaunch puts 1750 back and nothing can be left in a
-bad state. `dockdist.py` carries the disassembly and the caveats.
+**`--takeover` is the one that does what you want.** It sets the distance at
+which the game stops flying you and starts docking you, 1000 m stock. Lower it
+and you cruise or thrust most of the way in instead of crawling the last
+kilometre. **200** is where it settled after flying 100, 200, 400 and 600: below
+that the approach is unplayable, and 200 is also what flhack picked on its own.
+Lanes and jump gates share the number; stations and planets keep 600, because a
+planet has a radius and 100 m from its centre is inside it.
+
+This one is a code patch, not a value, because the distance lives in a
+descriptor rather than a global. `inject.py` puts a 75-byte stub in the zero
+padding at the end of `common.dll`'s `.text` and points two call sites at it.
+Nothing is allocated and nothing on disk is touched.
+
+The bare number argument is the other knob, `DOCK_DIST`, which only decides
+whether the autopilot bothers with cruise at all. It is latched once when you
+press dock and never rechecked, so changing it is invisible unless you dock from
+between the old value and the new one. It is measured from the object's centre,
+so subtract 495 to get the figure on your HUD for a lane.
+
+Memory only, both of them. A relaunch puts everything back and nothing can be
+left in a bad state. `dockdist.py` carries the disassembly.
 
 **Asteroid draw distance** scales `[Field] fill_dist` across the 153 field
 definitions in `DATA/SOLAR/ASTEROIDS/`. Vanilla runs 1000 to 2500 with a median

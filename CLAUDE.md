@@ -246,9 +246,60 @@ so changing it moves more than the cut point.
 proximity radius default of 495 "is that used by Trade Lanes". Entering a lane
 is a dock, which is the lead the owner gave and the reason this was found.
 
-`dockdist.py` reads and writes it and carries the full account. **The direction
-is still a hypothesis** and is marked as one there: raising the value should cut
-cruise further out, and only flying it settles that.
+**That constant is only half the job, and the half that is not the interesting
+one.** `0x63a22c0` decides *whether* the autopilot uses cruise for a dock run,
+and the compare is gated by `[esi+0x365]`, which is cleared straight after, so
+the answer is latched once when the dock is ordered rather than recomputed as
+you close in. Moving it from 1750 to 300 changed nothing anyone could feel,
+because at any real trade lane range both answer "use cruise".
+
+**The distance at which docking takes over is a code patch, not a number**, and
+that is why every constant tried did nothing. It is `[ebp+0x50]`, a descriptor
+field loaded at `0x62fe758`, so the only place to change it is the instruction
+that reads it. flhack calls this "Closer docking". `dockdist.py --takeover`
+ports its stub; `inject.py` carries how the code gets in. Settled at **200 m**
+for lanes and gates on 2026-09-05 after the owner flew 100, 200, 400 and 600,
+which is the value flhack picked independently.
+
+**One global was tried and disproved: `0x639f44c`.** It initialises a field
+that holds the same 1000.0 and looked like the same thing. The owner flew it at
+100, 1000, 5000 and 10000 with no difference to a lane approach. The knob was
+removed the same day. Do not go looking for it again.
+
+## Injecting code: the cave, and the page that is not writable
+
+`inject.py`, 2026-09-06. flhack allocates executable memory with
+`VirtualAllocEx` and stores the pointer at `0x67bf40`. `/proc/<pid>/mem` cannot
+allocate, and it does not need to:
+
+    common.dll .text ends at 0x6398730 with 2256 bytes of zero padding,
+    inside a mapping that is already r-xp
+
+That is linker slack between the end of the code and the start of `.rdata`.
+Nothing writes there, and writing to it from outside works because
+`/proc/<pid>/mem` goes through page protection, the same way `tradelane.py` has
+written to `.rdata` since 2026-09-02.
+
+**The trap, and it kills the game instantly.** Writing to the cave from outside
+is fine; the game writing to it is not, because the page is read-only. The
+first version of the stub stored `dockwith` into the cave and Freelancer died
+on the first call. flhack has the same split and solves it the same way, with
+its data at a static address it first makes writable. We cannot change
+protection, so anything the stub writes at runtime goes to `inject.find_scratch`,
+a zero run in a mapping that is already writable. Constants stay in the cave,
+because only this tool ever writes them, from outside.
+
+**Be frugal reading `/proc/<pid>/mem` on this machine.** `volkface` is a 7.6 GB
+tablet that sits at a few hundred MB free with the game up. The first
+`find_scratch` pulled whole mappings into Python and walked them byte by byte,
+and the desktop stalled hard enough to look like a freeze. It now reads in 1 MB
+chunks, matches in C with `bytes.find`, and stops at the first hit: 0.1 s and
+14 MB.
+
+**Not every freeze is yours.** The one on 2026-09-05 was
+`i915 GT0: rcs0 reset request timed out`, an Iris Xe GPU hang the driver could
+not recover from, with the injected stub in memory at the time and entirely
+innocent. Read the journal before assuming.
 
 ## Settled: equipment costs the same everywhere, and `npc_` gear is not for sale
 
@@ -314,33 +365,19 @@ Not everything in the game files is vanilla, and a value that looks wrong may be
 deliberate. Anything the tool wrote has a `.vanilla` beside it, which is the
 audit trail; this section covers what was changed by hand.
 
-**`DATA/EQUIPMENT/select_equip.ini`, `[TradeLane] basic_trade_lane_eq`, changed
-2026-09-04 at the owner's explicit instruction:**
+**`DATA/EQUIPMENT/select_equip.ini` is back to vanilla as of 2026-09-06, and
+the round trip is the lesson.** On 2026-09-04 `[TradeLane] basic_trade_lane_eq`
+had `activation_start` cut from 750 to 100 and `activation_end` from 500 to 50,
+to make cruise hold until the ring was close. It did nothing, because those two
+are the *ring's* equipment and govern its spin-up window; they never reach the
+ship's engine state. Restored from `select_equip.ini.vanilla` once the real
+mechanism was found, verified key by key at 15 `[TradeLane]` keys matching.
 
-    activation_start   750 -> 100
-    activation_end     500 ->  50
-
-**Down, not up, and that was checked before writing.** These two are the only
-trade-lane distances in the whole data set: `constants.ini` has none and the
-`Trade_Lane_Ring` archetype in `solararch.ini` has none either. The owner wants
-cruise to hold until the ring is close, so the activation zone shrinks. The
-first reading here was the opposite, raising them so a 5000-speed approach had
-room to slow down, and it was wrong about what was wanted.
-
-**Settled 2026-09-05, and the answer is no: this edit does nothing for the
-cruise drop, and no value of it would have.** The open question above was
-whether `activation_start` is the cruise-drop trigger or only the ring's
-spin-up. It is the spin-up. The two keys belong to `basic_trade_lane_eq`, the
-ring's own equipment, and never reach the ship's engine state. The real
-constant is a float in `common.dll` and is now in `dockdist.py`, which carries
-the disassembly. This section is left standing because the edit is still on
-disk and someone reading these files needs to know why.
-
-Written the way `persist.py` writes: backed up to `select_equip.ini.vanilla`
-first, encoded, decoded again and compared key by key, then swapped in
-atomically. Verified afterwards at 1635 entries before and after with exactly
-two differences. Freelancer reads the file once at startup, so it takes effect
-on the next launch.
+**Do not reach for this section again to change docking behaviour.** What the
+edit was trying to do is now `dockdist.py --takeover`, which patches code in
+memory and needs no file change at all. The only thing this file would still
+affect is how quickly the ring itself spins up, which is a separate complaint
+and has `spin_accel` and `secs_before_enter` beside it if it ever comes up.
 
 Also worth knowing when reading these files: `CRUISING_SPEED` in
 `constants.ini` currently says 5000.0, written by the Speed tab's persist
