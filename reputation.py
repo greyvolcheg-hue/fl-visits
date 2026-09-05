@@ -90,8 +90,36 @@ def _entries(pairs):
     return out
 
 
+# The house a faction nickname's prefix belongs to, for suffixing a colliding
+# short name. Only the four houses are here on purpose: `co_`, `fc_` and `gd_`
+# are corporations, criminals and guilds and have no house to name, so they
+# fall back to the nickname rather than being assigned one.
+HOUSE_CODE = {"li": "LI", "br": "BR", "ku": "KU", "rh": "RH"}
+
+
+def _disambiguate(labels, suffix):
+    """Suffix in place, but only the labels worn by more than one faction.
+
+    Decorating everything would put a parenthesis on 45 names to fix 4. The
+    ones that read cleanly are the ones that stay untouched.
+    """
+    seen = {}
+    for key, label in labels.items():
+        seen.setdefault(label, []).append(key)
+    for label, keys in seen.items():
+        if len(keys) > 1:
+            for key in keys:
+                labels[key] = f"{label} ({suffix(key)})"
+
+
 def load_model(game_dir=None):
-    """(events, empathy, names, legality, bribes), keyed by lowered nickname."""
+    """(events, empathy, names, shorts, legality, bribes), by lowered nickname.
+
+    `shorts` is the badge form, from `ids_short_name`: "Police", "Samura",
+    "IMG". It comes out of the same pass over `initialworld.ini` that builds
+    `names`, because a second reader for one file is a second thing to keep in
+    step.
+    """
     game_dir = game_dir or fl.DEFAULT_GAME
     data_dir = fl.ipath(game_dir, "DATA")
     strings = fl.load_names(game_dir)
@@ -114,7 +142,7 @@ def load_model(game_dir=None):
             events[group], empathy[group] = ev, rates
 
     # initialworld.ini is plain text, not BINI. read_multi sniffs the magic.
-    names = {}
+    names, shorts = {}, {}
     for section, pairs in wr.read_multi(fl.ipath(data_dir, "initialworld.ini")):
         if section.lower() != "group":
             continue
@@ -123,15 +151,22 @@ def load_model(game_dir=None):
         if not nick:
             continue
         key = str(nick[0][0]).lower()
-        ids = entry.get("ids_name")
-        try:
-            label = strings.get(int(ids[0][0]), key) if ids else key
-        except (TypeError, ValueError):
-            label = key
+
+        def text(field, entry=entry):
+            ids = entry.get(field)
+            try:
+                return strings.get(int(ids[0][0]), "").strip() if ids else ""
+            except (TypeError, ValueError):
+                return ""
+
         # `fc_uk_grp` resolves to a single space in the string table, which as a
         # dropdown entry is an invisible row that sorts to the top. Fall back to
         # the nickname rather than showing nothing.
-        names[key] = label.strip() or key
+        names[key] = text("ids_name") or key
+        # Short falls back through the full name before the nickname: a badge
+        # reading "Farmers Alliance" is worse than "Alliance" and far better
+        # than `fc_fa_grp`. Only `fc_uk_grp` reaches the last step.
+        shorts[key] = text("ids_short_name") or names[key]
 
     # Three display names are worn by two factions each: li_n_grp and fc_ln_grp
     # are both "Liberty Navy", and the same for Kusari Naval Forces and
@@ -140,13 +175,13 @@ def load_model(game_dir=None):
     # undecorated list sorted by standing puts the wrong "Liberty Navy" on top
     # and the reading is nonsense against what the game shows. Tag the
     # nickname on, but only where the name is genuinely ambiguous.
-    seen = {}
-    for key, label in names.items():
-        seen.setdefault(label, []).append(key)
-    for label, keys in seen.items():
-        if len(keys) > 1:
-            for key in keys:
-                names[key] = f"{label} ({key})"
+    _disambiguate(names, lambda key: key)
+    # Short names collide harder: all four house police forces are called
+    # "Police" by the game itself. A nickname suffix would be unreadable on a
+    # badge, so they take the house code instead, `Police (LI)`. Anything whose
+    # prefix is not a house keeps the nickname, because a wrong house is worse
+    # than an ugly one and no `co_`/`fc_`/`gd_` short name collides today.
+    _disambiguate(shorts, lambda key: HOUSE_CODE.get(key[:2].lower(), key))
 
     legality = {}
     prop = fl.ipath(fl.ipath(data_dir, "MISSIONS"), "faction_prop.ini")
@@ -158,7 +193,7 @@ def load_model(game_dir=None):
         if aff and legal:
             legality[str(aff[0][0]).lower()] = str(legal[0][0]).lower()
 
-    return events, empathy, names, legality, load_bribes(data_dir)
+    return events, empathy, names, shorts, legality, load_bribes(data_dir)
 
 
 def load_bribes(data_dir):
@@ -320,7 +355,7 @@ def main():
                     help="expand the collateral of the top N rows")
     args = ap.parse_args()
 
-    events, empathy, names, legality, bribes = load_model(args.game)
+    events, empathy, names, _shorts, legality, bribes = load_model(args.game)
     if args.list or not args.target:
         for key in sorted(events):
             print(f"  {key:<14} {names.get(key, key)}")

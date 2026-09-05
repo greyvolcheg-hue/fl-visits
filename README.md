@@ -107,6 +107,25 @@ replaces atomically after checking the result decodes back to what was intended.
 Trade lane speed and the HUD cap are **not** written to files, because they are
 not in files to begin with.
 
+**`dockdist.py` is a command line only, and on purpose.** It reads and writes
+the distance at which the game cuts your cruise engine on the way to a dock,
+1750 m vanilla, another `common.dll` constant with nothing in the data files
+behind it. At cruise 300 that is 5.8 seconds of approach; at 2500 it is 0.7,
+which is the overshooting you feel at a raised cruise speed.
+
+```bash
+python3 dockdist.py          # what the running game is using, and what it buys
+python3 dockdist.py 8000     # set it
+python3 dockdist.py --vanilla
+```
+
+It stays off the page because **it is unproven**. flhack documents this float as
+the threshold between thrusting to a dock and cruising to it, so raising it
+should cut cruise further out and leave room to slow, but only flying it settles
+that, and the same constant is read by three other instructions in the same
+function. Memory only, so a relaunch puts 1750 back and nothing can be left in a
+bad state. `dockdist.py` carries the disassembly and the caveats.
+
 **Asteroid draw distance** scales `[Field] fill_dist` across the 153 field
 definitions in `DATA/SOLAR/ASTEROIDS/`. Vanilla runs 1000 to 2500 with a median
 of 1400, which is why a field reads as empty until you are nearly inside it. A
@@ -298,6 +317,12 @@ this end against the dearest place to sell it at that one, which is by
 definition the widest margin. New York alone has 12 market bases, so the
 uncollapsed cross product would be mostly noise.
 
+**Both ends may be the same system**, and often should be. Those same 12 New
+York bases hold 21 profitable runs between them without a single jump: Cardamine
+off Buffalo Base into Planet Manhattan is +270 a unit, 18,900 in a Sabre's hold.
+Rows where the buy and the sell land on the same base are dropped, so a
+single-system pick returns real runs rather than nonsense.
+
 **`run` is the figure to read**: the margin times a full hold of the ship you
 are actually flying, read from the save. New York → Leeds pays 840 a unit on
 Boron, which in a Sabre's 70-unit hold is 58,800 credits a trip. The
@@ -380,9 +405,21 @@ you have found, so the fullest systems lead.
 Houses fold. Click a heading to collapse it, or use Collapse all and Expand all;
 each tab remembers its own folds and its own checkbox.
 
+**Revealed bases carry their owner**, in the short name the game itself uses:
+*Fort Bush* `Police (LI)`, *Yanagi Depot* `Junkers`, *Ruiz Base* `Outcasts`.
+Hover for the full one. Revealed is the bucket where it matters, because those
+are the bases you have not been to yet and whether the trip is worth making is a
+reputation question before it is a distance one. All 164 dockable bases carry an
+owner; there are 46 of them.
+
+The house code appears only where the game's own short name is ambiguous. Four
+police forces are all called just "Police", so those four read `Police (LI)`,
+`Police (BR)`, `Police (KU)`, `Police (RH)`. The other 45 owners are printed
+exactly as the game prints them.
+
 **Coordinates** are the nav map cell and roughly where in it, `E6 C` or
 `D6 UR`, the same notation the guides use. Wrecks carry them, and so do the
-unknown bases. Docked and revealed stay plain comma-separated runs: one you
+unknown bases. Docked and revealed stay inline runs: one you
 have flown to, the other the story has already marked on your nav map. The cell is reliable. The `UR`/`C`
 part is a hint: it agrees with the GameFAQs wrecks FAQ about three times in
 four, which is as well as two people eyeballing "upper right" ever agree.

@@ -205,6 +205,51 @@ session.
 same user are needed. On a machine where it is not, this stops working and
 should say so rather than being "fixed" by loosening it.
 
+**Two kinds of address, and only one of them is searched for.** `speed.py`
+scans, because `CRUISING_SPEED` sits in a loaded copy of `constants.ini` whose
+position is not fixed. `tradelane.py` and `dockdist.py` do not: their constants
+are in `common.dll` itself, at addresses taken from **flhack** (Jason Hood,
+2014, source at `~/Downloads/flhack/`), resolved against the module's own base
+from `/proc/<pid>/maps`. A scan is the wrong tool there and was tried first: it
+found a lone 2500.0 that turned out to be a CommConsts value in the loaded
+`constants.ini`, not the trade lane speed. Both modules validate what they
+found before writing to it, by reading the float and refusing if it is not a
+plausible value, which is what catches a wrong build or a moved address.
+
+Those addresses land in `.rdata`, which is read-only in the process.
+`/proc/<pid>/mem` bypasses page protection, so no `mprotect` is needed the way
+flhack needs one on Windows.
+
+## Settled: the dock cruise distance is in `common.dll`, not in any INI
+
+Closed 2026-09-05, after a fix aimed at the wrong number did nothing. Worth
+reading before anyone reaches for `select_equip.ini` again.
+
+**There is no docking distance anywhere in the game's data.** A sweep of all
+1252 INI files under `DATA/` for any key whose name contains `dock` returns
+`docking_sphere` and `dock_with` on objects, `act_lockdock` and friends in the
+mission scripts, and nothing global. `Trade_Lane_Ring` in `solararch.ini`
+carries no `docking_sphere` at all, where `jumpgate` carries 225 and `jumphole`
+150. `constants.ini` has nothing either.
+
+**It is a float in `common.dll`, and the compare is one instruction:**
+
+    0x62fe171  d8 1d c0223a06   fcomp dword [0x63a22c0]   ; 1750.0
+
+Confirmed both in the shipped file and in the running game. `0x63a22c0` is
+flhack's `ADDR_DOCK_DIST10`, its "Cruise to dock from" setting, and its default
+table calls it "activate cruise for docking from this". Four instructions read
+it, one `fcomp` and three `fmul` about 1250 bytes earlier in the same function,
+so changing it moves more than the cut point.
+
+**Why a trade lane runs through the dock path at all:** flhack's help says the
+proximity radius default of 495 "is that used by Trade Lanes". Entering a lane
+is a dock, which is the lead the owner gave and the reason this was found.
+
+`dockdist.py` reads and writes it and carries the full account. **The direction
+is still a hypothesis** and is marked as one there: raising the value should cut
+cruise further out, and only flying it settles that.
+
 ## Settled: equipment costs the same everywhere, and `npc_` gear is not for sale
 
 Both closed 2026-09-04 while building the Equipment search, both by counting
@@ -282,9 +327,14 @@ cruise to hold until the ring is close, so the activation zone shrinks. The
 first reading here was the opposite, raising them so a 5000-speed approach had
 room to slow down, and it was wrong about what was wanted.
 
-What has *not* been established is that `activation_start` is the cruise-drop
-trigger rather than only the ring's spin-up. It is the only candidate in the
-data; the game is the only place that settles it.
+**Settled 2026-09-05, and the answer is no: this edit does nothing for the
+cruise drop, and no value of it would have.** The open question above was
+whether `activation_start` is the cruise-drop trigger or only the ring's
+spin-up. It is the spin-up. The two keys belong to `basic_trade_lane_eq`, the
+ring's own equipment, and never reach the ship's engine state. The real
+constant is a float in `common.dll` and is now in `dockdist.py`, which carries
+the disassembly. This section is left standing because the edit is still on
+disk and someone reading these files needs to know why.
 
 Written the way `persist.py` writes: backed up to `select_equip.ini.vanilla`
 first, encoded, decoded again and compared key by key, then swapped in

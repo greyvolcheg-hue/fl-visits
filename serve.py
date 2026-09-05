@@ -145,12 +145,20 @@ class GameData:
         self.sectors = dk.base_sectors(
             data_dir, fl.system_files,
             navmap.load_scales(data_dir, fl.read_ini, fl.ipath))
+        # Who owns each base. Static, so it is read once here rather than per
+        # request, and the names it resolves against come from the reputation
+        # model below, which reads initialworld.ini for the Reputation tab.
+        self.owners = dk.base_owners(data_dir, fl.system_files)
         # Static: no save and no running game needed, so the DPS tab works with
         # Freelancer closed.
         self.weapons = wp.load_weapons(game_dir)
         # The empathy table never changes; only the player's own
         # standings come from the save, and those are read per request.
         self.repmodel = rep.load_model(game_dir)
+        # Pulled out by name so the Visits tab does not have to know the shape
+        # of the reputation model to put a badge on a base.
+        self.faction_name = self.repmodel[2]
+        self.faction_short = self.repmodel[3]
         # Prices never change while the game runs; only which bases
         # you have seen does, and that comes from the save.
         self.market = td.load_market(game_dir)
@@ -221,8 +229,14 @@ def read_state(game, save_path):
         )
         flag = flags.get(key)
         bucket = "docked" if flag in fl.DOCKED else "revealed" if flag == REVEALED else "unknown"
+        # The owning faction rides on every base, not just the revealed ones.
+        # It costs two dictionary lookups and it is the page, not the payload,
+        # that decides where a badge is worth showing.
+        owner = game.owners.get(key, "")
         row[bucket].append({"name": game.label(ids, key),
-                            "at": game.sectors.get(key, "")})
+                            "at": game.sectors.get(key, ""),
+                            "faction": game.faction_short.get(owner, ""),
+                            "faction_full": game.faction_name.get(owner, "")})
 
     out = []
     for row in systems.values():
@@ -445,6 +459,11 @@ PAGE = """<!doctype html>
   .wreck.m .nm { color: var(--dim); }
   .wreck .nm { flex: none; min-width: 12rem; }
   .loot { color: var(--dim); font-size: .82rem; }
+  /* The owning faction. Dimmed and a size down so it reads as an annotation
+     on the base name rather than as a second name; the dotted underline is
+     what says the hover has something to give. */
+  .fac { color: var(--dim); font-size: .85em; border-bottom: 1px dotted var(--line);
+         cursor: help; }
   .atlist { display: flex; flex-direction: column; gap: .15rem; }
   .atrow { display: flex; gap: .5rem; align-items: baseline; }
   .cell { flex: none; width: 3.4rem; color: var(--dim);
@@ -707,8 +726,17 @@ drawTabs();
 
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-function line(cls, tag, items, withAt) {
+function line(cls, tag, items, withAt, withFac) {
   if (!items.length) return '';
+  // The owning faction, in the game's own short name, with the full one on
+  // hover. `title` is the whole mechanism: no JS, nothing to break, and it
+  // works on a touch screen's long press too.
+  const fac = b => (withFac && b.faction)
+    ? ` <span class="fac" title="${esc(b.faction_full || b.faction)}">${esc(b.faction)}</span>`
+    : '';
+  // A middot rather than a comma once badges are on: each item is then two
+  // visually distinct parts and a comma gets lost between them.
+  const sep = withFac ? ' · ' : ', ';
   // Only the unknown bucket gets coordinates, one base per line. Docked and
   // revealed stay comma-separated runs: docked you have flown to already, and
   // revealed the story has put on your nav map, so both are findable without
@@ -716,8 +744,8 @@ function line(cls, tag, items, withAt) {
   const body = withAt
     ? '<span class="atlist">' + items.map(b =>
         `<span class="atrow"><span class="cell">${esc(b.at)}</span>` +
-        `<span>${esc(b.name)}</span></span>`).join('') + '</span>'
-    : `<span>${items.map(b => esc(b.name)).join(', ')}</span>`;
+        `<span>${esc(b.name)}${fac(b)}</span></span>`).join('') + '</span>'
+    : `<span>${items.map(b => esc(b.name) + fac(b)).join(sep)}</span>`;
   return `<div class="row ${cls}"><span class="tag ${cls}">${tag} ${items.length}</span>` +
          body + '</div>';
 }
@@ -770,7 +798,7 @@ function renderVisits(d) {
     : 'Nothing docked at yet.') + '</p>';
   return byHouse(d, rows,
     s => card(s.system, s.docked.length, s.total, s.percent,
-      line('d', 'docked', s.docked) + line('r', 'revealed', s.revealed) +
+      line('d', 'docked', s.docked) + line('r', 'revealed', s.revealed, false, true) +
       (ext ? line('u', 'unknown', s.unknown, true) : '')),
     rs => [rs.reduce((n, s) => n + s.docked.length, 0),
            rs.reduce((n, s) => n + s.total, 0)]);
@@ -1610,18 +1638,20 @@ function renderRoutes() {
   if (!d) return '<p class="empty">reading the markets…</p>';
   if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
 
-  const opts = (sel, skip) => d.systems.map(s =>
+  // Both ends may be the same system. New York alone has 12 market bases, so
+  // buying at the cheapest and selling at the dearest without leaving it is a
+  // real run, and the server drops the degenerate same-base rows anyway.
+  const opts = sel => d.systems.map(s =>
     `<option value="${esc(s.nickname)}"` +
     (s.nickname === sel ? ' selected' : '') +
-    (s.nickname === skip ? ' disabled' : '') +
     `>${esc(s.name)} (${s.bases})</option>`).join('');
 
   let out = '<div class="reppick">' +
     `<select id="routefrom"><option value="">departure system…</option>` +
-    `${opts(routeFrom, routeTo)}</select>` +
+    `${opts(routeFrom)}</select>` +
     '<span class="sys">to</span>' +
     `<select id="routeto"><option value="">destination system…</option>` +
-    `${opts(routeTo, routeFrom)}</select>` +
+    `${opts(routeTo)}</select>` +
     '<label class="toggle"><input type="checkbox" id="routeseen"' +
     (routeVisitedOnly ? ' checked' : '') +
     '> <span>only bases I have docked at</span></label></div>';
@@ -1630,18 +1660,28 @@ function renderRoutes() {
 
   const name = n => (d.systems.find(s => s.nickname === n) || {}).name || n;
   const money = v => v.toLocaleString();
+  // One system on both ends is a legitimate pick, and "from New York to New
+  // York" reads like a bug. Only the sentence changes; the table is identical.
+  const same = d.from === d.to;
+  const ends = same
+    ? `within ${esc(name(d.from))}`
+    : `from ${esc(name(d.from))} to ${esc(name(d.to))}`;
   // Two different failures, and a trader does different things about them.
   if (!d.rows.length)
     return out + '<p class="empty">' + (d.traded
-      ? `${esc(name(d.from))} and ${esc(name(d.to))} trade ${d.traded} of the
-         same commodities, but every one of them is cheaper at the far end.
-         Nothing to carry this way.`
-      : `Nothing is bought in ${esc(name(d.from))} and traded in
-         ${esc(name(d.to))} at all.`) + '</p>';
+      ? (same
+         ? `${esc(name(d.from))} trades ${d.traded} commodities, but no base in
+            it sells one cheaper than another buys it. Nothing to carry here.`
+         : `${esc(name(d.from))} and ${esc(name(d.to))} trade ${d.traded} of the
+            same commodities, but every one of them is cheaper at the far end.
+            Nothing to carry this way.`)
+      : (same
+         ? `Nothing in ${esc(name(d.from))} is both bought and sold.`
+         : `Nothing is bought in ${esc(name(d.from))} and traded in
+            ${esc(name(d.to))} at all.`)) + '</p>';
 
   const losses = d.traded - d.rows.length;
-  out += `<p class="note">${d.rows.length} worth carrying from
-    ${esc(name(d.from))} to ${esc(name(d.to))}` +
+  out += `<p class="note">${d.rows.length} worth carrying ${ends}` +
     (losses ? `, out of ${d.traded} traded in both` : '') + `.
     One line per commodity: the cheapest place to buy it at this end against
     the dearest place to sell it at that one.` +
@@ -2095,7 +2135,10 @@ def make_handler(game, save_path):
 
                 src = (query.get("from") or [None])[0]
                 dst = (query.get("to") or [None])[0]
-                if src in systems and dst in systems and src != dst:
+                # src == dst is allowed. `routes` already skips any row whose
+                # buy and sell land on the same base, so one system on both
+                # ends yields exactly its internal runs and nothing degenerate.
+                if src in systems and dst in systems:
                     found = td.routes(rows, src, dst, only)
                     body["from"] = src
                     body["to"] = dst
@@ -2126,7 +2169,7 @@ def make_handler(game, save_path):
                 with lock:
                     reps = rep.player_reps(fl.decode_save(save_path))
                     model = game.repmodel
-                events, empathy, names, legality, _bribes = model
+                events, empathy, names, _shorts, legality, _bribes = model
                 # Ordered by standing rather than by name: the faction you
                 # want to do something about is the one at the bottom of the
                 # list of how everyone feels, so it should be the first thing

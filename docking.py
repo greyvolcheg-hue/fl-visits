@@ -225,6 +225,34 @@ def base_sectors(data_dir, system_files, scales):
     return out
 
 
+def base_owners(data_dir, system_files):
+    """base nickname (lower) -> owning faction nickname (lower).
+
+    Third pass over the same `[Object]` sections, and here for the same reason
+    `base_sectors` is: the walk stays in one file. Every object carrying a
+    `base =` key also carries `reputation =`, 248 of 248, so there is no
+    fallback to write and a missing key would be a real change in the data.
+
+    First in file order wins, the same rule `base_sectors` uses for the 23
+    bases a planet and its mooring fixture both point at. Those agree on the
+    faction. Exactly one base does not: `ew02_01_base` is claimed by
+    `fc_ou_grp` on one object and `fc_n_grp` on the other. It is not dockable,
+    so nothing on screen depends on which side wins, and inventing a tie-break
+    for one unreachable base would be a rule with no second case to test it.
+    """
+    out = {}
+    for path, _system in system_files(data_dir):
+        for section, pairs in read_multi(path):
+            if section.lower() != "object":
+                continue
+            entry = _entries(pairs)
+            base, rep = entry.get("base"), entry.get("reputation")
+            if not base or not rep:
+                continue
+            out.setdefault(str(base[0][0]).lower(), str(rep[0][0]).lower())
+    return out
+
+
 def main():
     """Print the split, so the rule can be checked against the game by eye."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
