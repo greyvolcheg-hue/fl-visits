@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import dockdist as dkd  # noqa: E402
 import docking as dk  # noqa: E402
 import drawdist as dd  # noqa: E402
 import flvisits as fl  # noqa: E402
@@ -886,7 +887,22 @@ function renderTradeLane() {
     `${t.instant ? '✓ wind-up near-instant' : 'Wind-up: stock'}</button>` +
     `<button id="uncap" class="${t.uncapped ? 'on' : ''}">` +
     `${t.uncapped ? '✓ readout raised to 9999' : 'Raise the readout to 9999'}` +
-    '</button></div>';
+    '</button>' +
+    `<button id="takeover" class="${t.takeover ? 'on' : ''}">` +
+    (t.takeover
+      ? `✓ docking takes over at ${t.takeover}`
+      : `Dock from ${t.takeover_default} m, not ${t.takeover_stock}`) +
+    '</button></div>' +
+    // The one control here that is not a number being written. Say so, because
+    // "it went away when I restarted" reads as a bug otherwise.
+    `<p class="note">The last button is the only thing on this page that
+     <b>puts code into the game</b>: a stub in the padding at the end of
+     <code>common.dll</code>, so the game stops flying you and starts docking
+     you at ${t.takeover_default} m instead of ${t.takeover_stock}. You keep
+     cruise or thrust almost to the ring rather than crawling the last
+     kilometre. Jump gates share the number; stations and planets keep 600,
+     because a planet has a radius. Nothing is written to disk and a relaunch
+     removes it.</p>`;
   return head + msg + `<div class="speeds">${buttons}</div>` + extras;
 }
 
@@ -1821,7 +1837,8 @@ function render() {
     // thruster names its thruster, a lane button names its speed, a cruise
     // button carries neither. The two by-id buttons are bound separately.
     document.querySelectorAll('.speeds button').forEach(b => {
-      if (b.id === 'persist' || b.id === 'uncap' || b.id === 'instant') return;
+      if (b.id === 'persist' || b.id === 'uncap' || b.id === 'instant'
+          || b.id === 'takeover') return;
       if (b.dataset.draw) {
         b.addEventListener('click',
           () => setDraw({ factor: Number(b.dataset.draw) }));
@@ -1842,6 +1859,10 @@ function render() {
     const inst = $('#instant');
     if (inst) inst.addEventListener('click',
       () => setLane({ instant: !(lane && lane.instant) }));
+    // Sends a toggle rather than a distance: the server reads whether the
+    // patch is in, because it is the only side that can tell.
+    const over = $('#takeover');
+    if (over) over.addEventListener('click', () => setLane({ takeover: true }));
     return;
   }
   if (!latest) return;
@@ -2222,12 +2243,19 @@ def make_handler(game, save_path):
             """Trade lane speed and the HUD's own ceiling, or why not."""
             body = {"choices": TRADELANE_CHOICES, "vanilla": tl.VANILLA,
                     "value": None, "uncapped": False, "shown": None,
-                    "instant": False, "error": None, "message": message}
+                    "instant": False, "takeover": None,
+                    "takeover_default": dkd.NON_STATION,
+                    "takeover_stock": dkd.SENTINEL,
+                    "error": None, "message": message}
             try:
                 value, version = tl.read()
                 body["value"] = round(value, 1)
                 _rate, body["instant"] = tl.read_accel(version=version)
                 body["uncapped"], body["shown"] = tl.read_cap()
+                # None means the patch is out, which is a different state from
+                # "in, at the stock distance" and has to read differently.
+                installed, distance, _v = dkd.takeover_state()
+                body["takeover"] = round(distance, 1) if installed else None
             except (tl.NotRunning, OSError) as exc:
                 body["error"] = str(exc)
             self._send(200, json.dumps(body).encode("utf-8"), "application/json")
@@ -2310,6 +2338,20 @@ def make_handler(game, save_path):
                             rate, on = tl.set_accel(bool(sent["instant"]))
                             note = (f"wind-up {rate:g}, "
                                     f"{'near-instant' if on else 'stock'}")
+                        elif "takeover" in sent:
+                            # A toggle, not a value: the button has two states
+                            # and the distance is a setting, not a choice made
+                            # here. Installing twice is refused downstream, so
+                            # the state is read rather than assumed.
+                            installed, _d, _v = dkd.takeover_state()
+                            if installed:
+                                dkd.takeover_off()
+                                note = ("docking takes over at the stock "
+                                        f"{dkd.SENTINEL:g} again")
+                            else:
+                                dkd.takeover_on(dkd.NON_STATION)
+                                note = ("docking now takes over at "
+                                        f"{dkd.NON_STATION:g} for lanes and gates")
                         else:
                             got = tl.set_speed(float(sent["value"]))
                             note = f"trade lane speed set to {got:g}"
@@ -2317,6 +2359,9 @@ def make_handler(game, save_path):
                 except (ValueError, KeyError, TypeError, tl.NotRunning, OSError) as exc:
                     body = {"choices": TRADELANE_CHOICES, "vanilla": tl.VANILLA,
                             "value": None, "uncapped": False, "shown": None,
+                            "instant": False, "takeover": None,
+                            "takeover_default": dkd.NON_STATION,
+                            "takeover_stock": dkd.SENTINEL,
                             "error": str(exc), "message": None}
                     self._send(200, json.dumps(body).encode("utf-8"),
                                "application/json")

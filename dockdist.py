@@ -309,15 +309,48 @@ def takeover_on(distance, pid=None, station=STATION):
 
 
 def takeover_off(pid=None):
-    """Put the shipped bytes back at both sites, and blank the cave."""
+    """Put the shipped bytes back at both sites, and blank the cave.
+
+    **Blanking is not tidiness, it is what makes this reversible.**
+    `inject.find_cave` refuses a cave that is not all zeros, so a stub left
+    behind means the patch can never be reinstalled without a relaunch. Found
+    on 2026-09-06 by toggling the button off and on: the guard did its job and
+    the second install was refused.
+    """
     pid = pid or sp.find_pid()
     _addr, version = tl.locate(pid)
     type_site, dock_site = _sites(version)
+
+    cave = scratch = None
+    if ij.patched(pid, dock_site, DOCK_LEN):
+        cave = _cave_of(pid, dock_site)
+        # The scratch address is only recorded in the stub itself, as the
+        # operand of `mov [abs32], eax`, so read it back before it is wiped.
+        stub = ij.live_bytes(pid, cave + TYPE_OFF, 12)
+        if stub[6:7] == b"\xa3":
+            scratch = struct.unpack("<I", stub[7:11])[0]
+
     # Calls first. Blanking the cave while a call still points at it would
     # leave the game executing zeros for however long the two writes take.
     ij.restore(pid, dock_site, DOCK_LEN)
     ij.restore(pid, type_site, TYPE_LEN)
+    if cave is not None:
+        ij.write_bytes(pid, cave, bytes(STUB_BYTES))
+    if scratch is not None:
+        ij.write_bytes(pid, scratch, bytes(4))
     return version
+
+
+def _cave_of(pid, dock_site):
+    """Where the installed stub lives, from the call that reaches it.
+
+    Read from the running game rather than searched for again: a fresh search
+    can legitimately pick somewhere else, and then the cleanup would blank an
+    innocent region and leave the real stub in place.
+    """
+    call = ij.live_bytes(pid, dock_site, 5)
+    rel = struct.unpack("<i", call[1:5])[0]
+    return dock_site + 5 + rel - DOCK_OFF
 
 
 def takeover_state(pid=None):
@@ -327,13 +360,7 @@ def takeover_state(pid=None):
     type_site, dock_site = _sites(version)
     if not ij.patched(pid, dock_site, DOCK_LEN):
         return False, None, version
-    # The call's own target says where the cave is, so the distance is read
-    # from wherever the running game actually points rather than from a fresh
-    # search that might pick somewhere else.
-    call = ij.live_bytes(pid, dock_site, 5)
-    rel = struct.unpack("<i", call[1:5])[0]
-    cave = dock_site + 5 + rel - DOCK_OFF
-    blob = ij.live_bytes(pid, cave + DATA_OFF, 12)
+    blob = ij.live_bytes(pid, _cave_of(pid, dock_site) + DATA_OFF, 12)
     _sentinel, _station, other = struct.unpack("<fff", blob)
     return True, other, version
 
@@ -348,9 +375,7 @@ def set_takeover(distance, pid=None):
     if not installed:
         raise NotRunning("the takeover patch is not installed")
     _type_site, dock_site = _sites(version)
-    call = ij.live_bytes(pid, dock_site, 5)
-    rel = struct.unpack("<i", call[1:5])[0]
-    cave = dock_site + 5 + rel - DOCK_OFF
+    cave = _cave_of(pid, dock_site)
     ij.write_bytes(pid, cave + DATA_OFF + 8, struct.pack("<f", float(distance)))
     return distance
 
