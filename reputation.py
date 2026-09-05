@@ -45,6 +45,7 @@ import argparse
 import math
 import os
 import sys
+from typing import NamedTuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import flvisits as fl  # noqa: E402
@@ -112,8 +113,30 @@ def _disambiguate(labels, suffix):
                 labels[key] = f"{label} ({suffix(key)})"
 
 
+class Model(NamedTuple):
+    """The reputation model, by field name rather than by position.
+
+    A plain tuple here cost the Reputation tab a crash on 2026-09-05. Adding
+    `shorts` for the Visits badges made it six long, and `serve.py` splatted
+    the whole thing into `plan()` with `*model`, so `plan` got nine arguments
+    and every faction click 500'd. The two explicit unpack sites were both
+    updated; the splat was invisible because it named nothing.
+
+    Named fields make that mistake impossible: a call site asks for what it
+    wants and a new field cannot change what any other call receives. Do not
+    go back to positional unpacking, and do not splat this into anything.
+    """
+
+    events: dict
+    empathy: dict
+    names: dict
+    shorts: dict
+    legality: dict
+    bribes: dict
+
+
 def load_model(game_dir=None):
-    """(events, empathy, names, shorts, legality, bribes), by lowered nickname.
+    """A `Model`, every field keyed by lowered faction nickname.
 
     `shorts` is the badge form, from `ids_short_name`: "Police", "Samura",
     "IMG". It comes out of the same pass over `initialworld.ini` that builds
@@ -193,7 +216,7 @@ def load_model(game_dir=None):
         if aff and legal:
             legality[str(aff[0][0]).lower()] = str(legal[0][0]).lower()
 
-    return events, empathy, names, shorts, legality, load_bribes(data_dir)
+    return Model(events, empathy, names, shorts, legality, load_bribes(data_dir))
 
 
 def load_bribes(data_dir):
@@ -355,7 +378,8 @@ def main():
                     help="expand the collateral of the top N rows")
     args = ap.parse_args()
 
-    events, empathy, names, _shorts, legality, bribes = load_model(args.game)
+    model = load_model(args.game)
+    events, names = model.events, model.names
     if args.list or not args.target:
         for key in sorted(events):
             print(f"  {key:<14} {names.get(key, key)}")
@@ -369,7 +393,8 @@ def main():
         sys.exit(f"no such faction: {target}")
 
     current, needed, rows = plan(target, GOALS[args.goal], reps,
-                                 events, empathy, names, legality, bribes)
+                                 model.events, model.empathy, model.names,
+                                 model.legality, model.bribes)
     label = names.get(target, target)
     print(f"{label}: now {current:+.4f}, want {GOALS[args.goal]:+.2f} "
           f"({args.goal})")

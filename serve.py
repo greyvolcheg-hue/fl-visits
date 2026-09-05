@@ -157,8 +157,8 @@ class GameData:
         self.repmodel = rep.load_model(game_dir)
         # Pulled out by name so the Visits tab does not have to know the shape
         # of the reputation model to put a badge on a base.
-        self.faction_name = self.repmodel[2]
-        self.faction_short = self.repmodel[3]
+        self.faction_name = self.repmodel.names
+        self.faction_short = self.repmodel.shorts
         # Prices never change while the game runs; only which bases
         # you have seen does, and that comes from the save.
         self.market = td.load_market(game_dir)
@@ -2169,7 +2169,7 @@ def make_handler(game, save_path):
                 with lock:
                     reps = rep.player_reps(fl.decode_save(save_path))
                     model = game.repmodel
-                events, empathy, names, _shorts, legality, _bribes = model
+                events, names, legality = model.events, model.names, model.legality
                 # Ordered by standing rather than by name: the faction you
                 # want to do something about is the one at the bottom of the
                 # list of how everyone feels, so it should be the first thing
@@ -2183,8 +2183,13 @@ def make_handler(game, save_path):
                 want = (query.get("to") or [None])[0]
                 goal = (query.get("goal") or ["neutral"])[0]
                 if want and want.lower() in events and goal in rep.GOALS:
+                    # Named, never `*model`. Splatting the model tuple here is
+                    # what broke this tab when a sixth field was added: `plan`
+                    # got nine arguments and every faction click 500'd.
                     current, needed, rows = rep.plan(
-                        want.lower(), rep.GOALS[goal], reps, *model)
+                        want.lower(), rep.GOALS[goal], reps,
+                        model.events, model.empathy, model.names,
+                        model.legality, model.bribes)
                     body.update(target=want.lower(), goal=goal,
                                 current=round(current, 4),
                                 needed=round(needed, 4), rows=rows)
