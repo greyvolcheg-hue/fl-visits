@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import bestpath as bp  # noqa: E402
 import dockdist as dkd  # noqa: E402
 import docking as dk  # noqa: E402
 import drawdist as dd  # noqa: E402
@@ -600,7 +601,7 @@ function foldOnFirstSight(d) {
   d.house_order.forEach(h => { collapsed[tab][h] = true; });
 }
 let latest = null, speed = null, thrusters = null, lane = null,
-    draw = null, tab = 'visits';
+    draw = null, best = null, tab = 'visits';
 
 // DPS tab. `catalogue` is the game's own data, fetched once because it cannot
 // change while the page is open; `loadout` is the player's pick, held as
@@ -937,6 +938,40 @@ function renderDrawDist() {
      why a sprite vanishes and a rock turns up somewhere else, and adding more
      of them makes that worse rather than better.</p>` +
     `<div class="speeds">${buttons}</div>` + msg;
+}
+
+function renderBestPath() {
+  const b = best;
+  if (!b) return '';
+  const head = '<h2 class="house">Set Best Path</h2>';
+  if (b.error) return head + `<p class="note warn">${esc(b.error)}</p>`;
+  const msg = b.message ? `<p class="note">${esc(b.message)}</p>` : '';
+  return head +
+    `<p class="note">The game ships two route tables and routes with the duller
+     one. <code>shortest_legal_path.ini</code> knows only jump gates;
+     <code>systems_shortest_path.ini</code> includes jump holes, which are
+     often the shortcut. Both have been in the install since 2003, and this
+     swaps which gets read. Five bytes, no code injected, nothing written to
+     disk.</p>` +
+    `<p class="note warn">The two libraries this touches are loaded when a save
+     is loaded, so <b>the setting is gone every time you load a game</b> and
+     has to be pressed again. That is the honest cost of not hooking the
+     loader.</p>` +
+    '<div class="speeds">' +
+    `<button id="bestpath" class="${b.on ? 'on' : ''}">` +
+    (b.on ? '✓ routing through jump holes' : 'Route through jump holes too') +
+    '</button></div>' + msg;
+}
+
+async function setBestPath() {
+  document.querySelectorAll('.speeds button').forEach(x => x.disabled = true);
+  try {
+    const r = await fetch('api/bestpath', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toggle: true }),
+    });
+    if (r.ok) { best = await r.json(); render(); }
+  } catch (e) { /* leave the buttons as they were */ }
 }
 
 async function setDraw(body) {
@@ -1832,13 +1867,13 @@ function render() {
     $('#sub').textContent = 'live speed of the running game';
     $('#list').innerHTML =
       renderSpeed() + renderThrusters() + renderTradeLane() +
-      renderDrawDist() + renderPersist();
+      renderBestPath() + renderDrawDist() + renderPersist();
     // Every button in a .speeds row is told apart by the data it carries: a
     // thruster names its thruster, a lane button names its speed, a cruise
     // button carries neither. The two by-id buttons are bound separately.
     document.querySelectorAll('.speeds button').forEach(b => {
       if (b.id === 'persist' || b.id === 'uncap' || b.id === 'instant'
-          || b.id === 'takeover') return;
+          || b.id === 'takeover' || b.id === 'bestpath') return;
       if (b.dataset.draw) {
         b.addEventListener('click',
           () => setDraw({ factor: Number(b.dataset.draw) }));
@@ -1863,6 +1898,8 @@ function render() {
     // patch is in, because it is the only side that can tell.
     const over = $('#takeover');
     if (over) over.addEventListener('click', () => setLane({ takeover: true }));
+    const bp = $('#bestpath');
+    if (bp) bp.addEventListener('click', setBestPath);
     return;
   }
   if (!latest) return;
@@ -1894,16 +1931,18 @@ async function poll() {
   // seconds would burn real CPU to refresh a panel nobody has open.
   try {
     if (tab === 'speed') {
-      const [a, b, c, e] = await Promise.all([
+      const [a, b, c, e, f] = await Promise.all([
         fetch('api/speed', { cache: 'no-store' }),
         fetch('api/thrusters', { cache: 'no-store' }),
         fetch('api/tradelane', { cache: 'no-store' }),
-        fetch('api/drawdist', { cache: 'no-store' })
+        fetch('api/drawdist', { cache: 'no-store' }),
+        fetch('api/bestpath', { cache: 'no-store' })
       ]);
       if (a.ok) { const s = await a.json(); speed = { ...s, message: speed && speed.message }; }
       if (b.ok) { const s = await b.json(); thrusters = { ...s, message: thrusters && thrusters.message }; }
       if (c.ok) { const s = await c.json(); lane = { ...s, message: lane && lane.message }; }
       if (e.ok) { const s = await e.json(); draw = { ...s, message: draw && draw.message }; }
+      if (f.ok) { const s = await f.json(); best = { ...s, message: best && best.message }; }
     }
   } catch (e) { /* the game went away; keep showing the last good state */ }
   render();
@@ -1974,6 +2013,8 @@ def make_handler(game, save_path):
                 self._send_reputation()
             elif path == "/api/drawdist":
                 self._send_drawdist()
+            elif path == "/api/bestpath":
+                self._send_bestpath()
             else:
                 self._send(404, b"not found", "text/plain")
 
@@ -2218,6 +2259,19 @@ def make_handler(game, save_path):
                 body["error"] = str(exc)
             self._send(200, json.dumps(body).encode("utf-8"), "application/json")
 
+        def _send_bestpath(self, message=None):
+            """Whether the router is using jump holes, or why it cannot say."""
+            body = {"on": False, "version": None, "slots": [],
+                    "error": None, "message": message}
+            try:
+                on, version = bp.state()
+                body["on"], body["version"] = on, version
+                body["slots"] = [{"at": at, "file": name}
+                                 for at, name in bp.routes()]
+            except (bp.NotRunning, OSError) as exc:
+                body["error"] = str(exc)
+            self._send(200, json.dumps(body).encode("utf-8"), "application/json")
+
         def _send_drawdist(self, message=None):
             """Where asteroid fields currently start being real rocks."""
             body = {"choices": DRAWDIST_CHOICES, "factor": None, "fields": 0,
@@ -2304,6 +2358,25 @@ def make_handler(game, save_path):
                 except (sp.NotRunning, pe.WriteFailed, OSError) as exc:
                     body = {"ok": False, "message": str(exc)}
                 self._send(200, json.dumps(body).encode("utf-8"), "application/json")
+                return
+            if path == "/api/bestpath":
+                try:
+                    size = int(self.headers.get("Content-Length") or 0)
+                    self.rfile.read(size)
+                    with lock:
+                        # A toggle: only the game can say which way it is now,
+                        # and asking it beats trusting what the page last drew.
+                        on, _version = bp.state()
+                        bp.apply(not on)
+                        note = ("routing through jump holes" if not on
+                                else "back to jump gates only")
+                    self._send_bestpath(message=note)
+                except (ValueError, KeyError, TypeError,
+                        bp.NotRunning, OSError) as exc:
+                    body = {"on": False, "version": None, "slots": [],
+                            "error": str(exc), "message": None}
+                    self._send(200, json.dumps(body).encode("utf-8"),
+                               "application/json")
                 return
             if path == "/api/drawdist":
                 try:

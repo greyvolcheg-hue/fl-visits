@@ -36,6 +36,7 @@ touched.
 import os
 import struct
 import sys
+from functools import lru_cache
 
 import tradelane as tl
 from speed import NotRunning
@@ -49,8 +50,13 @@ COMMON_BASE = tl.COMMON_BASE  # 0x6260000, the base the addresses are quoted at
 CAVE_WANTED = 256
 
 
+@lru_cache(maxsize=8)
 def _sections(path):
-    """[(rva, vsize, raw_ptr, raw_size)] for a PE, plus its preferred base."""
+    """[(rva, vsize, raw_ptr, raw_size)] for a PE, plus its preferred base.
+
+    Cached: this reads a whole DLL, and on a 7.6 GB tablet doing that once per
+    byte comparison is how the desktop stalls.
+    """
     blob = open(path, "rb").read()
     pe = struct.unpack_from("<I", blob, 0x3C)[0]
     if blob[pe:pe + 4] != b"PE\0\0":
@@ -68,42 +74,64 @@ def _sections(path):
     return blob, image_base, out
 
 
-def _dll_path(game_dir=None):
-    import flvisits as fl
-    return fl.ipath(game_dir or fl.DEFAULT_GAME, "EXE", MODULE)
+def module_path(pid, module=MODULE):
+    """The file this process actually mapped for `module`.
+
+    Taken from the process rather than guessed from the install layout,
+    because the process is the authority on which file it opened, and the
+    layout does not agree with itself: `common.dll` and `server.dll` live in
+    `EXE/`, `content.dll` in `DLLS/BIN/`.
+    """
+    want = module.lower()
+    for _lo, _hi, _perms, name in _mappings(pid):
+        if name.rsplit("/", 1)[-1].lower() == want:
+            return name
+    raise NotRunning(f"{module} is not mapped; is a game loaded?")
 
 
-def disk_bytes(va, count, game_dir=None):
-    """The bytes the shipped common.dll holds at this virtual address.
+def disk_bytes(pid, va, count, module=MODULE):
+    """The bytes the shipped file holds at this virtual address.
 
     This is the definition of "original". Restoring means writing these back,
     and "is it patched" means the process disagrees with them.
     """
-    blob, image_base, sections = _sections(_dll_path(game_dir))
+    blob, image_base, sections = _sections(module_path(pid, module))
     rva = va - image_base
     for sec_rva, vsize, raw_ptr, raw_size in sections:
         if sec_rva <= rva < sec_rva + max(vsize, raw_size):
             off = raw_ptr + (rva - sec_rva)
             return blob[off:off + count]
-    raise NotRunning(f"{va:#x} is not inside any section of {MODULE}")
+    raise NotRunning(f"{va:#x} is not inside any section of {module}")
 
 
-def base(pid):
-    """Where common.dll is loaded in this process."""
-    return tl._base(pid, MODULE)
+def base(pid, module=MODULE):
+    """Where `module` is loaded in this process."""
+    return tl._base(pid, module)
 
 
-def live_bytes(pid, va, count):
-    """Read from the process, at an address quoted against COMMON_BASE."""
-    addr = va - COMMON_BASE + base(pid)
+def _at(pid, va, module):
+    """A quoted address turned into a live one.
+
+    Addresses here are quoted against each module's own preferred base, which
+    is what flhack's are relative to and what the PE header declares. Every
+    module in this game happens to load at its preferred base, so the sum is
+    usually a no-op, but doing the arithmetic means a relocated module gives a
+    wrong-looking read instead of a silent write into a stranger.
+    """
+    _blob, image_base, _sections_ = _sections(module_path(pid, module))
+    return va - image_base + base(pid, module)
+
+
+def live_bytes(pid, va, count, module=MODULE):
+    """Read from the process, at an address quoted against the module base."""
     with open(f"/proc/{pid}/mem", "rb") as fh:
-        fh.seek(addr)
+        fh.seek(_at(pid, va, module))
         return fh.read(count)
 
 
-def write_bytes(pid, va, data):
+def write_bytes(pid, va, data, module=MODULE):
     """Write, read back, and refuse quietly to believe it worked otherwise."""
-    addr = va - COMMON_BASE + base(pid)
+    addr = _at(pid, va, module)
     with open(f"/proc/{pid}/mem", "r+b") as fh:
         fh.seek(addr)
         fh.write(data)
@@ -116,7 +144,7 @@ def write_bytes(pid, va, data):
     return got
 
 
-def find_cave(pid, size=CAVE_WANTED, game_dir=None):
+def find_cave(pid, size=CAVE_WANTED):
     """Address of the `.text` padding in common.dll, verified empty right now.
 
     One place, computed rather than searched: the gap between where `.text`'s
@@ -134,7 +162,7 @@ def find_cave(pid, size=CAVE_WANTED, game_dir=None):
     over live code is the one mistake in this module that corrupts a running
     game.
     """
-    _blob, image_base, sections = _sections(_dll_path(game_dir))
+    _blob, image_base, sections = _sections(module_path(pid))
     text = sections[0]
     rva, vsize, _raw_ptr, raw_size = text
     if raw_size <= vsize:
@@ -264,12 +292,13 @@ def call_to(site, target, length):
     return b"\xe8" + struct.pack("<i", rel) + b"\x90" * (length - 5)
 
 
-def patched(pid, site, length, game_dir=None):
+def patched(pid, site, length, module=MODULE):
     """Does the process disagree with the shipped file at this site?"""
-    return live_bytes(pid, site, length) != disk_bytes(site, length, game_dir)
+    return (live_bytes(pid, site, length, module)
+            != disk_bytes(pid, site, length, module))
 
 
-def patch(pid, site, replacement, game_dir=None):
+def patch(pid, site, replacement, module=MODULE):
     """Install `replacement` at `site`, but only over the shipped bytes.
 
     Refusing when what is there is not what the file says is the guard against
@@ -277,18 +306,18 @@ def patch(pid, site, replacement, game_dir=None):
     is always available and is never ambiguous.
     """
     length = len(replacement)
-    original = disk_bytes(site, length, game_dir)
-    current = live_bytes(pid, site, length)
+    original = disk_bytes(pid, site, length, module)
+    current = live_bytes(pid, site, length, module)
     if current != original:
         raise NotRunning(
-            f"{site:#x} holds {current.hex(' ')}, not the shipped "
+            f"{module}+{site:#x} holds {current.hex(' ')}, not the shipped "
             f"{original.hex(' ')}; refusing to write over it")
-    return write_bytes(pid, site, replacement)
+    return write_bytes(pid, site, replacement, module)
 
 
-def restore(pid, site, length, game_dir=None):
+def restore(pid, site, length, module=MODULE):
     """Put the shipped bytes back. Safe to call when nothing is patched."""
-    return write_bytes(pid, site, disk_bytes(site, length, game_dir))
+    return write_bytes(pid, site, disk_bytes(pid, site, length, module), module)
 
 
 def main():

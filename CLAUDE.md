@@ -296,6 +296,23 @@ and the desktop stalled hard enough to look like a freeze. It now reads in 1 MB
 chunks, matches in C with `bytes.find`, and stops at the first hit: 0.1 s and
 14 MB.
 
+**Not every patch needs a stub.** Best path through jump holes is five bytes in
+`server.dll` and `content.dll` and no injected code at all, because the thing
+being changed is a pair of pointers rather than a computed value. flhack wraps
+it in a runtime hook only because it patches at launch, before those libraries
+exist; patching from outside while a game is already loaded needs none of that.
+Reach for `inject.py` when a value is computed, not by habit.
+
+Two facts that shape `bestpath.py`:
+
+  * **The build fingerprint is the byte the patch changes.** flhack identifies
+    v1.0 by `server.dll` holding 0x0A at the type site, and the patch writes
+    0x03 there. So "wrong build" and "already patched" are one check in one
+    place, and neither can be read as the other.
+  * **Those two libraries load with the save**, so the patch dies on every game
+    load. That is stated in the UI rather than worked around, because the
+    workaround is a loader hook and the honest version is a button.
+
 **Not every freeze is yours.** The one on 2026-09-05 was
 `i915 GT0: rcs0 reset request timed out`, an Iris Xe GPU hang the driver could
 not recover from, with the injected stub in memory at the time and entirely

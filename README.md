@@ -139,6 +139,23 @@ so subtract 495 to get the figure on your HUD for a lane.
 Memory only, both of them. A relaunch puts everything back and nothing can be
 left in a bad state. `dockdist.py` carries the disassembly.
 
+**Set Best Path through jump holes.** The game ships two route tables and routes
+with the duller one: `shortest_legal_path.ini` knows only jump gates, while
+`systems_shortest_path.ini` includes jump holes, which are often the shortcut.
+Both have been in the install since 2003. The button swaps which one gets read.
+
+```bash
+python3 bestpath.py         # is it on, and which file each slot points at
+python3 bestpath.py --on
+python3 bestpath.py --off
+```
+
+Five bytes in three places, no injected code, nothing written to disk. The catch
+is worth knowing before you rely on it: `content.dll` and `server.dll` are loaded
+**when a save is loaded**, so the setting dies on every load and has to be
+pressed again. flhack hooks the loader to avoid that; pressing the button again
+is cheaper and hides less.
+
 **Asteroid draw distance** scales `[Field] fill_dist` across the 153 field
 definitions in `DATA/SOLAR/ASTEROIDS/`. Vanilla runs 1000 to 2500 with a median
 of 1400, which is why a field reads as empty until you are nearly inside it. A
