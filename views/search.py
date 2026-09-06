@@ -100,7 +100,8 @@ function renderGear() {
       const where = r.bases.length
         ? r.bases.map(b =>
             `<div class="atrow"><span class="cell">${esc(b.system)}</span>` +
-            `<span>${esc(b.base_name)}</span></div>`).join('')
+            `<span class="cell">${esc(b.at)}</span>` +
+            `<span>${esc(b.name)}</span></div>`).join('')
         : r.wrecks.length
           ? r.wrecks.map(w =>
               `<div class="atrow"><span class="cell">${esc(w.system)}</span>` +
@@ -243,7 +244,7 @@ def _equipment(ctx):
         if (ctx.query.get("visited") or [""])[0]:
             state = ctx.state()
             seen = set(state["docked_bases"])
-            found = [dict(r, bases=[b for b in r["bases"] if b["base"] in seen])
+            found = [dict(r, bases=[b for b in r["bases"] if b["id"] in seen])
                      for r in found]
         body["rows"] = found
     except (OSError, ValueError, KeyError) as exc:

@@ -33,9 +33,10 @@ function renderDeltas() {
     out += `<p><input id="basesearch" placeholder="type a base or system name" ` +
       `value="${esc(deltaQuery || '')}" autocomplete="off"></p><div class="hits">` +
       (hits.length ? hits.map(b =>
-        `<button class="hit" data-base="${esc(b.nickname)}">` +
+        `<button class="hit" data-base="${esc(b.id)}">` +
         `<span class="nm">${esc(b.name)}</span>` +
         `<span class="nm">${esc(b.system)}</span>` +
+        `<span class="cell">${esc(b.at)}</span>` +
         `<span class="num">${b.goods}</span></button>`).join('')
         : '<p class="empty">Nothing by that name.</p>') + '</div>' +
       `<p class="note">${d.bases.length} bases sell something` +
@@ -45,8 +46,8 @@ function renderDeltas() {
   }
 
   out += '<div class="pick">' +
-    `<span class="nm">${esc(d.base_name)}</span>` +
-    `<span class="sys">${esc(d.system)}</span>` +
+    `<span class="nm">${esc(d.base.name)}</span>` +
+    `<span class="sys">${esc(d.base.system)} · ${esc(d.base.at)}</span>` +
     '<button class="addgun" id="rebase">change base</button></div>';
 
   if (!d.goods.length)
@@ -68,7 +69,7 @@ function renderDeltas() {
       (g.best
         ? `<span class="num">${money(g.best.price)}</span>` +
           `<span class="num up">+${money(g.best.delta)}</span>` +
-          `<span class="nm">${esc(g.best.base_name)}, ${esc(g.best.system)}</span>`
+          `<span class="nm">${esc(g.best.base.name)}, ${esc(g.best.base.system)}</span>`
         : '<span class="num raw">-</span><span class="num raw">-</span>' +
           '<span class="nm">nowhere else trades it</span>') +
       '</div>').join('') + '</div></div>';
@@ -84,14 +85,16 @@ function renderDeltas() {
 
   out += '<div class="guns"><div class="desttable">' +
     '<div class="gunhead"><span>price</span><span>gain</span>' +
-    '<span class="nm">base</span><span class="nm">system</span></div>' +
+    '<span class="nm">base</span><span class="nm">system</span>' +
+    '<span class="cell">at</span></div>' +
     d.rows.map(r =>
       `<div class="gun traderow${r.buy ? ' sells' : ''}">` +
       `<span class="num h">${money(r.price)}</span>` +
       `<span class="num${r.delta > 0 ? ' up' : ' raw'}">` +
       `${r.delta > 0 ? '+' : ''}${money(r.delta)}</span>` +
-      `<span class="nm">${esc(r.base_name)}</span>` +
-      `<span class="nm">${esc(r.system)}</span></div>`).join('') +
+      `<span class="nm">${esc(r.base.name)}</span>` +
+      `<span class="nm">${esc(r.base.system)}</span>` +
+      `<span class="cell">${esc(r.base.at)}</span></div>`).join('') +
     '</div></div>';
   return out;
 }
@@ -155,7 +158,7 @@ VIEW.deltas = {
 def _deltas(ctx):
     """The base list, what one of them sells, and where that is worth more."""
     _names, rows = ctx.game.market
-    body = {"bases": [], "base": None, "base_name": None, "system": None,
+    body = {"bases": [], "base": None,
             "goods": [], "good": None, "rows": [], "error": None}
     try:
         only = None
@@ -171,23 +174,19 @@ def _deltas(ctx):
         for row in rows:
             if not row["buy"]:
                 continue
-            if only is not None and row["base"] not in only:
+            if only is not None and row["base"]["id"] not in only:
                 continue
-            seen = stock.setdefault(row["base"], dict(row, goods=0))
+            seen = stock.setdefault(row["base"]["id"], dict(row, goods=0))
             seen["goods"] += 1
         body["bases"] = sorted(
-            ({"nickname": b, "name": r["base_name"],
-              "system": r["system"], "goods": r["goods"]}
-             for b, r in stock.items()),
+            (dict(r["base"], goods=r["goods"]) for r in stock.values()),
             key=lambda b: (b["name"], b["system"]))
 
         base = (ctx.query.get("base") or [None])[0]
         if not base or base.lower() not in stock:
-            return
+            return body  # just the picker; nothing chosen yet
         base = base.lower()
-        body["base"] = base
-        body["base_name"] = stock[base]["base_name"]
-        body["system"] = stock[base]["system"]
+        body["base"] = stock[base]["base"]
         body["goods"] = [
             {"nickname": r["good"], "name": r["good_name"],
              "price": r["price"], "best": r["best"]}
@@ -196,7 +195,7 @@ def _deltas(ctx):
         good = (ctx.query.get("good") or [None])[0]
         if good:
             good = good.lower()
-            source = next((r for r in rows if r["base"] == base
+            source = next((r for r in rows if r["base"]["id"] == base
                            and r["good"] == good and r["buy"]), None)
             if source:
                 body["good"] = good

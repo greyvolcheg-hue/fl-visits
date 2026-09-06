@@ -41,8 +41,8 @@ function renderTrade() {
   const low = stock[stock.length - 1], high = rows[0];
   let run = '';
   if (low && high && high.price > low.price)
-    run = ` Best run here: buy at ${esc(low.base_name)} for
-      ${low.price.toLocaleString()}, sell at ${esc(high.base_name)} for
+    run = ` Best run here: buy at ${esc(low.base.name)} for
+      ${low.price.toLocaleString()}, sell at ${esc(high.base.name)} for
       ${high.price.toLocaleString()},
       <b class="ok">${(high.price - low.price).toLocaleString()} a unit</b>.`;
 
@@ -53,13 +53,15 @@ function renderTrade() {
 
   out += '<div class="guns"><div class="tradetable">' +
     '<div class="gunhead"><span>price</span><span>way</span>' +
-    '<span class="nm">base</span><span class="nm">system</span></div>' +
+    '<span class="nm">base</span><span class="nm">system</span>' +
+    '<span class="cell">at</span></div>' +
     rows.map(r =>
       `<div class="gun traderow${r.buy ? ' sells' : ''}">` +
       `<span class="num h">${r.price.toLocaleString()}</span>` +
       `<span class="num raw">${r.buy ? 'buy' : 'sell'}</span>` +
-      `<span class="nm">${esc(r.base_name)}</span>` +
-      `<span class="nm">${esc(r.system)}</span></div>`).join('') +
+      `<span class="nm">${esc(r.base.name)}</span>` +
+      `<span class="nm">${esc(r.base.system)}</span>` +
+      `<span class="cell">${esc(r.base.at)}</span></div>`).join('') +
     '</div></div>';
   return out;
 }

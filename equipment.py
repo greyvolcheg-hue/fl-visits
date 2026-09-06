@@ -253,7 +253,7 @@ def load_catalogue(game_dir=None, obtainable_only=True):
     game_dir = game_dir or fl.DEFAULT_GAME
     data_dir = fl.ipath(game_dir, "DATA")
     strings = fl.load_names(game_dir)
-    dockable, where, label, sysname = td.base_index(game_dir, data_dir, strings)
+    dockable, ref, sysname = td.base_index(game_dir, data_dir, strings)
     market = load_market(game_dir, data_dir)
     loot = wreck_loot(game_dir)
 
@@ -263,10 +263,8 @@ def load_catalogue(game_dir=None, obtainable_only=True):
             if base in seen or base not in dockable:
                 continue
             seen.add(base)
-            system = where.get(base, "")
-            out.append({"base": base, "base_name": label.get(base, base),
-                        "system": sysname.get(system, system)})
-        out.sort(key=lambda b: (b["system"], b["base_name"]))
+            out.append(ref(base))
+        out.sort(key=lambda b: (b["system"], b["name"]))
         return out
 
     def finish(row):
@@ -379,7 +377,7 @@ def main():
                 rank = f", rank {row['rank']}" if row["rank"] else ""
                 print(f"\n{row['name']}  {price} cr{rank}")
                 for base in row["bases"]:
-                    print(f"   {base['base_name']:<30}{base['system']}")
+                    print(f"   {base['name']:<30}{base['at']:<8}{base['system']}")
                 for wreck in row["wrecks"]:
                     print(f"   wreck: {wreck['name']:<23}{wreck['system']}")
                 if not row["bases"] and not row["wrecks"]:

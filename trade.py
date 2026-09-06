@@ -33,6 +33,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docking as dk  # noqa: E402
 import flvisits as fl  # noqa: E402
+import navmap  # noqa: E402
 import wrecks as wr  # noqa: E402
 
 SELLS_TO_YOU = 0  # the base has stock: this is where you buy
@@ -45,16 +46,22 @@ def _first(entry, key):
 
 
 def base_index(game_dir, data_dir=None, strings=None):
-    """(dockable, base -> system nick, base -> label, system nick -> label).
+    """(dockable set, base -> the shared base shape, system nick -> label).
 
     Every market in the game is keyed by a base nickname and has to be turned
     into somewhere a player can find, so this is shared rather than rebuilt.
-    `equipment.py` needs exactly the same four and must not grow its own copy:
-    that is how `flvisits.py` and `serve.py` drifted apart in August.
+    `equipment.py` uses the same `ref` and must not grow its own copy: that is
+    how `flvisits.py` and `serve.py` drifted apart in August.
+
+    `sysname` comes back too because a wreck sits in a system without being a
+    base, and that is genuinely a different thing.
     """
     data_dir = data_dir or fl.ipath(game_dir, "DATA")
     strings = strings if strings is not None else fl.load_names(game_dir)
     dockable = dk.dockable_bases(game_dir, data_dir, fl.system_files, fl.ipath)
+    sectors = dk.base_sectors(
+        data_dir, fl.system_files,
+        navmap.load_scales(data_dir, fl.read_ini, fl.ipath))
     _bases, systems = fl.load_universe(data_dir)
     objects = fl.load_objects(data_dir, systems)
     where, label = {}, {}
@@ -71,7 +78,20 @@ def base_index(game_dir, data_dir=None, strings=None):
             sysname[nick.lower()] = strings.get(int(ids), nick)
         except (TypeError, ValueError):
             sysname[nick.lower()] = nick
-    return dockable, where, label, sysname
+    def ref(key):
+        """The one shape a base takes anywhere in this tool.
+
+        `id` is the identity and `sys` is the system's, because display names
+        collide: "Omicron Beta" is two systems, "Omicron Major" four. The rest
+        is what gets printed. Every page that shows a base shows these fields
+        under these names.
+        """
+        system = where.get(key, "")
+        return {"id": key, "name": label.get(key, key),
+                "system": sysname.get(system, system), "sys": system,
+                "at": sectors.get(key, "")}
+
+    return dockable, ref, sysname
 
 
 def load_market(game_dir=None):
@@ -124,7 +144,7 @@ def load_market(game_dir=None):
     for key in price:
         names.setdefault(key, key)
 
-    dockable, where, label, sysname = base_index(game_dir, data_dir, strings)
+    dockable, ref, _sysname = base_index(game_dir, data_dir, strings)
 
     rows = []
     market = fl.ipath(equip_dir, "market_commodities.ini")
@@ -148,16 +168,8 @@ def load_market(game_dir=None):
                 flag, mult = float(values[5]), float(values[6])
             except (TypeError, ValueError):
                 continue
-            system = where.get(key, "")
             rows.append({
-                "base": key,
-                "base_name": label.get(key, key),
-                # Both, because they are not interchangeable. Display names
-                # collide: "Omicron Beta" is Ew02 and St02, "Omicron Major" is
-                # four systems and "Unknown" is two. The nickname is the
-                # identity, the label is only what gets printed.
-                "sys_nick": system,
-                "system": sysname.get(system, system),
+                "base": ref(key),
                 "good": good,
                 "good_name": names.get(good, good),
                 "price": round(price[good] * mult),
@@ -174,11 +186,11 @@ def find(rows, good, visited=None, only_visited=False):
     """
     out = [r for r in rows if r["good"] == good]
     if only_visited and visited is not None:
-        out = [r for r in out if r["base"] in visited]
+        out = [r for r in out if r["base"]["id"] in visited]
     if visited is not None:
         for row in out:
-            row["visited"] = row["base"] in visited
-    out.sort(key=lambda r: (-r["price"], r["base_name"]))
+            row["visited"] = row["base"]["id"] in visited
+    out.sort(key=lambda r: (-r["price"], r["base"]["name"]))
     return out
 
 
@@ -188,7 +200,7 @@ def sells(rows, base):
     Only the flag-0 rows: a base with none of something cannot sell it to you,
     however much it is willing to pay.
     """
-    out = [r for r in rows if r["base"] == base and r["buy"]]
+    out = [r for r in rows if r["base"]["id"] == base and r["buy"]]
     out.sort(key=lambda r: (-r["price"], r["good_name"]))
     return out
 
@@ -207,12 +219,12 @@ def deltas(rows, good, source, only=None):
     """
     out = []
     for row in rows:
-        if row["good"] != good or row["base"] == source["base"]:
+        if row["good"] != good or row["base"]["id"] == source["base"]["id"]:
             continue
-        if only is not None and row["base"] not in only:
+        if only is not None and row["base"]["id"] not in only:
             continue
         out.append(dict(row, delta=row["price"] - source["price"]))
-    out.sort(key=lambda r: (-r["delta"], r["base_name"]))
+    out.sort(key=lambda r: (-r["delta"], r["base"]["name"]))
     return out
 
 
@@ -236,7 +248,7 @@ def best_runs(rows, base, only=None):
 def routes(rows, src, dst, only=None):
     """What to buy in system `src` and sell in system `dst`, best margin first.
 
-    Systems by nickname, never by display name: see `sys_nick` above.
+    Systems by nickname, never by display name: see `sys` on the base.
 
     One row per commodity rather than one per pair of bases. New York alone has
     12 market bases, so the uncollapsed cross product is mostly noise, and the
@@ -248,20 +260,20 @@ def routes(rows, src, dst, only=None):
     """
     buy, sell = {}, {}
     for row in rows:
-        if only is not None and row["base"] not in only:
+        if only is not None and row["base"]["id"] not in only:
             continue
-        if row["sys_nick"] == src and row["buy"]:
+        if row["base"]["sys"] == src and row["buy"]:
             cheap = buy.get(row["good"])
             if cheap is None or row["price"] < cheap["price"]:
                 buy[row["good"]] = row
-        if row["sys_nick"] == dst:
+        if row["base"]["sys"] == dst:
             dear = sell.get(row["good"])
             if dear is None or row["price"] > dear["price"]:
                 sell[row["good"]] = row
     out = []
     for good, source in buy.items():
         target = sell.get(good)
-        if target is None or target["base"] == source["base"]:
+        if target is None or target["base"]["id"] == source["base"]["id"]:
             continue
         out.append({
             "good": good,
@@ -269,8 +281,8 @@ def routes(rows, src, dst, only=None):
             "buy": source["price"],
             "sell": target["price"],
             "gain": target["price"] - source["price"],
-            "from_base": source["base_name"],
-            "to_base": target["base_name"],
+            "from": source["base"],
+            "to": target["base"],
         })
     out.sort(key=lambda r: (-r["gain"], r["name"]))
     return out
@@ -299,8 +311,8 @@ def main():
         print(f"\n{names[key]} ({len(found)} bases)")
         for row in found:
             way = "buy " if row["buy"] else "sell"
-            print(f"   {row['price']:>6} cr  {way}  {row['base_name'][:28]:<29} "
-                  f"{row['system']}")
+            print(f"   {row['price']:>6} cr  {way}  {row['base']['name'][:28]:<29} "
+                  f"{row['base']['system']}")
 
 
 if __name__ == "__main__":

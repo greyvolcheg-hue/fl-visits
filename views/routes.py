@@ -6,6 +6,11 @@ import trade as td
 
 ID, LABEL = "routes", "Routes"
 
+CSS = """
+  /* The nav map cell, trailing the base it belongs to. */
+  .at { color: var(--dim); font-style: normal; font-size: .85em; margin-left: .35rem; }
+"""
+
 JS = r"""
 let routeData = null, routeFrom = '', routeTo = '', routeVisitedOnly = false;
 
@@ -78,8 +83,8 @@ function renderRoutes() {
       `<span class="num h">${money(r.sell)}</span>` +
       `<span class="num up">+${money(r.gain)}</span>` +
       (d.hold ? `<span class="num up big">+${money(r.run)}</span>` : '') +
-      `<span class="nm">${esc(r.from_base)}</span>` +
-      `<span class="nm">${esc(r.to_base)}</span></div>`).join('') +
+      `<span class="nm">${esc(r.from.name)} <i class="at">${esc(r.from.at)}</i></span>` +
+      `<span class="nm">${esc(r.to.name)} <i class="at">${esc(r.to.at)}</i></span></div>`).join('') +
     '</div></div>';
   return out;
 }
@@ -134,13 +139,13 @@ def _routes(ctx):
 
         systems = {}
         for row in rows:
-            if only is not None and row["base"] not in only:
+            if only is not None and row["base"]["id"] not in only:
                 continue
             seen = systems.setdefault(
-                row["sys_nick"],
-                {"nickname": row["sys_nick"], "name": row["system"],
+                row["base"]["sys"],
+                {"nickname": row["base"]["sys"], "name": row["base"]["system"],
                  "bases": set()})
-            seen["bases"].add(row["base"])
+            seen["bases"].add(row["base"]["id"])
         body["systems"] = sorted(
             ({"nickname": s["nickname"], "name": s["name"],
               "bases": len(s["bases"])} for s in systems.values()),
