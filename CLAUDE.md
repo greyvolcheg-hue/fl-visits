@@ -428,6 +428,37 @@ Also worth knowing when reading these files: `CRUISING_SPEED` in
 button, and 153 asteroid field files carry a scaled `fill_dist` from
 `drawdist.py`. Both have `.vanilla` backups.
 
+## Settled: an RTC is not a cutscene, and the first mission cannot be trimmed
+
+Tried on 2026-09-06 at the owner's request, broke the game twice, and reverted.
+Both facts are worth keeping, because both look obvious in the wrong direction.
+
+**`Act_AddRTC` populates a room.** The file it names is a
+`[CharacterEncounter]`: a `Location`, one `action` scene, and a list of `[Char]`
+entries. `m001a_s003x` puts the bartender, Juni and the Liberty diplomat in the
+Manhattan bar; `m001a_s004x` puts Juni and the diplomat there; `m000_s002xe`
+puts the wounded Lonnigan on the cityscape. Removing the `Act_AddRTC` does not
+skip a scene, it empties the room. With no Juni to click there is no
+`Cnd_CharSelect`, so no job offer, no `Act_SetShipAndLoadout` and no ship.
+
+The distinction that does exist is `autoplay`, present on 61 of the game's 68
+character encounters. With it the scene runs on entering the room; without it,
+`s004x` being the one example in this mission, it runs when the character is
+clicked. Dropping that key is the surgical version and was written but never
+tested, because the owner called the whole line of work off first.
+
+**`tr_fp7_cam_end` is not a wait.** The Freeport 7 opening is a chain of timers
+on the 33 triggers scoped to `FP7_system`, and this one is started by the first
+trigger, runs beside the whole chain, and ends it with `Act_ForceLand` on
+Manhattan. Its 68.5 seconds is the length of the sequence, not a pause in it.
+Capping every timer to 1s therefore force-landed the player one second in while
+the chain went on spawning ships and lighting fuses in a system being torn down,
+which is the crash. Vanilla runs a 42.8s chain under a 68.5s marker, x1.60, so
+a compressed chain needs the marker recomputed rather than capped.
+
+Neither is applied. `newgame.py` writes the starting ship and nothing else, and
+its `.vanilla` copies cover only `loadouts.ini` and `m01a.ini`.
+
 ## Dependency
 
 `bini.py` lives in `../scripts/` and is shared with other work in this area. It
