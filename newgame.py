@@ -35,6 +35,7 @@ Salamancas outboard is the only arrangement that mounts at all.
 """
 
 import argparse
+import math
 import os
 import shutil
 import sys
@@ -49,6 +50,9 @@ import flvisits as fl  # noqa: E402
 
 LOADOUT = "msn_playerloadout"
 INTRO = "FP7_system"
+# The trigger that opens the sequence, and the one that ends it by force-landing
+# you on Manhattan. The second is not a wait and must never be capped like one.
+INTRO_START, INTRO_END = "tr_fp7_cam", "tr_fp7_cam_end"
 
 # The first mission's in-engine cutscenes, by the RTC that plays each.
 #
@@ -233,6 +237,44 @@ def skip_scenes(game_dir=None):
     return cut, freed
 
 
+def _graph(sections):
+    """{trigger: (wait, waits on a spoken line, what it activates)} for FP7."""
+    out = {}
+    for name, entries in sections:
+        if name.lower() != "trigger":
+            continue
+        if not any(k.lower() == "system" and str(v[0]) == INTRO for k, v in entries):
+            continue
+        nick = next((str(v[0]) for k, v in entries if k.lower() == "nickname"), None)
+        if nick:
+            out[nick] = (
+                next((float(v[0]) for k, v in entries if k.lower() == "cnd_timer"), 0.0),
+                any(k.lower() == "cnd_commcomplete" for k, _v in entries),
+                [str(v[0]) for k, v in entries if k.lower() == "act_acttrig"])
+    return out
+
+
+def _chain(sections, cap=None):
+    """Seconds along the longest run of the sequence, end marker excluded.
+
+    The marker is excluded because it is what the answer is *for*: it has to
+    outlast every branch, so it cannot be one of the branches measured.
+    """
+    graph = _graph(sections)
+
+    def walk(node, seen):
+        wait, comm, kids = graph[node]
+        if node in seen:
+            return 0.0
+        held = 0.0 if node == INTRO_START else (
+            cap if cap is not None and (comm or wait > cap) else wait)
+        rest = [walk(k, seen | {node}) for k in kids
+                if k in graph and k != INTRO_END]
+        return held + (max(rest) if rest else 0.0)
+
+    return walk(INTRO_START, set()) if INTRO_START in graph else 0.0
+
+
 def fast_intro(cap=1.0, game_dir=None):
     """Cap every wait in the Freeport 7 sequence. Returns how many were cut.
 
@@ -248,6 +290,19 @@ def fast_intro(cap=1.0, game_dir=None):
     The three waits on a spoken line go too. They are `Cnd_CommComplete`, and
     left alone they would hold the whole compressed chain at the pace of the
     dialogue, which is the pace being cut.
+
+    **`tr_fp7_cam_end` is exempt, and getting that wrong crashed the game
+    twice.** Its 68.5 seconds is not a wait between two steps: the opening
+    trigger starts it, it runs beside the whole sequence, and it ends the scene
+    with `Act_ForceLand` on Manhattan. Capped to 1s like everything else, it
+    force-landed the player one second in, while the rest of the chain went on
+    spawning ships, lighting fuses and calling cameras into a system that was
+    being torn down.
+
+    So it is not capped, it is recomputed: the longest surviving branch, times
+    the headroom vanilla gives itself, which is 68.5 over a 42.8-second chain.
+    Both numbers are read out of the files rather than written down here, so
+    any cap gets a marker that still outlasts what it has to cover.
     """
     _loadouts, mission = _paths(game_dir)
     sections = _read(mission)
@@ -257,16 +312,30 @@ def fast_intro(cap=1.0, game_dir=None):
             continue
         if not any(k.lower() == "system" and str(v[0]) == INTRO for k, v in entries):
             continue
+        marker = any(k.lower() == "nickname" and str(v[0]) == INTRO_END
+                     for k, v in entries)
         for i, (key, values) in enumerate(list(entries)):
+            if marker:
+                continue
             if key.lower() == "cnd_timer" and float(values[0]) > cap:
                 entries[i] = (key, [cap])
                 cut += 1
             elif key.lower() == "cnd_commcomplete":
                 entries[i] = ("Cnd_Timer", [cap])
                 cut += 1
-    if cut:
-        _write(mission, sections)
-    return cut
+
+    keep = mission + ".vanilla"
+    van = bini.decode(open(keep, "rb").read()) if os.path.exists(keep) else sections
+    slack = (_graph(van)[INTRO_END][0] / _chain(van)) if _chain(van) else 1.0
+    end = math.ceil(_chain(sections) * slack)
+    for name, entries in sections:
+        for i, (key, values) in enumerate(list(entries)):
+            if key.lower() == "cnd_timer" and any(
+                    k.lower() == "nickname" and str(v[0]) == INTRO_END
+                    for k, v in entries):
+                entries[i] = (key, [float(end)])
+    _write(mission, sections)
+    return cut, end
 
 
 def restore(game_dir=None):
@@ -303,8 +372,9 @@ def main():
         cut, freed = skip_scenes(args.game)
         print(f"cut {cut} cutscene(s), released {freed} wait(s) on them")
     if args.fast_intro:
-        print(f"capped {fast_intro(args.fast_intro, args.game)} wait(s) "
-              f"at {args.fast_intro:g}s")
+        n, end = fast_intro(args.fast_intro, args.game)
+        print(f"capped {n} wait(s) at {args.fast_intro:g}s, "
+              f"scene ends after {end}s")
 
     ship, gear, scenes, wait = state(args.game)
     print(f"\na new game starts you in: {ship}")
