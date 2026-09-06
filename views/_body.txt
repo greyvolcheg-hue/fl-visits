@@ -1,0 +1,19 @@
+<div class="wrap" id="wrap">
+  <div class="title"><h1>Freelancer</h1><div class="sub" id="sub">loading…</div></div>
+  <nav class="tabs" id="tabs"></nav>
+  <nav class="subtabs" id="subtabs" hidden></nav>
+  <div class="totals" id="totals"></div>
+  <div class="controls" id="togglewrap">
+    <label class="toggle">
+      <input type="checkbox" id="ext" checked> <span id="extlabel"></span>
+    </label>
+    <label class="toggle">
+      <input type="checkbox" id="hidedone" checked> <span id="hidelabel"></span>
+    </label>
+    <span class="groupacts">
+      <button id="collapseall">Collapse all</button>
+      <button id="expandall">Expand all</button>
+    </span>
+  </div>
+  <div id="list"></div>
+</div>

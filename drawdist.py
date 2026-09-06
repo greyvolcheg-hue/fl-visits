@@ -64,16 +64,32 @@ def _source(path):
     return keep if os.path.exists(keep) else path
 
 
+_CACHE = (None, None)
+
+
 def survey(game_dir=None):
-    """[(name, vanilla fill_dist, current fill_dist)] for every field."""
+    """[(name, vanilla fill_dist, current fill_dist)] for every field.
+
+    Cached on the files' mtimes. The Speed tab polls this every five seconds
+    and it BINI-decodes 158 fields plus their `.vanilla` twins: 6.5 MB and 311
+    decodes a tick, for a number that only changes when the button is pressed.
+    Stat-ing the same files instead costs nothing and catches an edit made
+    outside the tool.
+    """
+    global _CACHE
     game_dir = game_dir or fl.DEFAULT_GAME
+    paths = field_files(game_dir)
+    stamp = tuple(os.stat(p).st_mtime_ns for p in paths)
+    if _CACHE[0] == stamp:
+        return _CACHE[1]
+
     out = []
-    for path in field_files(game_dir):
+    for path in paths:
         base = _read_fill(_source(path))
         now = _read_fill(path)
-        if base is None or now is None:
-            continue
-        out.append((os.path.basename(path), base, now))
+        if base is not None and now is not None:
+            out.append((os.path.basename(path), base, now))
+    _CACHE = (stamp, out)
     return out
 
 
