@@ -15,8 +15,7 @@ python3 flvisits.py <save.fl>    # bases, in the terminal
 python3 wrecks.py <save.fl>      # wrecks, in the terminal
 ```
 
-`run.sh` is the one-command version: it starts `serve.py`, waits for the port
-to answer rather than sleeping a guess, and opens a browser on the page. Ctrl+C
+`run.sh` is the one-command version: it starts `serve.py`, waits for the port to answer instead of sleeping a guess, and opens a browser on the page. Ctrl+C
 stops both. Any arguments it gets are passed straight through to `serve.py`.
 
 `serve.py` follows the newest `AutoSave.fl` on its own and re-reads it every
@@ -37,9 +36,8 @@ The web page has six tabs, two of which carry sub-tabs:
 | Speed, Neural Net, Reputation | none |
 | **Trade** | Data, Deltas, Routes |
 
-Two levels rather than one longer strip because the pairs group naturally, and
-because eight or nine buttons on one line stops being a strip and becomes a
-menu. Which sub-tab you were last on is remembered per parent, so leaving Wrecks
+Two levels because the pairs group naturally, and because eight or nine buttons
+on one line stops being a strip and becomes a menu. Which sub-tab you were last on is remembered per parent, so leaving Wrecks
 for Trade and coming back returns to Wrecks.
 
 **Visits** and **Wrecks** each have their own state for the
@@ -50,15 +48,13 @@ and on Wrecks means every wreck stripped, so a system whose wrecks are all found
 but not all emptied stays in the list. Both tabs group their systems by house,
 Liberty through Edge Worlds, with a running count per house.
 
-**Both tabs open with both boxes ticked and every house folded**, so the first
-thing on screen is a short list of what is left rather than everything you have
-already done. The folding happens once per tab: open a house and the five-second
+**Both tabs open with both boxes ticked and every house folded**, so the first thing on screen is
+a short list of what is left. The folding happens once per tab: open a house and the five-second
 poll will not shut it again.
 
 **Speed** changes the cruise speed of the running game, from 300 to 5000, and
-it applies to the next cruise burn with no reload. It is the one thing here that
-writes rather than reads, and it writes to the game's memory, never to a save or
-a file. Close the game and the setting is gone; `constants.ini` is still the
+it applies to the next cruise burn with no reload. It is the one thing here that writes, and it writes to the game's
+memory, never to a save or a file. Close the game and the setting is gone; `constants.ini` is still the
 default. The tab says so when no game is running, which is the usual state.
 
 This exists because cruise speed is a single global read once at startup, with
@@ -67,8 +63,7 @@ an asteroid field" is not expressible in the files at all.
 
 **Thrusters** does the same for the six thrusters, from 120 to 420. These are
 **bonuses added to your normal speed, not the speed itself**: setting 320 gives
-you base plus 320. Vanilla is 120 on all six. All of them are listed rather than
-just the one fitted, so swapping thrusters needs no code change. Same rules as
+you base plus 320. Vanilla is 120 on all six. All six are listed, so swapping thrusters needs no code change. Same rules as
 Speed: memory only, gone when the game closes.
 
 **Trade lanes** sets the speed inside a lane, 2500 (vanilla) to 10000. This one
@@ -93,9 +88,8 @@ lifts it to 9999.
 Addresses for both come from [flhack](https://github.com/adoxa/flhack) by Jason
 Hood, whose source settles what a memory scan cannot: an earlier attempt here
 found a lone 2500.0 near the cruise constant and it was the wrong one, sitting
-in the loaded copy of `constants.ini`. The address is followed from a pointer in
-the code rather than hardcoded, so it works on either build of `common.dll` and
-checks itself: if what it points at is not a plausible speed, it refuses.
+in the loaded copy of `constants.ini`. The address is followed from a pointer in the code, so it works on either build
+of `common.dll` and checks itself: if what it points at is not a plausible speed, it refuses.
 
 **Write to the game files** takes the cruise and thruster speeds you have set
 live and puts them in `constants.ini` and `st_equip.ini`, so the next launch
@@ -125,8 +119,7 @@ that the approach is unplayable, and 200 is also what flhack picked on its own.
 Lanes and jump gates share the number; stations and planets keep 600, because a
 planet has a radius and 100 m from its centre is inside it.
 
-This one is a code patch, not a value, because the distance lives in a
-descriptor rather than a global. `inject.py` puts a 75-byte stub in the zero
+The distance lives in a descriptor, so this one is a code patch. `inject.py` puts a 75-byte stub in the zero
 padding at the end of `common.dll`'s `.text` and points two call sites at it.
 Nothing is allocated and nothing on disk is touched.
 
@@ -162,15 +155,15 @@ of 1400, which is why a field reads as empty until you are nearly inside it. A
 file change, so it lands the next time a system loads, backed up to `.vanilla`
 and restorable.
 
-Each field scales from **its own vanilla value, not from wherever it is now**,
-so pressing 1.5x twice is still 1.5x rather than 2.25x.
+Each field scales from **its own vanilla value**, so pressing 1.5x twice is
+still 1.5x and never 2.25x.
 
 Two things worth knowing before turning it up. Rocks fill a sphere, so 2x the
 distance is roughly 8x the geometry, from a median 385 filled cubes to 3077, on
 a single-threaded 2003 renderer. And the billboards are deliberately left alone:
 `[AsteroidBillboards]` is a few hundred sprites scattered independently of the
 `[Cube]` grid that places the real rocks, which is why a sprite winks out and a
-rock appears somewhere else. More sprites makes that worse, not better.
+rock appears somewhere else. More sprites makes that worse.
 
 **Equipment → DPS** adds up as many weapons as you like and shows what they do
 per second, hull and shield side by side. `+ Add weapon` opens a search box over
@@ -183,7 +176,7 @@ is a filter **and** a column. Filters stack, and **filtering never reorders**:
 that is what the column headings are for, and clicking one twice turns it round.
 The default is hull DPS for guns and capacity for shields.
 
-A parameter with few enough values is an exact pick rather than a minimum,
+A parameter with few enough values is an exact pick instead of a minimum,
 because some questions have no threshold in them. **Projectile speed is one:**
 there are 14 muzzle velocities in the whole game and the real question is
 "which guns do exactly 600", which no minimum can express. The list offers
@@ -205,7 +198,7 @@ Expanding a row says where the thing is sold. **The price is the same at every
 dealer in the game**, so that list answers *where*, not *where cheapest*: the
 multiplier is exactly 1.0 on all 10871 rows of `market_misc.ini` and no item's
 differs between bases. The rank and reputation gates are the same everywhere
-too, so they sit on the row rather than in the expansion.
+too, so they sit on the row instead of the expansion.
 
 **The list is what you can actually get**: sold at a dockable base, or sitting
 in a wreck. That is 235 guns of 247 and 79 shields of 121. The 42 shields
@@ -231,8 +224,7 @@ check a row against the game directly. `refire` is the same rate as a delay in
 seconds, which is what the file actually stores.
 
 Shield damage per shot is `hull_damage x 0.5 + energy_damage`, where the 0.5 is
-`HULL_DAMAGE_FACTOR` from `constants.ini`, read from the file rather than
-assumed. Checked against five dealer screens, all matching to the integer the
+`HULL_DAMAGE_FACTOR` from `constants.ini`, read from the file, never assumed. Checked against five dealer screens, all matching to the integer the
 game prints:
 
 | weapon | hull | shield | game says |
@@ -259,7 +251,7 @@ happens to be flying.
 
 **Reputation** answers what to actually do about a faction. The dropdown is
 ordered by how each one currently feels about you, worst first, since the
-faction worth acting on is the one at the bottom rather than the one filed
+faction worth acting on is the one at the bottom and never the one filed
 under A. Pick one and a target standing, enemy (-0.5), neutral (0) or friend (+0.5), and it lists every
 repeatable action that moves it the right way, with how many times. All of them,
 never truncated: "1400 kills" is a real answer and a cut-off list would hide it.
@@ -270,13 +262,12 @@ and hurts and names the worst loss; clicking the row lists every faction it
 moves, before and after, with the ones pinned at the +/-0.9 bound marked.
 
 **Bribes** are in the same list, as a one-purchase row with a price instead of
-a repeat count, plus how many bars will take it. A bribe **sets** your standing
-to 0.6 rather than adding to it, so it never appears once you are already above
+a repeat count, plus how many bars will take it. A bribe **sets** your standing to 0.6 instead of adding, so it never appears once you are already above
 that, buying a second changes nothing, and it is no help when the goal is to be
 hated. 41 of the 55 factions can be bribed at all, at 610 bartenders.
 
 Price is `100000 x (0.6 - current)`, so about 124k for a faction at -0.64 and
-7.6k for one at +0.52. **That rate is derived, not measured.** The `bribe` lines
+7.6k for one at +0.52. **That rate is derived and has never been measured.** The `bribe` lines
 in `mbases.ini` all read a flat 10000, all 2386 of them, so the engine computes
 the real figure; flhack's flexible-bribe options price +0.3, -0.6 and -0.4 at
 30000, 60000 and 40000, which agree on 100000 a point. Worth checking against a
@@ -295,11 +286,11 @@ dearest first. **Green marks the bases holding stock**, the only ones you can
 buy at; the rest hold none and will only be sold to. A toggle narrows the list
 to bases you have actually docked at, taken from the save.
 
-Green is on that rather than on where you have docked because the sort alone
-does not answer the question the tab is for. The cheapest row is not always one
+Green marks stock because the sort alone does not answer the question the tab
+is for. The cheapest row is not always one
 you can buy at: gold's four cheapest bases, all in New London at 255, hold none
-of it. So the run printed above the table is the cheapest *green* row to the
-dearest row of any colour, and being docked somewhere is a filter, not a colour.
+of it. So the run printed above the table is the cheapest *green* row to the dearest
+row of any colour, and being docked somewhere is what the filter is for.
 
 Price is the commodity's own price from `goods.ini` times the base's multiplier
 in `market_commodities.ini`: gold is 425 a unit and the multipliers run from
@@ -313,13 +304,12 @@ mining platforms, and three `[Base]` entries that no object in space points at,
 one of which is the cutscene-only Ithaca Research Station. A price you can never
 reach is not information.
 
-**Trade → Deltas** starts from the other end: from where the ship is standing
-rather than from a commodity. Pick a base by name or by system, and it lists
+**Trade → Deltas** starts from the other end: from where the ship is standing. Pick a base by name or by system, and it lists
 only what that base actually has on the shelf, each line carrying the buy price,
 the most anyone in the game will pay, the difference, and where that is. Click a
 line for every base trading it, ordered by what it leaves you a unit.
 
-The best price is on the goods list rather than one click away because the pick
+The best price is on the goods list, one click closer, because the pick
 is otherwise blind: a base with 20 kinds of cargo would need 20 clicks to find
 out which one is worth carrying.
 
@@ -342,7 +332,7 @@ your feet and will happily send you across the map. Routes takes a departure
 system and a destination system and says what to put in the hold for a run you
 are making anyway.
 
-One line per commodity, not per pair of bases: the cheapest place to buy it at
+One line per commodity, never per pair of bases: the cheapest place to buy it at
 this end against the dearest place to sell it at that one, which is by
 definition the widest margin. New York alone has 12 market bases, so the
 uncollapsed cross product would be mostly noise.
@@ -351,7 +341,7 @@ uncollapsed cross product would be mostly noise.
 York bases hold 21 profitable runs between them without a single jump: Cardamine
 off Buffalo Base into Planet Manhattan is +270 a unit, 18,900 in a Sabre's hold.
 Rows where the buy and the sell land on the same base are dropped, so a
-single-system pick returns real runs rather than nonsense.
+single-system pick returns real runs and nothing degenerate.
 
 **`run` is the figure to read**: the margin times a full hold of the ship you
 are actually flying, read from the save. New York → Leeds pays 840 a unit on
@@ -405,13 +395,13 @@ lines as well.
 
 **Bases** fall into three buckets. *Docked* is where you have actually landed.
 *Revealed* is a base the story has put on your nav map that you have never
-visited. *Unknown* is the rest. The denominator is 164, not the 197 entries in
+visited. *Unknown* is the rest. The denominator is 164 and never the 197 entries in
 the game's own universe list: 16 are cutscene copies and story-only locations
 that no save can ever record, 15 are the Asteroid and Gas Miners, which look
 dockable in the data but refuse in play, and 3 are in Tohoku and Alaska,
 which are story-gated. `docking.py` explains how each group is told apart, and
 is honest that the last three are the one exclusion no rule in the data
-produces, and that they rest on knowing the game rather than on anything
+produces, and that they rest on knowing the game and on nothing
 checkable in the files.
 
 **Wrecks** are the 157 objects the game marks as secrets, spread over 33
@@ -473,7 +463,7 @@ clears it.
 so the browser keeps getting the old markup until the process is replaced.
 
 **A bare page with no tabs means the script never ran at all.** The whole UI is
-one inline `<script>`, so a *parse* error takes out every line of it, not just
+one inline `<script>`, so a *parse* error takes out every line of it, and never only
 the broken one, and what you see is the static HTML: a title, a stuck
 subtitle, empty controls. It happened here on `let top = 'map'`. `window.top` is
 a non-configurable property of the global object, and a global `let` or `const`
@@ -481,7 +471,7 @@ with a name like that is a SyntaxError, not a shadowing. `window`, `self`,
 `location` and `document` are the others. The tab variable is called `topTab`
 for exactly this reason and should stay that way.
 
-Checking that class of failure needs a browser, not curl, because the server
+Checking that class of failure needs a browser: curl cannot, because the server
 serves the broken page perfectly happily:
 
 ```bash

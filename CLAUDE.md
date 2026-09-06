@@ -66,7 +66,7 @@ denominator, and the denominator filter sat in both `flvisits.py` and
 `serve.py`. Editing only one would have left them disagreeing, 167 against 181,
 the same failure the first thaw was for.
 
-The edit was kept to the smallest shape that removes the duplicate rather than
+The edit was kept to the smallest shape that removes the duplicate instead of
 adding a third copy of it: the rule moved to `docking.py` and both callers now
 ask that. Eight lines changed in the frozen file, all of them in `main()`, none
 in the decoding, the hash or the loaders.
@@ -90,9 +90,9 @@ here, because it is the one that would have gone quietly wrong.
   count of dockable space objects (250). A planet's mooring fixture is a second
   object pointing at the same base, so counting objects double counts every
   planet. 197 then narrows to 181 reachable and 164 dockable; `docking.py` owns
-  that and says why. 164 rather than 167 because Tohoku's two and Alaska's one
+  that and says why. 164 instead of 167 because Tohoku's two and Alaska's one
   are excluded by name: both systems are story-gated and nothing in the data
-  says so. That rests on the owner's knowledge of the game, not on evidence.
+  says so. That rests on the owner's knowledge of the game and on no evidence.
   An earlier note here cited the saves, which was wrong: Tohoku is M09 and
   Alaska is M11, the save is on Mission_05, so their absence means only that
   he has not reached them. `docking.py` carries the correction.
@@ -125,7 +125,7 @@ cannot do and being emptied is exactly what does.
 
 **The transition was never caught in a file.** All 20 saves on disk already hold
 their final flags, so the 25/17/17 reading survives only as the earlier entry in
-this document, not as something re-checkable. If you want it on disk, note a
+this document and is no longer re-checkable. If you want it on disk, note a
 wreck's flag, empty it, and keep that pair of saves.
 
 **An empty wreck counts as emptied the moment it is found.** 54 of the 157
@@ -155,7 +155,7 @@ loot without the checkbox, since that is cargo you can still go and get.
 Closed 2026-09-01 by screenshot, at 100 m from the Asteroid Miner in Omega-7
 with the target selected and no dock prompt. The guess in the previous version
 of this section, run-time reputation gating invisible in the files, was wrong:
-the reason is in the data and the denominator is now 167, not 181.
+the reason is in the data and the denominator is now 167 instead of 181.
 
 The rule, and the three candidates that had to be eliminated to find it, are in
 `docking.py`. It is not restated here, and it is not duplicated in `flvisits.py`
@@ -189,7 +189,7 @@ game's own data at all.
 
 Confirmed working on 2026-09-01 by writing 20.0 into a live game: the ship
 slowed on the spot, no reload and no crash, and the owner then asked for the
-tab. So the value is read per cruise burn, not cached when the ship spawns.
+tab. So the value is read per cruise burn and never cached when the ship spawns.
 
 **Never hardcode the address.** It lives in `common.dll`, which loads at a
 different place each run. `speed.py` finds it by the three floats that follow
@@ -203,7 +203,7 @@ session.
 
 `kernel.yama.ptrace_scope` is 0 on this machine, so no privileges beyond the
 same user are needed. On a machine where it is not, this stops working and
-should say so rather than being "fixed" by loosening it.
+should say so, and must not be "fixed" by loosening it.
 
 **Two kinds of address, and only one of them is searched for.** `speed.py`
 scans, because `CRUISING_SPEED` sits in a loaded copy of `constants.ini` whose
@@ -212,7 +212,7 @@ are in `common.dll` itself, at addresses taken from **flhack** (Jason Hood,
 2014, source at `~/Downloads/flhack/`), resolved against the module's own base
 from `/proc/<pid>/maps`. A scan is the wrong tool there and was tried first: it
 found a lone 2500.0 that turned out to be a CommConsts value in the loaded
-`constants.ini`, not the trade lane speed. Both modules validate what they
+`constants.ini` and never the trade lane speed. Both modules validate what they
 found before writing to it, by reading the float and refusing if it is not a
 plausible value, which is what catches a wrong build or a moved address.
 
@@ -220,7 +220,7 @@ Those addresses land in `.rdata`, which is read-only in the process.
 `/proc/<pid>/mem` bypasses page protection, so no `mprotect` is needed the way
 flhack needs one on Windows.
 
-## Settled: the dock cruise distance is in `common.dll`, not in any INI
+## Settled: the dock cruise distance lives in `common.dll`, and in no INI
 
 Closed 2026-09-05, after a fix aimed at the wrong number did nothing. Worth
 reading before anyone reaches for `select_equip.ini` again.
@@ -249,11 +249,11 @@ is a dock, which is the lead the owner gave and the reason this was found.
 **That constant is only half the job, and the half that is not the interesting
 one.** `0x63a22c0` decides *whether* the autopilot uses cruise for a dock run,
 and the compare is gated by `[esi+0x365]`, which is cleared straight after, so
-the answer is latched once when the dock is ordered rather than recomputed as
+the answer is latched once when the dock is ordered and never recomputed as
 you close in. Moving it from 1750 to 300 changed nothing anyone could feel,
 because at any real trade lane range both answer "use cruise".
 
-**The distance at which docking takes over is a code patch, not a number**, and
+**The distance at which docking takes over is a code patch, never a number**, and
 that is why every constant tried did nothing. It is `[ebp+0x50]`, a descriptor
 field loaded at `0x62fe758`, so the only place to change it is the instruction
 that reads it. flhack calls this "Closer docking". `dockdist.py --takeover`
@@ -298,10 +298,10 @@ chunks, matches in C with `bytes.find`, and stops at the first hit: 0.1 s and
 
 **Not every patch needs a stub.** Best path through jump holes is five bytes in
 `server.dll` and `content.dll` and no injected code at all, because the thing
-being changed is a pair of pointers rather than a computed value. flhack wraps
+being changed is a pair of pointers and no computed value. flhack wraps
 it in a runtime hook only because it patches at launch, before those libraries
 exist; patching from outside while a game is already loaded needs none of that.
-Reach for `inject.py` when a value is computed, not by habit.
+Reach for `inject.py` when a value is computed, never by habit.
 
 Two facts that shape `bestpath.py`:
 
@@ -310,7 +310,7 @@ Two facts that shape `bestpath.py`:
     0x03 there. So "wrong build" and "already patched" are one check in one
     place, and neither can be read as the other.
   * **Those two libraries load with the save**, so the patch dies on every game
-    load. That is stated in the UI rather than worked around, because the
+    load. That is stated in the UI and not worked around, because the
     workaround is a loader hook and the honest version is a button.
 
 **Not every freeze is yours.** The one on 2026-09-05 was
@@ -321,7 +321,7 @@ innocent. Read the journal before assuming.
 ## Settled: equipment costs the same everywhere, and `npc_` gear is not for sale
 
 Both closed 2026-09-04 while building the Equipment search, both by counting
-rather than by assuming, and both shape what the page can offer.
+and never by assuming, and both shape what the page can offer.
 
 **One price, every dealer.** `market_misc.ini` rows carry the same seven fields
 as a commodity row, but the multiplier is exactly `1.0` on all 10871 of them and
