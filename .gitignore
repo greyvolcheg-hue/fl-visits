@@ -1,2 +1,9 @@
 __pycache__/
 *.pyc
+
+# The owner's own scratch notes, not part of the tool.
+bug-and-feature-tracker.md
+
+# The sector chart. Third-party artwork, so it is not redistributed here;
+# views/chart.py says where to put your own copy.
+freelancer-map.jpg

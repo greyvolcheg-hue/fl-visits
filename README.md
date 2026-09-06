@@ -369,14 +369,15 @@ cheaper at the far end. Hudson → Magellan is the first kind, Chugoku → Honsh
 the second.
 
 **Map → Chart** is the Sirius sector map, systems and every jump between them,
-docked here so it is one click away while you are reading the other two. It is
-`freelancer-map.jpg` in this folder, served at `/map.jpg`, and clicking it opens
-the full 2560x1826 image in its own browser tab. The file is the community
-"wingless" chart, renamed from `2560px-Freelancer_wingless.jpg` to fit the
-vault's hyphen-lowercase rule.
+docked here so it is one click away while you are reading the other two.
+
+**No chart ships with this repo.** The good ones are fan-made and not mine to
+redistribute. Save any sector map as `freelancer-map.jpg` beside `serve.py` and
+the tab picks it up; until then it says so. The community "wingless" chart is
+the one this was built against.
 
 It is the one response the server marks cacheable. Everything else here is a
-live reading of a save or a running game and is sent `no-store`, but 840 KB that
+live reading of a save or a running game and is sent `no-store`, but an image that
 will never change, on a page that redraws every five seconds, is not something
 to re-send 12 times a minute. The panel is drawn once for the same reason:
 rewriting its markup on every poll would throw away a decoded 2560px image and

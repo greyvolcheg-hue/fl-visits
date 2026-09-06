@@ -22,7 +22,7 @@ system. Own git repo; the history in this folder is the undo button.
 | `reputation.py` | the empathy model: what an action does to every faction |
 | `trade.py` | commodity prices per base, which way each trade runs, and the margin between two of them |
 | `serve.py` | local web view on 127.0.0.1:8731, six tabs, three of them with sub-tabs |
-| `freelancer-map.jpg` | the Sirius sector chart, served at `/map.jpg` |
+| `freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
 | `run.sh` | start the server and open a browser on it |
 
 Everything new goes in its own file. `flvisits.py` supplies the primitives;
