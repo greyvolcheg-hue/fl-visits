@@ -907,16 +907,32 @@ function renderTradeLane() {
   return head + msg + `<div class="speeds">${buttons}</div>` + extras;
 }
 
-async function setLane(body) {
+// Every live-game panel posts the same way: disable the row, POST, take the
+// reply as the panel's new state. Three copies of this drifted apart once
+// already, so the panel name is a parameter instead.
+const PANELS = {
+  lane: 'api/tradelane',
+  best: 'api/bestpath',
+  draw: 'api/drawdist',
+};
+
+async function post(panel, body) {
   document.querySelectorAll('.speeds button').forEach(b => b.disabled = true);
   try {
-    const r = await fetch('api/tradelane', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (r.ok) { lane = await r.json(); render(); }
+    const r = await fetch(PANELS[panel], body === undefined
+      ? { method: 'POST' }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body) });
+    if (!r.ok) return;
+    const got = await r.json();
+    if (panel === 'lane') lane = got;
+    else if (panel === 'best') best = got;
+    else draw = got;
+    render();
   } catch (e) { /* leave the buttons as they were */ }
 }
+
+const setLane = body => post('lane', body);
 
 function renderDrawDist() {
   const d = draw;
@@ -963,27 +979,9 @@ function renderBestPath() {
     '</button></div>' + msg;
 }
 
-async function setBestPath() {
-  document.querySelectorAll('.speeds button').forEach(x => x.disabled = true);
-  try {
-    const r = await fetch('api/bestpath', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ toggle: true }),
-    });
-    if (r.ok) { best = await r.json(); render(); }
-  } catch (e) { /* leave the buttons as they were */ }
-}
+const setBestPath = () => post('best');
 
-async function setDraw(body) {
-  document.querySelectorAll('.speeds button').forEach(b => b.disabled = true);
-  try {
-    const r = await fetch('api/drawdist', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (r.ok) { draw = await r.json(); render(); }
-  } catch (e) { /* leave the buttons as they were */ }
-}
+const setDraw = body => post('draw', body);
 
 function renderPersist() {
   if (!speed || speed.error) return '';
@@ -1872,19 +1870,24 @@ function render() {
     // thruster names its thruster, a lane button names its speed, a cruise
     // button carries neither. The two by-id buttons are bound separately.
     document.querySelectorAll('.speeds button').forEach(b => {
-      if (b.id === 'persist' || b.id === 'uncap' || b.id === 'instant'
-          || b.id === 'takeover' || b.id === 'bestpath') return;
+      // Dispatch on what a button carries, never on a list of names to skip.
+      // The old form enumerated every by-id toggle and fell through to
+      // `setSpeed(Number(undefined))` for anything missed, so forgetting to
+      // add a new toggle to that list POSTed NaN as a cruise speed to the
+      // live game, silently, from a button that looked unrelated.
+      if (b.id) return;  // bound below, by id
       if (b.dataset.draw) {
         b.addEventListener('click',
           () => setDraw({ factor: Number(b.dataset.draw) }));
-        return;
+      } else if (b.dataset.lane) {
+        b.addEventListener('click',
+          () => setLane({ value: Number(b.dataset.lane) }));
+      } else if (b.dataset.ids) {
+        b.addEventListener('click', () =>
+          setThruster(Number(b.dataset.ids), Number(b.dataset.speed)));
+      } else if (b.dataset.speed) {
+        b.addEventListener('click', () => setSpeed(Number(b.dataset.speed)));
       }
-      b.addEventListener('click', () => {
-        if (b.dataset.lane) setLane({ value: Number(b.dataset.lane) });
-        else if (b.dataset.ids)
-          setThruster(Number(b.dataset.ids), Number(b.dataset.speed));
-        else setSpeed(Number(b.dataset.speed));
-      });
     });
     const keep = $('#persist');
     if (keep) keep.addEventListener('click', doPersist);
@@ -2264,10 +2267,15 @@ def make_handler(game, save_path):
             body = {"on": False, "version": None, "slots": [],
                     "error": None, "message": message}
             try:
-                on, version = bp.state()
-                body["on"], body["version"] = on, version
+                # One pid lookup and one build detection for the whole reply.
+                # state() and routes() each used to do both, so a poll cost
+                # two /proc scans and two fingerprint reads to return 3 bytes.
+                pid = sp.find_pid()
+                version, _kind = bp.detect(pid)
+                body["on"], _v = bp.state(pid, version)
+                body["version"] = version
                 body["slots"] = [{"at": at, "file": name}
-                                 for at, name in bp.routes()]
+                                 for at, name in bp.routes(pid, version)]
             except (bp.NotRunning, OSError) as exc:
                 body["error"] = str(exc)
             self._send(200, json.dumps(body).encode("utf-8"), "application/json")
@@ -2308,7 +2316,10 @@ def make_handler(game, save_path):
                 body["uncapped"], body["shown"] = tl.read_cap()
                 # None means the patch is out, which is a different state from
                 # "in, at the stock distance" and has to read differently.
-                installed, distance, _v = dkd.takeover_state()
+                # `version` is already in hand from tl.read; without it this
+                # re-scanned every /proc/N/cmdline and re-located the build,
+                # every five seconds, for one bool and one float.
+                installed, distance, _v = dkd.takeover_state(version=version)
                 body["takeover"] = round(distance, 1) if installed else None
             except (tl.NotRunning, OSError) as exc:
                 body["error"] = str(exc)
@@ -2366,17 +2377,16 @@ def make_handler(game, save_path):
                     with lock:
                         # A toggle: only the game can say which way it is now,
                         # and asking it beats trusting what the page last drew.
-                        on, _version = bp.state()
-                        bp.apply(not on)
+                        pid = sp.find_pid()
+                        version, _kind = bp.detect(pid)
+                        on, _v = bp.state(pid, version)
+                        bp.apply(not on, pid, version)
                         note = ("routing through jump holes" if not on
                                 else "back to jump gates only")
                     self._send_bestpath(message=note)
                 except (ValueError, KeyError, TypeError,
                         bp.NotRunning, OSError) as exc:
-                    body = {"on": False, "version": None, "slots": [],
-                            "error": str(exc), "message": None}
-                    self._send(200, json.dumps(body).encode("utf-8"),
-                               "application/json")
+                    self._send_bestpath(message=str(exc))
                 return
             if path == "/api/drawdist":
                 try:
@@ -2430,14 +2440,12 @@ def make_handler(game, save_path):
                             note = f"trade lane speed set to {got:g}"
                     self._send_tradelane(message=note)
                 except (ValueError, KeyError, TypeError, tl.NotRunning, OSError) as exc:
-                    body = {"choices": TRADELANE_CHOICES, "vanilla": tl.VANILLA,
-                            "value": None, "uncapped": False, "shown": None,
-                            "instant": False, "takeover": None,
-                            "takeover_default": dkd.NON_STATION,
-                            "takeover_stock": dkd.SENTINEL,
-                            "error": str(exc), "message": None}
-                    self._send(200, json.dumps(body).encode("utf-8"),
-                               "application/json")
+                    # Re-read rather than synthesise a body. The duplicate
+                    # literal that used to live here hardcoded `takeover: None`,
+                    # so a failed speed write reported the takeover patch as
+                    # absent when it was installed; the live process is the
+                    # authority, which is inject.py's own rule.
+                    self._send_tradelane(message=str(exc))
                 return
             if path not in ("/api/speed", "/api/thrusters"):
                 self._send(404, b"not found", "text/plain")

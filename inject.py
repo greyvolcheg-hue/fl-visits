@@ -33,16 +33,14 @@ Everything reverts on the next launch regardless, because nothing on disk is
 touched.
 """
 
-import os
 import struct
 import sys
 from functools import lru_cache
 
-import tradelane as tl
+import flvisits as fl
 from speed import NotRunning
 
 MODULE = "common.dll"
-COMMON_BASE = tl.COMMON_BASE  # 0x6260000, the base the addresses are quoted at
 
 # How much slack to insist on. The stubs are tens of bytes; asking for a few
 # hundred means a cave that is only just big enough is rejected rather than
@@ -51,42 +49,61 @@ CAVE_WANTED = 256
 
 
 @lru_cache(maxsize=8)
-def _sections(path):
-    """[(rva, vsize, raw_ptr, raw_size)] for a PE, plus its preferred base.
+def _headers(path):
+    """(preferred image base, [(rva, vsize, raw_ptr, raw_size)]) for a PE.
 
-    Cached: this reads a whole DLL, and on a 7.6 GB tablet doing that once per
-    byte comparison is how the desktop stalls.
+    **Reads a header, not the file.** An earlier version kept the whole DLL in
+    the cache, which is 3.8 MB resident across the three modules for the life
+    of the server, on a box that runs at a few hundred MB free. Every consumer
+    wants either `image_base` or a slice of eleven bytes, so the blob is fetched
+    per slice in `disk_bytes` instead.
+
+    Keyed by path, which is safe to cache forever: the file does not change
+    while the game holds it open.
     """
-    blob = open(path, "rb").read()
-    pe = struct.unpack_from("<I", blob, 0x3C)[0]
-    if blob[pe:pe + 4] != b"PE\0\0":
+    with open(path, "rb") as fh:
+        head = fh.read(0x400)
+    pe = struct.unpack_from("<I", head, 0x3C)[0]
+    if head[pe:pe + 4] != b"PE\0\0":
         raise NotRunning(f"{path} is not a PE file")
-    count = struct.unpack_from("<H", blob, pe + 6)[0]
-    opt_size = struct.unpack_from("<H", blob, pe + 20)[0]
+    count = struct.unpack_from("<H", head, pe + 6)[0]
+    opt_size = struct.unpack_from("<H", head, pe + 20)[0]
     opt = pe + 24
-    image_base = struct.unpack_from("<I", blob, opt + 28)[0]
+    image_base = struct.unpack_from("<I", head, opt + 28)[0]
     table = opt + opt_size
     out = []
     for i in range(count):
-        head = table + 40 * i
-        vsize, rva, raw_size, raw_ptr = struct.unpack_from("<IIII", blob, head + 8)
+        entry = table + 40 * i
+        vsize, rva, raw_size, raw_ptr = struct.unpack_from("<IIII", head, entry + 8)
         out.append((rva, vsize, raw_ptr, raw_size))
-    return blob, image_base, out
+    return image_base, out
 
 
-def module_path(pid, module=MODULE):
-    """The file this process actually mapped for `module`.
+def module_info(pid, module=MODULE, maps=None):
+    """(path, preferred base, load base) for a module, from one maps walk.
 
-    Taken from the process rather than guessed from the install layout,
-    because the process is the authority on which file it opened, and the
-    layout does not agree with itself: `common.dll` and `server.dll` live in
-    `EXE/`, `content.dll` in `DLLS/BIN/`.
+    **One walk, not three.** Every read used to resolve the path, parse the
+    headers and find the load base independently, and each of those opened and
+    parsed all 1536 lines of `/proc/<pid>/maps`. Reading eleven bytes cost
+    272 KB and about 3100 parsed lines. Pass `maps` in when a caller already
+    has the list.
+
+    The path comes from the process rather than the install layout, because
+    the process is the authority on which file it opened and the layout does
+    not agree with itself: `common.dll` and `server.dll` live in `EXE/`,
+    `content.dll` in `DLLS/BIN/`.
     """
     want = module.lower()
-    for _lo, _hi, _perms, name in _mappings(pid):
-        if name.rsplit("/", 1)[-1].lower() == want:
-            return name
-    raise NotRunning(f"{module} is not mapped; is a game loaded?")
+    path, load = None, None
+    for lo, _hi, _perms, name in (maps if maps is not None else _mappings(pid)):
+        if name.rsplit("/", 1)[-1].lower() != want:
+            continue
+        path = name
+        load = lo if load is None else min(load, lo)
+    if path is None:
+        raise NotRunning(f"{module} is not mapped; is a game loaded?")
+    image_base, _sections = _headers(path)
+    return path, image_base, load
 
 
 def disk_bytes(pid, va, count, module=MODULE):
@@ -95,21 +112,22 @@ def disk_bytes(pid, va, count, module=MODULE):
     This is the definition of "original". Restoring means writing these back,
     and "is it patched" means the process disagrees with them.
     """
-    blob, image_base, sections = _sections(module_path(pid, module))
-    rva = va - image_base
-    for sec_rva, vsize, raw_ptr, raw_size in sections:
-        if sec_rva <= rva < sec_rva + max(vsize, raw_size):
-            off = raw_ptr + (rva - sec_rva)
-            return blob[off:off + count]
-    raise NotRunning(f"{va:#x} is not inside any section of {module}")
+    path, image_base, _load = module_info(pid, module)
+    _base, sections = _headers(path)
+    off = fl._rva_to_offset(sections, va - image_base)
+    if off is None:
+        raise NotRunning(f"{va:#x} is not inside any section of {module}")
+    with open(path, "rb") as fh:
+        fh.seek(off)
+        return fh.read(count)
 
 
-def base(pid, module=MODULE):
+def base(pid, module=MODULE, maps=None):
     """Where `module` is loaded in this process."""
-    return tl._base(pid, module)
+    return module_info(pid, module, maps)[2]
 
 
-def _at(pid, va, module):
+def _at(pid, va, module=MODULE, maps=None):
     """A quoted address turned into a live one.
 
     Addresses here are quoted against each module's own preferred base, which
@@ -118,15 +136,37 @@ def _at(pid, va, module):
     usually a no-op, but doing the arithmetic means a relocated module gives a
     wrong-looking read instead of a silent write into a stranger.
     """
-    _blob, image_base, _sections_ = _sections(module_path(pid, module))
-    return va - image_base + base(pid, module)
+    _path, image_base, load = module_info(pid, module, maps)
+    return va - image_base + load
+
+
+def at_offset(pid, module, offset, maps=None):
+    """A module-relative offset turned into an address this module's API takes.
+
+    For callers that hold offsets rather than flhack's absolutes. Going through
+    the quoted form rather than straight to `load + offset` keeps one
+    definition of what an address means here, and `bestpath.py` used to do the
+    conversion itself with a helper whose two terms cancelled against `_at`.
+    """
+    _path, image_base, _load = module_info(pid, module, maps)
+    return image_base + offset
+
+
+def read_raw(pid, addr, count):
+    """Read at a literal address, with no rebasing at all.
+
+    For pointers read out of the process, which are already where they say
+    they are. Putting one through `_at` would shift it a second time, which is
+    invisible today only because every module loads at its preferred base.
+    """
+    with open(f"/proc/{pid}/mem", "rb") as fh:
+        fh.seek(addr)
+        return fh.read(count)
 
 
 def live_bytes(pid, va, count, module=MODULE):
     """Read from the process, at an address quoted against the module base."""
-    with open(f"/proc/{pid}/mem", "rb") as fh:
-        fh.seek(_at(pid, va, module))
-        return fh.read(count)
+    return read_raw(pid, _at(pid, va, module), count)
 
 
 def write_bytes(pid, va, data, module=MODULE):
@@ -162,9 +202,9 @@ def find_cave(pid, size=CAVE_WANTED):
     over live code is the one mistake in this module that corrupts a running
     game.
     """
-    _blob, image_base, sections = _sections(module_path(pid))
-    text = sections[0]
-    rva, vsize, _raw_ptr, raw_size = text
+    maps = _mappings(pid)
+    path, image_base, _load = module_info(pid, MODULE, maps)
+    rva, vsize, _raw_ptr, raw_size = _headers(path)[1][0]
     if raw_size <= vsize:
         raise NotRunning(f"{MODULE} .text has no padding to use")
     start = image_base + rva + vsize
@@ -176,8 +216,11 @@ def find_cave(pid, size=CAVE_WANTED):
         raise NotRunning(
             f"{MODULE} .text padding is {room} bytes, need {size}")
 
-    for lo, hi, perms, name in _mappings(pid):
-        live = addr - COMMON_BASE + base(pid)
+    # Resolved once, above the loop. It used to be inside it, so `base()`
+    # reparsed all 1536 lines of the maps file for every line of the maps file:
+    # 116 full reads, 15 MB of text, to check one address.
+    live = _at(pid, addr, MODULE, maps)
+    for lo, hi, perms, name in maps:
         if lo <= live < hi and name.endswith(MODULE):
             if "x" not in perms:
                 raise NotRunning(
@@ -222,7 +265,9 @@ def find_scratch(pid, size=16):
     """
     want = size * 8  # insist on a comfortably long run, then sit in its middle
     need = bytes(want)
-    for lo, hi, perms, name in _mappings(pid):
+    maps = _mappings(pid)
+    _path, image_base, load = module_info(pid, MODULE, maps)
+    for lo, hi, perms, name in maps:
         if "w" not in perms or not name.endswith(MODULE):
             continue
         for start, buf in _chunks(pid, lo, hi, overlap=want):
@@ -235,9 +280,9 @@ def find_scratch(pid, size=16):
             while end < len(buf) and buf[end] == 0:
                 end += 1
             middle = (start + at + (end - at) // 2) & ~15
-            live = COMMON_BASE + (middle - base(pid))
-            if live_bytes(pid, live, size) == bytes(size):
-                return live, end - at
+            quoted = middle - load + image_base
+            if read_raw(pid, middle, size) == bytes(size):
+                return quoted, end - at
     raise NotRunning(f"no writable run of zeros in {MODULE} for {size} bytes")
 
 
@@ -318,6 +363,53 @@ def patch(pid, site, replacement, module=MODULE):
 def restore(pid, site, length, module=MODULE):
     """Put the shipped bytes back. Safe to call when nothing is patched."""
     return write_bytes(pid, site, disk_bytes(pid, site, length, module), module)
+
+
+# --- a patch as a list of sites ---------------------------------------------
+#
+# A patch is `[(module, address, replacement bytes), ...]`. Three functions
+# over that list replace three hand-rolled copies of the same bookkeeping.
+#
+# **The point is that undo is derived from do, not written twice.** `bestpath`
+# applied five writes of 1, 2, 1, 1 and 2 bytes and undid them by restoring 11
+# bytes at the first address and 1, 1 and 2 at the others: a shape re-derived
+# by hand, which is a shape that can be wrong. Here `revert` restores exactly
+# what `install` wrote, because it reads the same list.
+
+def install(pid, sites):
+    """Apply every site, but only after checking all of them.
+
+    Verification is hoisted above the first write, which is the difference
+    that matters: a patch that fails halfway leaves the game in a state no
+    caller described, and `state` cannot tell it from a whole one.
+    """
+    for module, site, replacement in sites:
+        original = disk_bytes(pid, site, len(replacement), module)
+        current = live_bytes(pid, site, len(replacement), module)
+        if current != original:
+            raise NotRunning(
+                f"{module}+{site:#x} holds {current.hex(' ')}, not the shipped "
+                f"{original.hex(' ')}; refusing to write over it")
+    for module, site, replacement in sites:
+        write_bytes(pid, site, replacement, module)
+    return len(sites)
+
+
+def revert(pid, sites):
+    """Put every site back to what the shipped file says."""
+    for module, site, replacement in sites:
+        restore(pid, site, len(replacement), module)
+    return len(sites)
+
+
+def installed(pid, sites):
+    """True only when every site differs from the shipped file.
+
+    All of them, not the first: reporting a half-applied patch as on is how a
+    partial failure hides.
+    """
+    return all(patched(pid, site, len(replacement), module)
+               for module, site, replacement in sites)
 
 
 def main():

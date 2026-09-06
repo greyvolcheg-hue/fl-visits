@@ -199,10 +199,8 @@ def locate(pid):
     holds 1.5e-13, so picking the wrong one is caught rather than written to.
     """
     _speed_addr, version = tl.locate(pid)
-    addr = DIST[version] - tl.COMMON_BASE + tl._base(pid, "common.dll")
-    with open(f"/proc/{pid}/mem", "rb") as fh:
-        fh.seek(addr)
-        value = struct.unpack("<f", fh.read(4))[0]
+    addr = DIST[version]
+    value = struct.unpack("<f", ij.live_bytes(pid, addr, 4))[0]
     low, high = SANE
     if not low <= value <= high:
         raise NotRunning(
@@ -217,7 +215,8 @@ def locate(pid):
 #
 #     +0   sentinel    1000.0, the only value the second stub will replace
 #     +4   station     600.0
-#     +8   other       100.0, the one the owner tunes
+#     +8   other       200.0, the one the owner tunes
+#     +12  scratch     where `dockwith` went, so removal need not disassemble
 #     +16  dock_type       12 bytes
 #     +32  closer_docking  43 bytes
 #
@@ -271,18 +270,27 @@ def _sites(version):
     return TYPE_SITE[version], DOCK_SITE[version]
 
 
-def takeover_on(distance, pid=None, station=STATION):
+def _calls(type_site, dock_site, cave):
+    """The two call sites, as the list `inject.install`/`revert` work from."""
+    return [
+        ("common.dll", type_site,
+         ij.call_to(type_site, cave + TYPE_OFF, 5) + b"\xa8\xc0"),
+        ("common.dll", dock_site,
+         ij.call_to(dock_site, cave + DOCK_OFF, DOCK_LEN)),
+    ]
+
+
+def takeover_on(distance, pid=None, version=None):
     """Install the patch so docking takes over at `distance` metres.
 
     Order matters and is the whole safety story: fill the cave first, read it
     back, and only then write the calls. A call that lands on an empty cave
     executes zeros; a stub nobody calls is inert.
     """
-    low, high = TAKEOVER_SANE
-    if not low <= distance <= high:
-        raise ValueError(f"{distance:g} is outside {low:g} to {high:g}")
+    distance = _sane(distance, TAKEOVER_SANE)
     pid = pid or sp.find_pid()
-    _addr, version = tl.locate(pid)
+    if version is None:
+        _addr, version = tl.locate(pid)
     type_site, dock_site = _sites(version)
 
     if ij.patched(pid, dock_site, DOCK_LEN):
@@ -294,21 +302,22 @@ def takeover_on(distance, pid=None, station=STATION):
     scratch, _run = ij.find_scratch(pid, 4)
     dock_type, closer = _stubs(cave, scratch)
 
-    payload = (
-        struct.pack("<fff", SENTINEL, station, float(distance))
-        + bytes(TYPE_OFF - 12) + dock_type
-        + bytes(DOCK_OFF - TYPE_OFF - len(dock_type)) + closer
-    )
-    ij.write_bytes(pid, cave, payload)
+    # Built by slotting each piece at its own offset rather than by counting
+    # the gaps between them. The old form spelled the gaps as arithmetic on
+    # four numbers that nothing checked against each other, so the layout
+    # comment above and the code below could drift apart silently.
+    payload = bytearray(STUB_BYTES)
+    payload[DATA_OFF:DATA_OFF + 16] = struct.pack(
+        "<fffI", SENTINEL, STATION, distance, scratch)
+    payload[TYPE_OFF:TYPE_OFF + len(dock_type)] = dock_type
+    payload[DOCK_OFF:DOCK_OFF + len(closer)] = closer
+    ij.write_bytes(pid, cave, bytes(payload))
 
-    ij.patch(pid, type_site,
-             ij.call_to(type_site, cave + TYPE_OFF, 5) + b"\xa8\xc0")
-    ij.patch(pid, dock_site,
-             ij.call_to(dock_site, cave + DOCK_OFF, DOCK_LEN))
+    ij.install(pid, _calls(type_site, dock_site, cave))
     return cave, room, version
 
 
-def takeover_off(pid=None):
+def takeover_off(pid=None, version=None):
     """Put the shipped bytes back at both sites, and blank the cave.
 
     **Blanking is not tidiness, it is what makes this reversible.**
@@ -318,25 +327,25 @@ def takeover_off(pid=None):
     the second install was refused.
     """
     pid = pid or sp.find_pid()
-    _addr, version = tl.locate(pid)
+    if version is None:
+        _addr, version = tl.locate(pid)
     type_site, dock_site = _sites(version)
 
     cave = scratch = None
     if ij.patched(pid, dock_site, DOCK_LEN):
         cave = _cave_of(pid, dock_site)
-        # The scratch address is only recorded in the stub itself, as the
-        # operand of `mov [abs32], eax`, so read it back before it is wiped.
-        stub = ij.live_bytes(pid, cave + TYPE_OFF, 12)
-        if stub[6:7] == b"\xa3":
-            scratch = struct.unpack("<I", stub[7:11])[0]
+        # Read out of the cave's own data block, where `takeover_on` put it.
+        # It used to be recovered by checking for opcode 0xA3 at byte 6 of the
+        # stub and unpacking the operand, which would have stopped working,
+        # silently, the moment the stub's first instruction changed.
+        scratch = struct.unpack(
+            "<I", ij.live_bytes(pid, cave + DATA_OFF + 12, 4))[0]
 
     # Calls first. Blanking the cave while a call still points at it would
     # leave the game executing zeros for however long the two writes take.
-    ij.restore(pid, dock_site, DOCK_LEN)
-    ij.restore(pid, type_site, TYPE_LEN)
+    ij.revert(pid, _calls(type_site, dock_site, cave or 0))
     if cave is not None:
         ij.write_bytes(pid, cave, bytes(STUB_BYTES))
-    if scratch is not None:
         ij.write_bytes(pid, scratch, bytes(4))
     return version
 
@@ -353,11 +362,17 @@ def _cave_of(pid, dock_site):
     return dock_site + 5 + rel - DOCK_OFF
 
 
-def takeover_state(pid=None):
-    """(installed?, distance or None, version)."""
+def takeover_state(pid=None, version=None):
+    """(installed?, distance or None, version).
+
+    `version` is threaded in the way `tradelane.read_accel` takes one: the
+    caller that just located the build should not make this locate it again,
+    and on the Speed tab this runs every five seconds.
+    """
     pid = pid or sp.find_pid()
-    _addr, version = tl.locate(pid)
-    type_site, dock_site = _sites(version)
+    if version is None:
+        _addr, version = tl.locate(pid)
+    dock_site = _sites(version)[1]
     if not ij.patched(pid, dock_site, DOCK_LEN):
         return False, None, version
     blob = ij.live_bytes(pid, _cave_of(pid, dock_site) + DATA_OFF, 12)
@@ -365,18 +380,15 @@ def takeover_state(pid=None):
     return True, other, version
 
 
-def set_takeover(distance, pid=None):
+def set_takeover(distance, pid=None, version=None):
     """Change the distance without re-patching, once it is installed."""
-    low, high = TAKEOVER_SANE
-    if not low <= distance <= high:
-        raise ValueError(f"{distance:g} is outside {low:g} to {high:g}")
+    distance = _sane(distance, TAKEOVER_SANE)
     pid = pid or sp.find_pid()
-    installed, _now, version = takeover_state(pid)
+    installed, _now, version = takeover_state(pid, version)
     if not installed:
         raise NotRunning("the takeover patch is not installed")
-    _type_site, dock_site = _sites(version)
-    cave = _cave_of(pid, dock_site)
-    ij.write_bytes(pid, cave + DATA_OFF + 8, struct.pack("<f", float(distance)))
+    cave = _cave_of(pid, _sites(version)[1])
+    ij.write_bytes(pid, cave + DATA_OFF + 8, struct.pack("<f", distance))
     return distance
 
 
@@ -384,26 +396,27 @@ def read(pid=None):
     """(distance, version) for the running game."""
     pid = pid or sp.find_pid()
     addr, version = locate(pid)
-    with open(f"/proc/{pid}/mem", "rb") as fh:
-        fh.seek(addr)
-        return struct.unpack("<f", fh.read(4))[0], version
+    return struct.unpack("<f", ij.live_bytes(pid, addr, 4))[0], version
 
 
 def set_dist(value, pid=None):
     """Set the distance, read it back, and confirm."""
-    low, high = SANE
-    if not low <= value <= high:
-        raise ValueError(f"{value:g} is outside {low:g} to {high:g}")
+    value = _sane(value, SANE)
     pid = pid or sp.find_pid()
     addr, _version = locate(pid)
-    with open(f"/proc/{pid}/mem", "r+b") as fh:
-        fh.seek(addr)
-        fh.write(struct.pack("<f", float(value)))
-        fh.seek(addr)
-        got = struct.unpack("<f", fh.read(4))[0]
-    if abs(got - value) > 0.5:
-        raise NotRunning(f"wrote {value:g} but read back {got:g}")
-    return got
+    # `write_bytes` reads back and compares the bytes exactly. The old code
+    # here had its own tolerance of half a metre, which was a second and
+    # weaker rule for the same question.
+    ij.write_bytes(pid, addr, struct.pack("<f", value))
+    return value
+
+
+def _sane(value, bounds):
+    """Bounds-check and coerce, in the one place both callers can share."""
+    low, high = bounds
+    if not low <= value <= high:
+        raise ValueError(f"{value:g} is outside {low:g} to {high:g}")
+    return float(value)
 
 
 def cruise_speed(pid):
