@@ -249,7 +249,7 @@ def best_runs(rows, base, only=None):
 CARGO = re.compile(r"^cargo\s*=\s*([^,\s]+)\s*,\s*(\d+)", re.I | re.M)
 
 
-def hold(save_path, goods):
+def hold(saved, goods):
     """What is in the hold, {commodity: units}.
 
     **A real save names cargo by `FLHash` of the nickname, not by the
@@ -263,23 +263,27 @@ def hold(save_path, goods):
     batteries and damaged guns, which are equipment a player fits or consumes,
     not freight any base will buy.
 
-    This reads the save, so it is exactly as fresh as the last time the game
-    wrote one. That is the whole caveat, and the page states it rather than
-    hiding it: a hold read five minutes ago is still worth planning against.
+    Takes the decoded save text, not a path. The hold is exactly as fresh as
+    the last time the game wrote a save, which is the whole caveat and the
+    page states it rather than hiding it: a hold read five minutes ago is
+    still worth planning against. Whose read it is matters too, so the caller
+    passes the text in and one request sees one save throughout.
 
     Lives here rather than beside `parse_visits` because `flvisits.py` is
     frozen and the hold is a trade question, not a visit one.
     """
     by_hash = {fl.fl_hash(nick): nick for nick in goods}
     out = {}
-    for token, count in CARGO.findall(fl.decode_save(save_path)):
-        key = by_hash.get(int(token)) if token.isdigit() else token.lower()
+    for token, count in CARGO.findall(saved):
+        # `isdecimal`, not `isdigit`: '\xb2' is a digit to `isdigit` and a
+        # ValueError to `int`, and latin-1 save text can carry one.
+        key = by_hash.get(int(token)) if token.isdecimal() else token.lower()
         if key in goods:
             out[key] = out.get(key, 0) + int(count)
     return out
 
 
-def hold_runs(rows, held, only=None):
+def hold_runs(rows, held, only=None, names=None):
     """Every system that will buy the hold, by what the whole load fetches.
 
     A system, not a base, because the question is where to fly once rather
@@ -294,8 +298,12 @@ def hold_runs(rows, held, only=None):
     Systems taking only part of the load are kept, with `missing` naming the
     rest. When nothing takes all of it, which system takes the most of it is
     the next question, and dropping those rows would throw away the answer.
+
+    `names` is the market's commodity -> display name table. Without it a
+    commodity that no dockable base trades has no row to learn its name from,
+    and `missing` prints the raw nickname next to properly named neighbours.
     """
-    label = {}
+    label = dict(names or {})
     best, per_base = {}, {}
     for row in rows:
         good = row["good"]
@@ -333,8 +341,9 @@ def hold_runs(rows, held, only=None):
             "total": sum(g["value"] for g in goods),
             "bases": len({g["base"]["id"] for g in goods}),
             "goods": goods,
-            # `label` misses a commodity no base anywhere trades, and the
-            # nickname is then the honest fallback rather than a crash.
+            # `label` is seeded from `names` and topped up from the rows, so
+            # the nickname fallback is a crash guard rather than something the
+            # page is expected to show.
             "missing": sorted(label.get(g, g) for g in held if g not in picks),
             "one": one,
         })

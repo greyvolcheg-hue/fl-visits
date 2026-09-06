@@ -230,7 +230,11 @@
   .gearwhere { display: flex; flex-direction: column; gap: .15rem;
                margin: .1rem 0 .6rem 1.9rem;
                padding-left: .9rem; border-left: 2px solid var(--line); }
-  .gearwhere .cell { width: 9rem; }
+  /* Scoped to the Equipment rows on purpose. `.holdleg` is the other thing
+     inside this container and sizes its own last track at 5rem, so an
+     unscoped 9rem overflowed that column by 4rem and put a horizontal
+     scrollbar inside `.guns`. */
+  .gearwhere .atrow .cell { width: 9rem; }
   .routetable.withrun { min-width: 52rem; }
   .routetable.withrun .gun, .routetable.withrun .gunhead {
     grid-template-columns: minmax(10rem, 1fr) 4.5rem 4.5rem 4.5rem 6rem

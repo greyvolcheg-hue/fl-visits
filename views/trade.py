@@ -50,11 +50,14 @@ function renderHold(h) {
   // so the table shows those instead of nothing.
   const whole = h.systems.filter(s => !s.missing.length);
   const shown = whole.length ? whole : h.systems;
-  out += '<p class="note">' + (whole.length
-    ? `${whole.length} system${whole.length > 1 ? 's take' : ' takes'} the whole
-       load. <b>total</b> is what it all fetches there, <b>stops</b> is how many
-       bases that means, and <b>one base</b> is the best you can do without
-       undocking twice. Click a row for the breakdown.`
+  // `h.whole` counts every system that takes the lot; `shown` is the ten that
+  // fit. Counting the array here would only ever be able to say ten.
+  const more = h.whole > shown.length ? `, best ${shown.length} shown` : '';
+  out += '<p class="note">' + (h.whole
+    ? `${h.whole} system${h.whole > 1 ? 's take' : ' takes'} the whole
+       load${more}. <b>total</b> is what it all fetches there, <b>stops</b> is
+       how many bases that means, and <b>one base</b> is the best you can do
+       without undocking twice. Click a row for the breakdown.`
     : 'Nothing takes the whole load. These take the most of it.') + '</p>';
 
   out += '<div class="guns"><div class="holdtable">' +
@@ -132,9 +135,12 @@ function renderTrade() {
 }
 
 async function loadTrade() {
-  const q = tradeGood ? `?good=${encodeURIComponent(tradeGood)}` : '';
+  const q = [];
+  if (tradeGood) q.push('good=' + encodeURIComponent(tradeGood));
+  if (tradeVisitedOnly) q.push('visited=1');
   try {
-    const r = await fetch('api/trade' + q, { cache: 'no-store' });
+    const r = await fetch('api/trade' + (q.length ? '?' + q.join('&') : ''),
+                          { cache: 'no-store' });
     if (r.ok) { tradeData = await r.json(); render(); }
   } catch (e) { /* the tab keeps its loading line */ }
 }
@@ -144,8 +150,11 @@ function wireTrade() {
   if (g) g.addEventListener('change', e => { tradeGood = e.target.value; loadTrade(); });
   const v = $('#tradeseen');
   if (v) v.addEventListener('change', e => {
+    // A refetch, not a redraw. The table below can hide its own rows, but the
+    // hold advice above names a system chosen out of bases this page never
+    // received, so only the server can choose it again.
     tradeVisitedOnly = e.target.checked;
-    render();
+    loadTrade();
   });
   // The save is only written when the game writes it, so the hold goes stale
   // while you fly. This tab is not polled; the button is the refresh.
@@ -169,19 +178,59 @@ VIEW.data = {
 """
 
 
-def _hold(ctx, names, rows):
-    """The hold and where to unload it, or an empty hold and no advice."""
-    out = {"items": [], "systems": [], "saved": None}
-    held = td.hold(ctx.save, names)
+# One spelling of the empty hold. `_trade` seeds the payload with it and
+# `_hold` returns it, so writing it out twice makes the payload's shape depend
+# on which of the two ran.
+NO_HOLD = {"items": [], "systems": [], "whole": 0, "saved": None}
+
+
+def _docked(ctx, want):
+    """Bases the player has docked at, or None if the save will not open.
+
+    None rather than an empty set: an empty set is the claim "docked nowhere",
+    which greys out every row on the page, and a save the game has not written
+    yet makes no claim at all.
+
+    Read only when something needs it. `read_state` walks every base in the
+    game and the Neural Net log on top of the decode, and the first load of
+    this tab wants neither the checkbox nor a row list.
+    """
+    if not want:
+        return None
+    try:
+        return ctx.docked()
+    except (OSError, ValueError):
+        return None
+
+
+def _hold(ctx, names, rows, only):
+    """The hold and where to unload it, or an empty hold and no advice.
+
+    A save that will not open costs the hold section and nothing else. The
+    commodity picker and all 1786 market rows below it are static game data
+    that never needed the save, and taking the whole tab down for a file the
+    game has not written yet throws away the part that still works.
+    `ships.player_ship` returns None on the same grounds.
+    """
+    out = dict(NO_HOLD)
+    try:
+        held = td.hold(ctx.saved(), names)
+        saved_at = os.path.getmtime(ctx.save)
+    except (OSError, ValueError):
+        return out
     if not held:
         return out
-    out["saved"] = os.path.getmtime(ctx.save)
+    out["saved"] = saved_at
     out["items"] = sorted(
         ({"good": g, "name": names[g], "units": n} for g, n in held.items()),
         key=lambda i: -i["units"])
+    runs = td.hold_runs(rows, held, only, names)
+    # Counted over every run, not over the ten kept: 43 systems take a hold of
+    # water, and a count taken after the slice can only ever say ten.
+    out["whole"] = sum(1 for r in runs if not r["missing"])
     # Ten is well past where this stops being a decision: the eleventh-best
     # system is not somewhere anyone flies a full hold.
-    out["systems"] = td.hold_runs(rows, held)[:10]
+    out["systems"] = runs[:10]
     return out
 
 
@@ -189,9 +238,17 @@ def _trade(ctx):
     """The commodity list, or every base trading one of them."""
     names, rows = ctx.game.market
     body = {"goods": [], "good": None, "rows": [],
-            "hold": {"items": [], "systems": [], "saved": None}, "error": None}
+            "hold": dict(NO_HOLD), "error": None}
     try:
-        body["hold"] = _hold(ctx, names, rows)
+        want = (ctx.query.get("good") or [None])[0]
+        want = want.lower() if want else None
+        seen_only = bool((ctx.query.get("visited") or [""])[0])
+        visited = _docked(ctx, seen_only or want in names)
+        # The checkbox has to be answered here, not in the page. A row the
+        # page hides is still a row, but the system the hold advice names was
+        # chosen out of bases the page never received, so only this side can
+        # choose it again. `_deltas` and `_routes` read the flag the same way.
+        body["hold"] = _hold(ctx, names, rows, visited if seen_only else None)
         counts = {}
         for row in rows:
             counts[row["good"]] = counts.get(row["good"], 0) + 1
@@ -199,12 +256,11 @@ def _trade(ctx):
             ({"nickname": k, "name": names[k], "bases": counts.get(k, 0)}
              for k in names),
             key=lambda g: g["name"])
-        want = (ctx.query.get("good") or [None])[0]
-        if want and want.lower() in names:
-            state = ctx.state()
-            visited = set(state["docked_bases"])
-            body["good"] = want.lower()
-            body["rows"] = td.find(rows, want.lower(), visited)
+        if want in names:
+            body["good"] = want
+            # Every row carries its own visited flag whatever the checkbox
+            # says, so the table can re-filter itself without another request.
+            body["rows"] = td.find(rows, want, visited)
     except (OSError, ValueError, KeyError) as exc:
         body["error"] = str(exc)
     return body

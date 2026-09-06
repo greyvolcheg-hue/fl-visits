@@ -180,11 +180,15 @@ def _visit_rank(row):
     return (0, -row["remaining"], row["system"])
 
 
-def read_state(game, save_path):
-    """Split every base into docked / revealed / unknown, grouped by system."""
-    # Decoded once and used twice: the visit flags and the Neural Net log come
-    # out of the same save text, and decoding is the expensive half.
-    saved = fl.decode_save(save_path)
+def read_state(game, save_path, saved):
+    """Split every base into docked / revealed / unknown, grouped by system.
+
+    Takes the decoded text as well as the path, because decoding is the
+    expensive half and one request wants the visit flags, the Neural Net log
+    and the hold out of a single read. `Ctx.saved` is what does that read,
+    once per request and under the lock; the path is still needed for the
+    name and the mtime, which are file facts rather than save contents.
+    """
     visits = fl.parse_visits(saved)
 
     flags = {}
@@ -292,13 +296,28 @@ class Ctx:
     def __init__(self, game, save, lock, query=None):
         self.game, self.save, self.lock = game, save, lock
         self.query = query or {}
+        self._saved = self._state = None
 
     def one(self, key, default=None):
         return (self.query.get(key) or [default])[0]
 
+    def saved(self):
+        """The decoded save text, read once per request and under the lock.
+
+        Every save read in a request goes through here. A view that reads the
+        file itself gets a second copy taken at a different moment, so the
+        hold can come from one save and the visit flags from the next one the
+        game writes, and pays the decode twice for the privilege.
+        """
+        if self._saved is None:
+            with self.lock:
+                self._saved = fl.decode_save(self.save)
+        return self._saved
+
     def state(self):
-        with self.lock:
-            return read_state(self.game, self.save)
+        if self._state is None:
+            self._state = read_state(self.game, self.save, self.saved())
+        return self._state
 
     def docked(self):
         return set(self.state()["docked_bases"])

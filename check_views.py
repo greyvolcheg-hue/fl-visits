@@ -16,12 +16,16 @@ them. Nothing but opening the page found either.
 
 So this opens the page: real script, real API payloads seeded into the view
 globals, all eleven views drawn one at a time so a failure names itself instead
-of hiding the rest. The report is written into the page and photographed,
+of hiding the rest. Each view is drawn twice, once from an empty payload and
+once from a populated one, because the picker a tab shows before you choose
+anything and the table it shows afterwards are separate code and each has
+broken on its own. The report is written into the page and photographed,
 because a headless browser has no other way to tell you anything.
 
 Needs `firefox` and a running server.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -32,17 +36,34 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "views-check.png"
 
 # Which endpoint fills which view global. `state` feeds the save-backed tabs.
 #
-# **Ask for a populated table, not an empty one.** A bare `api/deltas` returns
-# the base picker and no rows, so its two tables are never built and anything
-# wrong with them is invisible. The query strings below exist to make every
-# table draw at least one row.
+# **Every view is drawn twice, empty and populated, because they are different
+# code.** A bare `api/deltas` returns the base picker and no rows, so its two
+# tables are never built; a populated one draws the tables and never the
+# picker, with its search box, its `.hit` buttons and its count. Both halves
+# have shipped a ReferenceError, so asking only for the populated one trades
+# one blind spot for the other. Where a view has two strings the second is the
+# populated call; where it has one, the same payload is drawn in both passes.
+PASSES = ("empty", "full")
 FEEDS = {
-    "latest": "state", "speed": "speed", "thrusters": "thrusters",
-    "lane": "tradelane", "draw": "drawdist", "best": "bestpath",
-    "tradeData": "trade?good=commodity_gold",
-    "deltaData": "deltas?base=li01_01_base&good=commodity_water",
-    "routeData": "routes?from=li01&to=rh01",
-    "gearData": "equipment", "repData": "reputation",
+    "latest": ["state"], "speed": ["speed"], "thrusters": ["thrusters"],
+    "lane": ["tradelane"], "draw": ["drawdist"], "best": ["bestpath"],
+    "tradeData": ["trade", "trade?good=commodity_gold"],
+    "deltaData": ["deltas", "deltas?base=li01_01_base&good=commodity_water"],
+    "routeData": ["routes", "routes?from=li01&to=rh01"],
+    "gearData": ["equipment"], "repData": ["reputation"],
+}
+
+# What the populated pass must actually have drawn, by view id.
+#
+# The query strings above name a real base, two real systems and two real
+# commodities. If the game data moves under them the endpoint answers 200 with
+# an empty `rows`, the view falls back to its picker branch, the table is never
+# built and the pass reports `ok` for a page that answers nothing. Naming the
+# table each string was chosen to produce is what tells those two apart.
+DREW = {
+    "data": ".tradetable .gun",
+    "deltas": ".desttable .gun",
+    "routes": ".routetable .gun",
 }
 
 # A row is a CSS grid and its cells are plain spans, so a template that emits
@@ -50,24 +71,66 @@ FEEDS = {
 # whole table silently reads one column out of step. That shipped on
 # 2026-09-06, when a nav map cell was added to four row templates and two of
 # the grids were left at their old column count.
-DRIVER = """
+DRIVER = r"""
 const REPORT = [], GRID = [];
-for (const id of Object.keys(VIEW)) {
-  tab = id;
-  try { render(); REPORT.push('ok    ' + id); }
-  catch (err) { REPORT.push('FAIL  ' + id + ': ' + err); continue; }
-  document.querySelectorAll('.gun, .gunhead').forEach(row => {
-    const cols = getComputedStyle(row).gridTemplateColumns.split(' ').length;
-    const line = 'GRID  ' + id + '  .' + (row.parentElement.className || '?')
+
+// Every grid inside #list, not a list of the row classes somebody remembered.
+// `.holdleg` and `.holdtable` were both added by the same commit that wrote
+// the old `.gun, .gunhead` check, and neither was covered by it: a check that
+// names the rows it knows about cannot see the next row template anybody adds.
+// Childless elements are skipped first because a leaf is never a grid row and
+// `getComputedStyle` on every span in the gear table is the slow half.
+function grids(id) {
+  document.querySelectorAll('#list *').forEach(row => {
+    if (!row.children.length) return;
+    const st = getComputedStyle(row);
+    if (st.display !== 'grid') return;
+    const cols = st.gridTemplateColumns.split(' ').length;
+    const line = 'GRID  ' + id + '  .' + (row.className || '?')
                + '  cells=' + row.children.length + ' cols=' + cols;
     if (row.children.length !== cols && !GRID.includes(line)) GRID.push(line);
   });
 }
-const bad = REPORT.filter(r => r[0] === 'F').length + GRID.length;
-document.body.innerHTML =
-  '<pre style="color:#e6edf3;background:#0d1117;font:15px monospace;padding:1rem">'
-  + (bad ? bad + ' problem(s)\\n\\n' : 'all views drew, every row matches its grid\\n\\n')
-  + REPORT.concat(GRID).join('\\n') + '</pre>';
+
+// #list is emptied first: render() leaves it untouched when a draw returns
+// null, so without this a view that drew nothing would be measured against
+// the previous view's markup and pass on it.
+// Rows that exist only once something has been clicked. `.holdleg` is drawn
+// by expanding a hold row and by nothing else, so a check that never opens one
+// can see the template exists and still never measure it.
+function expand() {
+  if (tradeData && tradeData.hold.systems.length)
+    holdSys = tradeData.hold.systems[0].sys;
+}
+
+function sweep(pass, drew) {
+  expand();
+  for (const id of Object.keys(VIEW)) {
+    tab = id;
+    $('#list').innerHTML = '';
+    try { render(); }
+    catch (err) { REPORT.push('FAIL  ' + pass + ' ' + id + ': ' + err); continue; }
+    const want = drew[id];
+    if (want && !document.querySelector(want))
+      REPORT.push('EMPTY ' + pass + ' ' + id + ': nothing matched ' + want);
+    else
+      REPORT.push('ok    ' + pass + ' ' + id);
+    grids(id);
+  }
+}
+
+function finish() {
+  // The hold table only exists when the save has cargo in it, so say which
+  // way that went rather than let a silent pass stand for a check.
+  if (tradeData && !tradeData.hold.items.length)
+    REPORT.push('note  this save has an empty hold, so .holdtable never drew');
+  const bad = REPORT.filter(r => r[0] === 'F' || r[0] === 'E').length + GRID.length;
+  document.body.innerHTML =
+    '<pre style="color:#e6edf3;background:#0d1117;font:13px monospace;padding:1rem">'
+    + (bad ? bad + ' problem(s)\n\n'
+           : 'every view drew twice, every row matches its grid\n\n')
+    + REPORT.concat(GRID).join('\n') + '</pre>';
+}
 """
 
 
@@ -84,25 +147,35 @@ def main():
 
     head, rest = get("").split("<script>", 1)
     script = rest.split("</script>", 1)[0]
-    seed = "\n".join(f"{var} = {get('api/' + ep)};" for var, ep in FEEDS.items())
+    # One seed-and-sweep block per pass. A view with a single endpoint is
+    # drawn from the same payload both times: that costs one redraw and keeps
+    # every view in both columns of the report, which is cheaper than a rule
+    # about which views are exempt from which pass.
+    runs = []
+    for i, name in enumerate(PASSES):
+        seed = "\n".join(
+            f"{var} = {get('api/' + eps[min(i, len(eps) - 1)])};"
+            for var, eps in FEEDS.items())
+        runs.append(f"{seed}\nsweep({name!r}, {json.dumps(DREW if i else {})});")
 
     harness = os.path.join(os.path.dirname(OUT), ".views-check.html")
     with open(harness, "w") as fh:
         fh.write(f"{head}<script>\n{script}\n</script>\n"
-                 f"<script>\n{seed}\n{DRIVER}\n</script>\n")
+                 f"<script>\n{DRIVER}\n" + "\n".join(runs)
+                 + "\nfinish();\n</script>\n")
 
     if os.path.exists(OUT):
         os.remove(OUT)
     # The driver runs before the load event, so what it wrote is on screen by
     # the time the shot is taken. That is the same timing that makes a plain
     # screenshot of the real page useless: it fires before the first fetch.
-    subprocess.run(["firefox", "--headless", "--window-size=1000,700",
+    subprocess.run(["firefox", "--headless", "--window-size=1000,900",
                     "--screenshot", OUT, f"file://{harness}"],
                    capture_output=True, timeout=180)
     os.remove(harness)
     if not os.path.exists(OUT):
         sys.exit("firefox produced no screenshot")
-    print(f"wrote {OUT} - open it; every line should start with 'ok'")
+    print(f"wrote {OUT} - open it; every line should start with 'ok' or 'note'")
 
 
 if __name__ == "__main__":
