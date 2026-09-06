@@ -5,9 +5,17 @@ ID, LABEL = "log", "Neural Net"
 JS = r"""
 let logNewestFirst = true, logPersonalOnly = true;
 
-// Reputation tab. `repData` is whatever the server last worked out; `repOpen`
-// is which action rows have their collateral expanded, by index, because the
-// damage a plan does is the half people skip and it has to be one click away.
+// Which entries are starred and which are read. One person's marks on their own
+// machine, so localStorage owns them and the server never hears about it.
+let marks = { star: {}, read: {} };
+try {
+  const held = JSON.parse(localStorage.getItem('fl.netlog') || '{}');
+  marks = { star: held.star || {}, read: held.read || {} };
+} catch (e) {}
+
+function saveMarks() {
+  try { localStorage.setItem('fl.netlog', JSON.stringify(marks)); } catch (e) {}
+}
 
 function renderLog(d) {
   const all = logNewestFirst ? d.log : d.log.slice().reverse();

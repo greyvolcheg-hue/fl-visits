@@ -7,6 +7,7 @@ system. Own git repo; the history in this folder is the undo button.
 |---|---|
 | `flvisits.py` | save decoding, the nickname hash, game data loading, bases CLI. **Frozen, see below.** |
 | `check_frozen.py` | fingerprints every value `flvisits.py` derives, over every save. Run before and after any thaw. |
+| `check_views.py` | draws every view in a real browser and reports which throw. Run after touching any view. |
 | `wrecks.py` | the 157 secret wrecks and their loot, as data and as a CLI |
 | `docking.py` | which bases can actually be docked at, and the denominator both programs use |
 | `navmap.py` | world position to nav map cell |

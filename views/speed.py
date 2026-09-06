@@ -23,6 +23,13 @@ ID, LABEL = "speed", "Speed"
 
 JS = r"""
 let speed = null, thrusters = null, lane = null, draw = null, best = null;
+// The "write it to the files" button's own state. It belongs to this view, and
+// leaving it undeclared cost the whole panel: reading an undeclared variable is
+// a ReferenceError, `renderPersist` is the last term of the concatenation that
+// builds the panel, so the throw meant `innerHTML` was never assigned and the
+// tab sat on "Reading the game…" forever. Python compiles, endpoints answer,
+// and nothing catches it but opening the page.
+let persistBusy = false, persistOk = false, persistMsg = null;
 function renderSpeed() {
   const s = speed;
   if (!s) return '<p class="empty">Reading the game…</p>';

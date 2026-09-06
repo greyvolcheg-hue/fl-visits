@@ -7,3 +7,6 @@ bug-and-feature-tracker.md
 # The sector chart. Third-party artwork, so it is not redistributed here;
 # views/chart.py says where to put your own copy.
 freelancer-map.jpg
+
+# check_views.py output.
+views-check.png
