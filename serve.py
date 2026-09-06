@@ -157,27 +157,14 @@ class GameData:
         return self.label(self.system_ids.get(system, 0), system)
 
 
-def _visit_rank(row):
-    """Order the Visits tab by how much work a system still needs.
+def _tally(done, total):
+    """The three numbers a progress bar needs, for bases or for wrecks alike.
 
-    Three tiers, because "zero" means two opposite things here. A system with
-    nothing left is finished and a system with nothing docked has not been
-    started, and sorting on the remaining count alone would put the finished
-    ones first and bury the nearly-finished ones behind every untouched system.
-
-    So: in progress first, most bases left at the top, then the finished ones,
-    then the never-opened ones, the last two alphabetically.
-
-    The tier number is load-bearing and not decoration. A never-opened system
-    has the largest remaining count there is, so on the remaining count alone
-    it would head the list; the tier is the only thing holding it at the bottom.
+    One shape for both halves of a system row, so the page draws them with one
+    function instead of knowing which of `docked` and `stripped` it is holding.
     """
-    docked = len(row["docked"])
-    if docked == 0:
-        return (2, 0, row["system"])
-    if row["remaining"] == 0:
-        return (1, 0, row["system"])
-    return (0, -row["remaining"], row["system"])
+    return {"done": done, "total": total,
+            "percent": round(100 * done / total) if total else 0}
 
 
 def read_state(game, save_path, saved):
@@ -203,14 +190,9 @@ def read_state(game, save_path, saved):
         if flag in fl.DOCKED or key not in flags:
             flags[key] = flag
 
-    systems = {}
+    bases = {}
     for key, (system, ids) in game.bases.items():
-        row = systems.setdefault(
-            system,
-            {"system": game.label(game.system_ids.get(system, 0), system),
-             "house": house_of(system),
-             "docked": [], "revealed": [], "unknown": []},
-        )
+        row = bases.setdefault(system, {"docked": [], "revealed": [], "unknown": []})
         flag = flags.get(key)
         bucket = "docked" if flag in fl.DOCKED else "revealed" if flag == REVEALED else "unknown"
         # The owning faction rides on every base, not just the revealed ones.
@@ -222,38 +204,52 @@ def read_state(game, save_path, saved):
                             "faction": game.faction_short.get(owner, ""),
                             "faction_full": game.faction_name.get(owner, "")})
 
-    out = []
-    for row in systems.values():
-        for bucket in ("docked", "revealed", "unknown"):
-            row[bucket].sort(key=lambda base: base["name"])
-        row["total"] = len(row["docked"]) + len(row["revealed"]) + len(row["unknown"])
-        row["remaining"] = row["total"] - len(row["docked"])
-        row["percent"] = round(100 * len(row["docked"]) / row["total"]) if row["total"] else 0
-        out.append(row)
-    out.sort(key=_visit_rank)
+    wrecks = {r["nickname"]: r
+              for r in wr.group_by_system(game.wrecks, visits, game.system_label)}
 
-    wreck_rows = wr.group_by_system(game.wrecks, visits, game.system_label)
-    for row in wreck_rows:
-        row["house"] = house_of(row["nickname"])
+    # Bases and wrecks are two counts of the same place, so a system is one row
+    # carrying both. They used to be two lists with two different shapes, one
+    # of which had lost the system nickname, which is why the wreck rows had to
+    # re-derive their house from a field the base rows did not have.
+    out = []
+    for nick in set(bases) | set(wrecks):
+        found = bases.get(nick, {"docked": [], "revealed": [], "unknown": []})
+        for bucket in found.values():
+            bucket.sort(key=lambda base: base["name"])
+        found.update(_tally(len(found["docked"]),
+                            sum(len(v) for v in found.values())))
+        hulls = wrecks.get(nick, {"found": [], "missing": [], "stripped": 0,
+                                  "total": 0})
+        hulls = dict(found=hulls["found"], missing=hulls["missing"],
+                     **_tally(hulls["stripped"], hulls["total"]))
+        out.append({
+            "nickname": nick,
+            "system": game.system_label(nick),
+            "house": house_of(nick),
+            "bases": found,
+            "wrecks": hulls,
+            # One flag for the whole place, because that is what the page hides
+            # on: a system is finished when every base is docked at and every
+            # wreck is stripped.
+            "done": found["done"] == found["total"]
+                    and hulls["done"] == hulls["total"],
+        })
+    out.sort(key=lambda r: r["system"])
 
     return {
         "systems": out,
-        "wrecks": wreck_rows,
         "log": nl.entries(saved, game.names),
         "house_order": HOUSE_ORDER,
-        # Only emptied wrecks count, mirroring "docked" on the Visits tab. The
-        # game records the loot being taken as bit 8 of the visit flag.
-        "wrecks_stripped": sum(r["stripped"] for r in wreck_rows),
-        "wrecks_open": sum(r["found_open"] for r in wreck_rows),
-        "wrecks_total": len(game.wrecks),
-        "wrecks_systems": sum(1 for r in wreck_rows if r["stripped"]),
-        "wrecks_systems_total": len(wreck_rows),
         "save": os.path.basename(save_path),
         "saved_at": os.path.getmtime(save_path),
-        "docked": sum(len(r["docked"]) for r in out),
-        "revealed": sum(len(r["revealed"]) for r in out),
-        "bases": sum(r["total"] for r in out),
-        "systems_touched": sum(1 for r in out if r["docked"]),
+        "docked": sum(r["bases"]["done"] for r in out),
+        "revealed": sum(len(r["bases"]["revealed"]) for r in out),
+        "bases_total": sum(r["bases"]["total"] for r in out),
+        # Only an emptied wreck counts, the same way only a base you docked at
+        # counts. The game records the loot being taken as bit 8.
+        "stripped": sum(r["wrecks"]["done"] for r in out),
+        "wrecks_total": sum(r["wrecks"]["total"] for r in out),
+        "systems_done": sum(1 for r in out if r["done"]),
         "systems_total": len(out),
         # The Trade tab needs to know where you have actually been, and this
         # is the only place the save has already been read for exactly that.

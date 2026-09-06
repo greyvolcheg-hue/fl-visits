@@ -31,22 +31,24 @@ The web page has six tabs, two of which carry sub-tabs:
 
 | Tab | Sub-tabs |
 |---|---|
-| **Map** | Visits, Wrecks, Chart |
+| **Map** | Systems, Chart |
 | **Equipment** | DPS, Search |
 | Speed, Neural Net, Reputation | none |
 | **Trade** | Data, Deltas, Routes |
 
 Two levels because the pairs group naturally, and because eight or nine buttons
-on one line stops being a strip and becomes a menu. Which sub-tab you were last on is remembered per parent, so leaving Wrecks
-for Trade and coming back returns to Wrecks.
+on one line stops being a strip and becomes a menu. Which sub-tab you were last
+on is remembered per parent, so leaving Routes for Map and coming back returns
+to Routes.
 
-**Visits** and **Wrecks** each have their own state for the
-two checkboxes. *Show all* ticked shows every system, the things still to find,
-and what the wrecks contain; unticked, only progress. *Hide completed* drops the
-systems with nothing left in them, which on Visits means every base docked at
-and on Wrecks means every wreck stripped, so a system whose wrecks are all found
-but not all emptied stays in the list. Both tabs group their systems by house,
-Liberty through Edge Worlds, with a running count per house.
+**Systems** is one tree: house, then system, then the bases and the wrecks in
+it. Both levels start shut. Bases and wrecks used to be two tabs asking the same
+question about the same place, so you read them side by side to plan one trip.
+
+*Show all* ticked shows every system, the bases and wrecks still to find, and
+what the wrecks hold; unticked, only what you have found. *Hide completed* drops
+a system once every base in it is docked at **and** every wreck is stripped, so
+a system whose wrecks are all found but not all emptied stays in the list.
 
 **Both tabs open with both boxes ticked and every house folded**, so the first thing on screen is
 a short list of what is left. The folding happens once per tab: open a house and the five-second
@@ -415,16 +417,13 @@ game records it. `+` is stripped, `*` is found but still holding its loot, `-`
 is not found yet, and an untouched wreck lists its cargo without the checkbox,
 since that is the part you can still go and collect.
 
-The two tabs sort differently, on purpose. **Visits** is a to-do list: most
-bases left first, so the system with the most still to find heads it, then the
-systems you have finished, then the ones you have never opened, both
-alphabetically. Note that a system you have never opened has the most left of
-all, and it still goes to the bottom: not started and finished are different
-kinds of nothing and they sit at opposite ends. **Wrecks** is a record of what
-you have found, so the fullest systems lead.
+Systems are alphabetical inside their house. Two tabs once sorted by two
+different notions of progress, most bases left on one and fullest first on the
+other, and neither survived the merge: one tree can only have one order, and a
+name is the one key you can aim at without reading the list first.
 
-Houses fold. Click a heading to collapse it, or use Collapse all and Expand all;
-each tab remembers its own folds and its own checkbox.
+Both levels fold. Click a house heading or a system card to open it, or use
+Collapse all and Expand all on the houses.
 
 **Revealed bases carry their owner**, in the short name the game itself uses:
 *Fort Bush* `Police (LI)`, *Yanagi Depot* `Junkers`, *Ruiz Base* `Outcasts`.

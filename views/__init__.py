@@ -16,10 +16,10 @@ can be read at once.
 """
 
 from . import (chart, deltas, dps, log, rep, routes, search, shell, speed,
-               trade, visits, wrecks)
+               systems, trade)
 
 LAYOUT = [
-    ("map", "Map", [visits, wrecks, chart]),
+    ("map", "Map", [systems, chart]),
     ("speed", "Speed", [speed]),
     ("gear", "Equipment", [dps, search]),
     ("log", "Neural Net", [log]),

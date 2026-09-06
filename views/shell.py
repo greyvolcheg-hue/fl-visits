@@ -22,19 +22,19 @@ CSS = open(__file__.replace("shell.py", "_css.txt")).read()
 JS = r"""
 // Where you were inside each parent, so coming back to Map does not always
 // dump you on Visits.
-const leaf = { map: 'visits', gear: 'dps', trade: 'data' };
+const leaf = { map: 'systems', gear: 'dps', trade: 'data' };
 // `topTab`, not `top`: `window.top` is non-configurable, so a global `let top`
 // is a SyntaxError that kills the whole script before a line of it runs.
-let topTab = 'map', tab = 'visits', latest = null;
+let topTab = 'map', tab = 'systems', latest = null;
 
 // Per tab, not per page: what you want expanded on Visits has nothing to do
 // with Wrecks, and "finished" means something different on each.
-const extended = { visits: true, wrecks: true };
-const hideDone = { visits: true, wrecks: true };
-const collapsed = { visits: {}, wrecks: {} };
+const extended = { systems: true };
+const hideDone = { systems: true };
+const collapsed = { systems: {} };
 // Fold everything, but once per tab. On every render the five-second poll
 // would re-fold whatever you just opened.
-const folded = { visits: false, wrecks: false };
+const folded = { systems: false };
 
 function foldOnFirstSight(d) {
   if (folded[tab] || !d || !d.house_order) return;
@@ -50,9 +50,14 @@ function totals(pairs) {
     .map(([n, l]) => `<div><span class="n">${n}</span><span class="lbl">${l}</span></div>`).join('');
 }
 
-function card(title, done, total, percent, body) {
-  return `<div class="sys">
-    <div class="head"><b>${esc(title)}</b><span class="count">${done} / ${total}</span></div>
+// `fold` is optional: {id, open} makes the card a fold with a caret and a
+// data-sys handle. Speed reuses this look for Cruise and Thrusters and passes
+// nothing, so those stay open and unclickable.
+function card(title, done, total, percent, body, fold) {
+  const shell = fold ? `class="sys foldable" data-sys="${esc(fold.id)}"` : 'class="sys"';
+  const caret = fold ? `<span class="caret">${fold.open ? '▾' : '▸'}</span>` : '';
+  return `<div ${shell}>
+    <div class="head">${caret}<b>${esc(title)}</b><span class="count">${done} / ${total}</span></div>
     <div class="bar"><i style="width:${percent}%"></i></div>${body}</div>`;
 }
 
