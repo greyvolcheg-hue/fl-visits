@@ -37,12 +37,9 @@ import views  # noqa: E402
 
 REVEALED = 1  # story put it on the nav map; the player has never docked there
 
-# The house is the first two characters of a system's nickname. The four houses
-# and the three frontier groups cover 46 of the 47 systems that carry a dockable
-# base; the 47th is Omicron Minor, whose `st` prefix marks the story systems and
-# which the fallback below puts in Edge Worlds. That is the fallback earning its
-# keep rather than a gap: the prefix list was written from the systems that had
-# bases at the time, and one more turned up the moment it was checked.
+# The house is a system nickname's first two characters. The seven prefixes
+# cover 46 of the 47 systems with a dockable base; the 47th is Omicron Minor,
+# whose `st` marks the story systems, and the fallback puts it in Edge Worlds.
 HOUSES = [
     ("Liberty", ("li",)),
     ("Bretonia", ("br",)),

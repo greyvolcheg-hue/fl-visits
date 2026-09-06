@@ -55,40 +55,21 @@ import navmap  # noqa: E402
 
 BERTH = "berth"
 
-# The one thing here that is NOT derived from the data, and it is marked so it
-# stays visible. These bases pass every test the data offers: they carry
-# `dock_with`, they have a berth, and both systems are reachable, Alaska by a
-# jump gate from New York and Tohoku by jump holes from Hokkaido and Chugoku.
-# The player still cannot dock at any of them. Both systems are story-gated,
-# and the story visit does not let you dock either.
+# **Play knowledge, not data, and marked so it stays visible.** These three
+# pass every test the data offers: `dock_with`, a berth, and a reachable
+# system. The player still cannot dock. Both systems are story-gated and the
+# story visit does not let you dock either.
 #
-# **This rests on the owner's knowledge of the game, and nothing else. Do not
-# claim otherwise.** An earlier version of this comment offered the 34 saves on
-# disk as evidence, none of which holds a `visit` for these three, and called
-# that strong. It is worthless: Tohoku is reached in M09 and Alaska in M11,
-# while the save is on Mission_05, so the player has been to neither. The
-# absence proves only that he has not got there yet, which is equally true of
-# every base he has not reached. It discriminates nothing.
+# The saves on disk are NOT evidence for this: the campaign in them is on
+# Mission_05 while Tohoku is M09 and Alaska M11, so their silence says only
+# that he has not got there, which is equally true of everywhere he has not
+# been. To test it properly, read a save taken past M11.
 #
-# To actually test this, read a save from a campaign taken past M11 and look
-# for a `visit` on these three. Until someone does, the exclusion is play
-# knowledge and this comment says so.
-#
-# Four data-side candidates were tried and none isolates them:
-#   * `visit = 0` on the object. 41 bases carry it, Buffalo and Rochester in
-#     New York among them, both of which the owner has docked at. It marks a
-#     base you have to find, not one you are locked out of.
-#   * no inbound jump link. True of Omicron Major, not of these.
-#   * the `prison` archetype, which looked promising for Alaska. Six bases use
-#     it and most are ordinary ports.
-#   * a lock on the jump object leading in. There is none: those gates and
-#     holes carry nothing to mark them, because the locking is save state
-#     (`locked_gate`), not static data.
-#
-# So this is play knowledge, written down as an exception rather than dressed
-# up as a rule. Add to it only for somewhere equally unreachable, and say why.
-# If you reach for a save to justify it, first check the campaign in that save
-# actually got that far.
+# Four data-side candidates were tried and none isolates them: `visit = 0` (41
+# bases carry it, including two he has docked at), no inbound jump link (true
+# of Omicron Major, not these), the `prison` archetype (six bases use it, most
+# ordinary ports), and a lock on the jump object (there is none; locking is
+# save state). Add to this only for somewhere equally unreachable, and say why.
 STORY_LOCKED = {
     "ku07_01_base",  # Ryuku Base, Tohoku
     "ku07_02_base",  # Tekagi's Base, Tohoku

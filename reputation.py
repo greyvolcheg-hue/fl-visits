@@ -54,22 +54,18 @@ import wrecks as wr  # noqa: E402
 BOUND = 0.9
 GOALS = {"enemy": -0.5, "neutral": 0.0, "friend": 0.5}
 
-# A bribe SETS your standing to 0.6. It does not add to it, so it is worth
-# nothing once you are already above that, and buying two changes nothing.
+# A bribe SETS standing to 0.6 rather than adding, so it is worth nothing once
+# you are above that and buying two changes nothing.
 #
-# Established from flhack, not from the game's files, which carry no usable
-# number: the `bribe` lines in `mbases.ini` all read a flat 10000, all 2386 of
-# them, so that is a placeholder and the engine computes the real price.
-# flhack's flexible bribes shift the result by 0.3, -0.6 and -0.4 from a base,
-# landing on the 0.9, 0.0 and 0.2 its own documentation quotes, which puts the
-# base at 0.6. Its assembly divides the price by the change in reputation
-# before scaling it, so price is proportional to distance travelled.
+# From flhack, not from the files: the 2386 `bribe` lines in `mbases.ini` all
+# read a flat 10000, so that is a placeholder and the engine computes the
+# price. flhack's three options shift by 0.3, -0.6 and -0.4 and cost +30000,
+# -60000 and -40000, which is 100000 per point three times over, and its
+# assembly divides price by the change before scaling: price is proportional to
+# distance travelled.
 #
-# **The rate is derived, not measured.** flhack documents those three options as
-# costing +30000, -60000 and -40000, and 30000/0.3, 60000/0.6 and 40000/0.4 all
-# come to 100000 per point of reputation. Consistent across three figures, but
-# nobody has read a bartender's price and checked. Verify before trusting it to
-# the credit: a bribe for a faction at -0.44 should ask about 104000.
+# **Derived, never measured.** Nobody has read a bartender's price and checked.
+# A faction at -0.44 should ask about 104000. Verify before trusting it.
 BRIBE_TO = 0.6
 BRIBE_RATE = 100000
 

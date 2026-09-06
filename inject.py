@@ -367,14 +367,11 @@ def restore(pid, site, length, module=MODULE):
 
 # --- a patch as a list of sites ---------------------------------------------
 #
-# A patch is `[(module, address, replacement bytes), ...]`. Three functions
-# over that list replace three hand-rolled copies of the same bookkeeping.
-#
-# **The point is that undo is derived from do, not written twice.** `bestpath`
-# applied five writes of 1, 2, 1, 1 and 2 bytes and undid them by restoring 11
-# bytes at the first address and 1, 1 and 2 at the others: a shape re-derived
-# by hand, which is a shape that can be wrong. Here `revert` restores exactly
-# what `install` wrote, because it reads the same list.
+# `[(module, address, replacement), ...]`. Three functions over that list
+# replace three hand-rolled copies of the same bookkeeping, and undo is derived
+# from do: `bestpath` used to apply five writes of 1, 2, 1, 1 and 2 bytes and
+# undo them by restoring 11 bytes at the first address and 1, 1 and 2 at the
+# others, a shape re-derived by hand and so a shape that can be wrong.
 
 def install(pid, sites):
     """Apply every site, but only after checking all of them.

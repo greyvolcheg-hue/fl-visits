@@ -1,143 +1,62 @@
 #!/usr/bin/env python3
-"""How close you get to a dock before the game cuts your cruise engine.
+"""Docking: when the autopilot uses cruise, and when it stops flying you.
 
-    dockdist.py             # what the running game is using
-    dockdist.py 8000        # set it
-    dockdist.py --vanilla   # back to 1750
+    dockdist.py                 # both settings, and what they buy
+    dockdist.py 595             # cruise-to-dock threshold
+    dockdist.py --takeover 200  # where automatic docking takes over
+    dockdist.py --takeover-off
+    dockdist.py --vanilla
 
-**This is a proof of concept, not a settled setting.** Read the last section
-before writing it up as a fix.
+**Two knobs, two mechanisms.** Re-testing one for the other cost an evening.
 
-## Why this file exists
+    cruise engines light     DOCK_DIST      a number      `dockdist.py 595`
+    docking takes over       [ebp+0x50]     a code patch  `--takeover 200`
 
-The symptom was overshooting trade lanes at a raised cruise speed. The obvious
-suspect was `[TradeLane] basic_trade_lane_eq` in `DATA/EQUIPMENT/select_equip.ini`,
-whose `activation_start` / `activation_end` are the only two distances anywhere
-in the game's data with a trade lane's name on them. They were changed from
-750/500 to 100/50 by hand on 2026-09-04 and nothing happened in flight.
+Memory only. Nothing on disk is touched and a relaunch restores both.
 
-Nothing happened because those two belong to the ring, not to the ship. They are
-the ring's own equipment and govern its spin-up window. No value of them reaches
-the player's engine state, so no value of them could have worked.
+## DOCK_DIST, at 0x63a22c0, 1750.0 stock
 
-The distance that does is not in the game's data at all. A sweep of all 1252 INI
-files under `DATA/` for any key containing `dock` finds `docking_sphere`,
-`dock_with`, the mission scripts' `act_lockdock`, and no global distance of any
-kind. `Trade_Lane_Ring` in `solararch.ini` carries no `docking_sphere` at all,
-where a jump gate carries 225 and a jump hole 150.
+    62fe163  mov  al, [esi+0x365]      ; gate
+    62fe16b  je   0x62fe194            ; clear -> skip the compare entirely
+    62fe16d  fld  dword [esp+0x1c]     ; distance to the dock
+    62fe171  fcomp dword [0x63a22c0]   ; 1750.0
+    62fe187  mov  [esi+0x364], al      ; cache the answer
+    62fe18d  mov  byte [esi+0x365], 0  ; clear the gate
 
-It is a float inside `common.dll`:
+`[esi+0x364] = (distance > DOCK_DIST)`, 1 meaning use cruise. So a **larger**
+value means "refuse to cruise until you are further away", not "cruise for
+longer"; that direction backwards is what sent the early testing into the weeds.
 
-    0x62fe16d  d9 44 24 1c      fld    dword [esp+1c]     ; distance to the dock
-    0x62fe171  d8 1d c0223a06   fcomp  dword [0x63a22c0]  ; against 1750.0
-    0x62fe177  df e0            fnstsw ax
-    0x62fe179  f6 c4 41         test   ah, 41
+**It is a one-shot latch.** The gate is cleared right after the compare, so the
+answer is taken once when the dock is ordered and never revisited. Moving it
+from 1750 to 300 changed nothing anyone could feel, because at any real lane
+range both answer "use cruise".
 
-Verified on 2026-09-05 both in the shipped file and in the running game: v1.0
-loaded at its preferred base, and `0x63a22c0` reading exactly 1750.0.
+**It is measured from the object's centre.** flhack: *"the 'physical' distance,
+different to what is displayed"*, with the proximity radius defaulting to 495,
+the figure trade lanes use. So `physical = displayed + 495`: for 100 m on the
+HUD, set 595. A jump gate has its own radius and lands elsewhere.
 
-The addresses come from **flhack** (Jason Hood, 2014), which has this as the
-"Cruise to dock from" setting, and its own default table calls the constant
-"activate cruise for docking from this". Its help adds that the proximity radius
-default of 495 "is that used by Trade Lanes", which is what ties a lane entry to
-this same dock approach path.
+## The takeover distance, at 0x62fe758
 
-## The arithmetic that matches the symptom
-
-1750 m is 5.8 seconds of approach at the vanilla cruise speed of 300. At 2500 it
-is 0.7 seconds. The threshold never moved; the speed crossing it went up eight
-times over.
-
-## It is measured from the object's centre, not from where the HUD counts
-
-**This is the part that made three hours of testing read as noise.** flhack says
-it outright and it is easy to skim past:
-
-    It is the "physical" distance, different to what is displayed. The
-    "Proximity" setting controls the difference between the physical and
-    displayed distances - the default value is that used by Trade Lanes.
-
-Its calculator dialog fills that Proximity field in with **495**, so for a trade
-lane:
-
-    physical = displayed + 495
-
-Which decodes every result we got. Vanilla 1750 physical is 1255 on the HUD, so
-that is where stock Freelancer drops cruise, and at cruise 2500 you cross it in
-half a second and sail past the ring. A test value of 6000 means the flag says
-"do not cruise" for anything closer than 5505 displayed, which is why pressing
-dock at 4000 refused to light the cruise engines at all. And 100 is below the
-~495 physical you have at the ring itself, so the flag can never flip and cruise
-would never cut.
-
-**To pick a value: take the distance you want on the HUD and add 495.** 100 m
-displayed is 595. A jump gate has its own radius, so the same number lands
-somewhere else there.
-
-## What the compare actually is
-
-    [esi+0x364] = (distance > DOCK_DIST)     ; 1 = use cruise
-
-That direction is the whole thing, and getting it backwards is what sent the
-early testing into the weeds. Larger DOCK_DIST does **not** mean "cruise for
-longer", it means "refuse to cruise until you are further away".
-
-The surrounding code, which is still worth knowing:
-
-    62fe163  mov  al, [esi+0x365]
-    62fe169  test al, al
-    62fe16b  je   0x62fe194          ; flag clear -> skip the compare entirely
-    62fe16d  fld  dword [esp+0x1c]
-    62fe171  fcomp dword [0x63a22c0] ; 1750.0
-    62fe177  df e0  fnstsw ax
-    ...
-    62fe187  mov  [esi+0x364], al    ; cache the answer
-    62fe18d  mov  byte [esi+0x365], 0 ; clear the trigger
-
-`[esi+0x365]` gates the compare and is cleared right after it, so the answer is
-latched rather than recomputed every frame. Whether the game re-arms that
-trigger as you close in is the one thing still open, and it decides whether this
-single number gives both halves of what a player wants (cruise on from far away,
-cruise off at 100 m) or only the first half. The observable difference: if
-cruise cuts at your chosen distance, it re-arms; if it cuts somewhere else, it
-does not, and the cut belongs to flhack's `_cruise_on` instead -- which it
-installs at 0x62fe177, adding `cmp byte [esi+0x368], 0 / jnz .cruise`, "cruise
-already active? leave it on", bypassing the test rather than moving it. That is
-a code injection and out of reach of a four-byte write.
-
-## The takeover distance, which is the other half and a different mechanism
-
-`DOCK_DIST` answers "does the autopilot use cruise for this run". It does not
-answer "when does the run end", and no number in memory does. **A global at
-0x639f44c was tried and disproved**: it initialises a field that looked like the
-same 1000.0, and the owner flew it at 100, 1000, 5000 and 10000 with no
-difference to a lane approach at all. The knob for it was removed on 2026-09-05.
-Do not go looking for it again.
-
-The distance at which automatic docking takes over is loaded here:
-
-    62fe758  d9 45 50   fld dword [ebp+0x50]     ; 1000.0 stock
+    62fe758  d9 45 50   fld dword [ebp+0x50]   ; 1000.0 stock
     62fe75b  8d 73 2c   lea esi, [ebx+0x2c]
 
-`[ebp+0x50]` is a field of a descriptor, so the only place to change it is the
-instruction that reads it. That is exactly what flhack's "Closer docking" does,
-and its help calls it *"reduces the distance where automatic docking takes
-over"*. Its stub substitutes 200.0 for a non-station dock (trade lane, jump
-gate) and 600.0 for a station, but only when the loaded value is exactly 1000.0,
-so anything with its own figure is left alone.
+A descriptor field, so the only place to change it is the instruction that
+reads it. This ports flhack's "Closer docking", which substitutes 200 for a
+non-station dock and 600 for a station, and only when the loaded value is
+exactly 1000.0 so anything carrying its own figure is left alone. `inject.py`
+supplies the cave and the call.
 
-This module ports that stub, with the non-station value configurable and
-defaulting to **100**, which is what the owner asked for. `inject.py` supplies
-the cave and the call, and carries why no allocation is needed.
+## Two dead ends, written down so nobody walks them again
 
-## Which of these does what, so the next person does not re-test both
+**`activation_start` / `activation_end` in `select_equip.ini` are the ring's
+spin-up window, not the ship's.** No value of them reaches the engine state.
+Changed 750/500 to 100/50 by hand, no effect, restored.
 
-    step 3, cruise engines light        DOCK_DIST      a number     `dockdist.py 595`
-    step 5, docking takes over          [ebp+0x50]     a code patch `--takeover 100`
-
-Memory only, both of them. `tradelane.py` has written to this same read-only
-section of this same DLL since 2026-09-02, no file is touched, and the next
-launch puts everything back.
+**The global at 0x639f44c is not the takeover distance.** It initialises a
+field holding the same 1000.0, and was flown at 100, 1000, 5000 and 10000 with
+no difference to a lane approach. Its knob was removed. Do not look again.
 """
 
 import argparse
@@ -211,20 +130,16 @@ def locate(pid):
 
 # --- the takeover patch -----------------------------------------------------
 #
-# Two stubs, both ported from `flhack.nsm`. The cave holds the read-only half:
+# Two stubs from `flhack.nsm`. The cave holds the read-only half:
 #
-#     +0   sentinel    1000.0, the only value the second stub will replace
-#     +4   station     600.0
-#     +8   other       200.0, the one the owner tunes
-#     +12  scratch     where `dockwith` went, so removal need not disassemble
-#     +16  dock_type       12 bytes
-#     +32  closer_docking  43 bytes
+#     +0 sentinel  +4 station  +8 other (tuned)  +12 scratch pointer
+#     +16 dock_type (12 bytes)   +32 closer_docking (43 bytes)
 #
-# **`dockwith` is not in there.** The first stub writes it while the game runs,
-# and the cave is `.text` padding on a read-only page, so a store into it is an
-# access violation and the game dies on the spot. It lives in `inject`'s
-# writable scratch instead. The constants stay in the cave because only this
-# tool ever writes them, from outside, where page protection does not apply.
+# **`dockwith` is not in the cave.** The first stub writes it while the game
+# runs, and the cave is `.text` padding on a read-only page: a store there is
+# an access violation and the game dies on the spot. It goes in `inject`'s
+# writable scratch. The constants stay, because only this tool writes them,
+# from outside, where page protection does not apply.
 
 DATA_OFF, TYPE_OFF, DOCK_OFF = 0, 16, 32
 STUB_BYTES = 32 + 43
