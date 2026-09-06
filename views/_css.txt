@@ -40,9 +40,9 @@
   .guns { overflow-x: auto; }
   .guntable { min-width: 46rem; }
   .reptable { min-width: 42rem; }
-  .tradetable { min-width: 34rem; }
+  .tradetable { min-width: 40rem; }
   .tradetable .gun, .tradetable .gunhead {
-    grid-template-columns: 5rem 3.5rem minmax(12rem, 1fr) minmax(8rem, 1fr); }
+    grid-template-columns: 5rem 3.5rem minmax(12rem, 1fr) minmax(8rem, 1fr) 5rem; }
   .tradetable .gunhead span:first-child { text-align: right; }
   .traderow.sells { border-color: var(--docked); }
   .note b.ok { color: var(--docked); font-weight: 650; }
@@ -237,9 +237,29 @@
                            minmax(8rem, 1fr) minmax(8rem, 1fr); }
   /* The full-hold figure is the one being read, so it carries the weight. */
   .gun .num.big { font-weight: 650; }
-  .desttable { min-width: 34rem; }
+  .holdbar { display: flex; align-items: baseline; flex-wrap: wrap; gap: .6rem;
+             background: var(--card); border: 1px solid var(--line);
+             border-radius: 8px; padding: .5rem .9rem; margin: 0 0 .9rem; }
+  .holdbar .when { color: var(--dim); font-size: .8rem; margin-left: auto; }
+  .holdbar button { background: none; border: 1px solid var(--line);
+                    border-radius: 6px; color: var(--dim); font: inherit;
+                    font-size: .8rem; padding: .15rem .5rem; cursor: pointer; }
+  .holdbar button:hover { color: var(--text); border-color: var(--dim); }
+  .holdtable { min-width: 40rem; }
+  .holdtable .gun, .holdtable .gunhead {
+    grid-template-columns: minmax(10rem, 1fr) 6rem 3.5rem 6rem
+                           minmax(8rem, 1fr); }
+  .holdrow { cursor: pointer; }
+  .holdrow:hover, .holdrow.on { border-color: var(--dim); }
+  /* Same grid as the row above it minus the system, so the figures line up
+     under the total they add to. */
+  .holdleg { display: grid; align-items: baseline; gap: .9rem;
+             grid-template-columns: minmax(8rem, 1fr) 7rem 6rem
+                                    minmax(8rem, 1fr) 5rem;
+             font-size: .85rem; }
+  .desttable { min-width: 40rem; }
   .desttable .gun, .desttable .gunhead {
-    grid-template-columns: 5rem 5rem minmax(12rem, 1fr) minmax(8rem, 1fr); }
+    grid-template-columns: 5rem 5rem minmax(12rem, 1fr) minmax(8rem, 1fr) 5rem; }
   /* A good is a button in all but name: clicking one opens its destinations. */
   .good { cursor: pointer; }
   .good:hover { border-color: var(--dim); }

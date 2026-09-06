@@ -28,6 +28,7 @@ Alaska, and the cutscene copies. A price you can never reach is not information.
 
 import argparse
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -242,6 +243,104 @@ def best_runs(rows, base, only=None):
     for src in sells(rows, base):
         found = deltas(by_good[src["good"]], src["good"], src, only)
         out.append({**src, "best": found[0] if found else None})
+    return out
+
+
+CARGO = re.compile(r"^cargo\s*=\s*([^,\s]+)\s*,\s*(\d+)", re.I | re.M)
+
+
+def hold(save_path, goods):
+    """What is in the hold, {commodity: units}.
+
+    **A real save names cargo by `FLHash` of the nickname, not by the
+    nickname**, the same one-way hash the visit flags use, so every commodity
+    is hashed once here and the line is looked up by number. The tutorial's
+    `Restart.fl` is the one exception and writes plain nicknames; both are
+    read, because testing against the tutorial save alone would prove the
+    wrong half works.
+
+    Only commodities. The same `cargo` lines carry countermeasures, nanobots,
+    batteries and damaged guns, which are equipment a player fits or consumes,
+    not freight any base will buy.
+
+    This reads the save, so it is exactly as fresh as the last time the game
+    wrote one. That is the whole caveat, and the page states it rather than
+    hiding it: a hold read five minutes ago is still worth planning against.
+
+    Lives here rather than beside `parse_visits` because `flvisits.py` is
+    frozen and the hold is a trade question, not a visit one.
+    """
+    by_hash = {fl.fl_hash(nick): nick for nick in goods}
+    out = {}
+    for token, count in CARGO.findall(fl.decode_save(save_path)):
+        key = by_hash.get(int(token)) if token.isdigit() else token.lower()
+        if key in goods:
+            out[key] = out.get(key, 0) + int(count)
+    return out
+
+
+def hold_runs(rows, held, only=None):
+    """Every system that will buy the hold, by what the whole load fetches.
+
+    A system, not a base, because the question is where to fly once rather
+    than which single counter pays best. `bases` says how many stops that
+    costs inside the system and `one` is the best base that takes the whole
+    load by itself, so a couple of thousand credits can be traded against not
+    undocking again.
+
+    Ranked on money, never on price a unit: 45 tonnes at 720 beats 5 at 2400,
+    and the hold is what there actually is to sell.
+
+    Systems taking only part of the load are kept, with `missing` naming the
+    rest. When nothing takes all of it, which system takes the most of it is
+    the next question, and dropping those rows would throw away the answer.
+    """
+    label = {}
+    best, per_base = {}, {}
+    for row in rows:
+        good = row["good"]
+        if good not in held:
+            continue
+        label.setdefault(good, row["good_name"])
+        if only is not None and row["base"]["id"] not in only:
+            continue
+        system = row["base"]["sys"]
+        top = best.setdefault(system, {}).get(good)
+        if top is None or row["price"] > top["price"]:
+            best[system][good] = row
+        per_base.setdefault(system, {}).setdefault(row["base"]["id"], {})[good] = row
+
+    out = []
+    for system, picks in best.items():
+        goods = sorted(
+            ({"good": good, "name": row["good_name"], "units": held[good],
+              "price": row["price"], "value": row["price"] * held[good],
+              "base": row["base"]}
+             for good, row in picks.items()),
+            key=lambda g: -g["value"])
+        # A base that takes everything the system takes. Fewer than that and it
+        # is not a single stop, whatever it pays.
+        one = None
+        for stocked in per_base[system].values():
+            if len(stocked) < len(picks):
+                continue
+            total = sum(r["price"] * held[g] for g, r in stocked.items())
+            if one is None or total > one["total"]:
+                one = {"total": total, "base": next(iter(stocked.values()))["base"]}
+        out.append({
+            "sys": system,
+            "system": goods[0]["base"]["system"],
+            "total": sum(g["value"] for g in goods),
+            "bases": len({g["base"]["id"] for g in goods}),
+            "goods": goods,
+            # `label` misses a commodity no base anywhere trades, and the
+            # nickname is then the honest fallback rather than a crash.
+            "missing": sorted(label.get(g, g) for g in held if g not in picks),
+            "one": one,
+        })
+    # Most of the load first, then money. A system that takes two of three is
+    # never the answer while one takes all three, however much it pays.
+    out.sort(key=lambda r: (len(r["missing"]), -r["total"]))
     return out
 
 
