@@ -6,6 +6,7 @@ system. Own git repo; the history in this folder is the undo button.
 | File | What |
 |---|---|
 | `flvisits.py` | save decoding, the nickname hash, game data loading, bases CLI. **Frozen, see below.** |
+| `check_frozen.py` | fingerprints every value `flvisits.py` derives, over every save. Run before and after any thaw. |
 | `wrecks.py` | the 157 secret wrecks and their loot, as data and as a CLI |
 | `docking.py` | which bases can actually be docked at, and the denominator both programs use |
 | `navmap.py` | world position to nav map cell |
@@ -75,6 +76,30 @@ Checked afterwards, against the same save, with the committed version of the
 file and the thawed one side by side: 3430 object nicknames, 2188 visit
 entries, **486 resolved by both**. Identical. That is the check that matters
 here, because it is the one that would have gone quietly wrong.
+
+**Thawed a third time, 2026-09-06, with the owner's explicit go**, to run the
+file through the same cleanup as the rest of the repo. Two changes, both in
+what the file says rather than what it computes:
+
+- **`ipath` was defined twice**, at lines 47 and 121, and the second shadowed
+  the first. Nineteen lines of dead code carrying a docstring that described
+  behaviour nothing ran. That is worse than clutter in a file people are told
+  not to touch: whoever read the first definition was reading a lie about how
+  paths resolve. The live one absorbed the useful half of the dead one's
+  docstring.
+- A comment in `main()` said 167 dockable and 30 dropped. The real figures are
+  164 and 33, stale since the story-locked three were excluded.
+
+**`check_frozen.py` is what made this safe and is the tool for the next thaw.**
+It fingerprints everything the module decides, across every save on disk, and
+prints it in a stable order: the hash table, the string tables, the system
+walk, the dockable set, and each save's resolved visits with their flags. Run
+it before, run it after, diff. Here that was **96 saves, 219,634 visit entries,
+7,372 resolved, and every digest identical**.
+
+Use it rather than reasoning about whether an edit was safe. This file's
+failure mode is a report that is wrong while looking right, and no amount of
+reading catches that.
 
 ## What it was verified against
 

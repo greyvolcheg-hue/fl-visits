@@ -44,27 +44,6 @@ import bini  # noqa: E402
 import docking  # noqa: E402
 
 
-def ipath(base, *parts):
-    """Join a path, matching each component case-insensitively.
-
-    The game ships `DATA/UNIVERSE/SYSTEMS/LI01/li01.ini`: directories upper
-    case, files lower. That is invisible on Windows and fatal on Linux, which
-    is the same trap `SETUP.EXE` set during the install.
-    """
-    path = base
-    for part in parts:
-        candidate = os.path.join(path, part)
-        if os.path.exists(candidate):
-            path = candidate
-            continue
-        try:
-            match = next(e for e in os.listdir(path) if e.lower() == part.lower())
-        except (StopIteration, OSError):
-            return candidate  # let the caller fail with a real path in the error
-        path = os.path.join(path, match)
-    return path
-
-
 # --- save file ------------------------------------------------------------
 
 def decode_save(path):
@@ -119,8 +98,12 @@ def fl_hash(nickname):
 # --- game data ------------------------------------------------------------
 
 def ipath(base, *parts):
-    """Join case-insensitively. The game ships DATA/UNIVERSE but its own ini
-    files spell it `universe\\universe.ini`, and Linux cares."""
+    """Join case-insensitively.
+
+    The game ships `DATA/UNIVERSE/SYSTEMS/LI01/li01.ini` with directories upper
+    case and files lower, while its own ini files spell the same path
+    `universe\\universe.ini`. Invisible on Windows, fatal on Linux.
+    """
     cur = base
     for part in parts:
         if os.path.exists(os.path.join(cur, part)):
@@ -326,8 +309,8 @@ def main():
     names = load_names(args.game)
 
     # Keep only bases a player can actually dock at: 197 in universe.ini, 181
-    # that anything in space points at, 167 that can be docked. The other 30
-    # would put a permanent floor under every percentage. Which 30 and why is
+    # that anything in space points at, 164 that can be docked. The other 33
+    # would put a permanent floor under every percentage. Which 33 and why is
     # in docking.py, deliberately not restated here.
     dockable = docking.dockable_bases(args.game, data_dir, system_files, ipath)
     bases = {k: v for k, v in bases.items() if k in dockable}
