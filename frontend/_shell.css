@@ -15,7 +15,16 @@
   .status .sep { color: #3f5a6c; }
 
   /* --- the tab strip ------------------------------------------------------ */
-  .tabs { display: flex; gap: 2px; flex-wrap: wrap; margin: 10px 0 0; }
+  /* Sticky, because the tables under it run to hundreds of rows and losing
+     the strip means scrolling back up to change anything. It carries its own
+     background: the page ground is a radial gradient, so a flat colour here
+     would read as a seam against it. */
+  .tabbar { position: sticky; top: 0; z-index: 30; margin-bottom: 10px;
+            padding: 10px 0 8px;
+            background: rgba(4, 7, 12, .93);
+            -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--line-soft); }
+  .tabs { display: flex; gap: 2px; flex-wrap: wrap; }
   .tab { padding: 9px 20px; background: rgba(8, 20, 30, .8);
          border: 1px solid rgba(111, 216, 255, .14);
          border-bottom: 2px solid transparent; color: var(--faint);
@@ -28,11 +37,9 @@
             border-bottom-color: var(--docked); color: var(--text); }
   /* Smaller and unnotched, so two stacked strips do not read as two of the
      same thing. */
-  .subtabs { display: flex; gap: 2px; flex-wrap: wrap; margin: 2px 0 0; }
+  .subtabs { display: flex; gap: 2px; flex-wrap: wrap; margin-top: 2px; }
   .subtabs .tab { font-size: 11px; padding: 6px 15px; letter-spacing: .14em;
                   clip-path: none; }
-  .tabs + .subtabs { margin-bottom: 10px; }
-  .tabs:not(:has(+ .subtabs:not([hidden]))) { margin-bottom: 10px; }
 
   /* --- the engine strip --------------------------------------------------- */
   /*

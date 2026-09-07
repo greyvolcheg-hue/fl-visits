@@ -44,6 +44,10 @@ on one line stops being a strip and becomes a menu. Which sub-tab you were last
 on is remembered per parent, so leaving Routes for Map and coming back returns
 to Routes.
 
+**The strip sticks to the top of the window.** The tables under it run to
+hundreds of rows and the rumor list to nearly a hundred thousand pixels, so
+losing the tabs means scrolling all the way back up to change anything.
+
 **Overview** is the glance you take on undocking: how much of the sector you
 have opened, where the campaign has got to, what is unfound in the system you
 are standing in, what the base under your feet is worth carrying out of, and
