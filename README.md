@@ -28,12 +28,12 @@ Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
-The web page has six tabs, three of which carry sub-tabs, and one strip that is
-on screen whatever tab you are reading:
+The web page has seven tabs, three of which carry sub-tabs:
 
 | Tab | Sub-tabs |
 |---|---|
 | **Overview** | none |
+| **Engine** | none |
 | **Map** | Systems, Chart |
 | **Equipment** | DPS, Search |
 | **Trade** | Data, Deltas, Routes |
@@ -63,14 +63,14 @@ a system whose wrecks are all found but not all emptied stays in the list.
 a short list of what is left. The folding happens once per tab: open a house and the five-second
 poll will not shut it again.
 
-**The engine strip** sits above the tab row on every page, because what it
-changes applies to the whole running game and not to the page you happen to be
-reading. It was a tab of its own until 2026-09-07.
+**Engine** is every control that reaches into the running game, split into what
+is written to memory and what is written to a file, because those two have
+completely different lifetimes and one panel should not let you confuse them.
 
-Four controls are always visible: cruise speed, trade lane speed, best path and
-the docking takeover. `ALL KNOBS` opens the rest, split into what is written
-into memory and what is written to a file, because those two have completely
-different lifetimes and the strip should not let you confuse them.
+It was a strip above the tab row for a few hours on 2026-09-07, following the
+design canvas, and that did not survive contact: it polled the game from every
+page, and being redrawn on every tick of that poll it kept losing clicks. It is
+a tab, and a tab is polled only while you are looking at it.
 
 A slider posts when you let go of it, never while you drag: `input` fires per
 pixel and every one of those would be a write into a live game. The number
@@ -78,7 +78,7 @@ under your thumb follows the drag; the game hears about it once.
 
 **Cruise speed** runs 300 to 5000 and applies to the next cruise burn with no
 reload. It writes to the game's memory, never to a save or a file. Close the
-game and the setting is gone; `constants.ini` is still the default. The strip
+game and the setting is gone; `constants.ini` is still the default. The tab
 says so when no game is running, which is the usual state.
 
 This exists because cruise speed is a single global read once at startup, with

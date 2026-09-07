@@ -36,14 +36,13 @@
 
   /* --- the engine strip --------------------------------------------------- */
   /*
-     Always on screen, on every tab, because what it changes applies to the
-     whole game and not to the page you happen to be reading. It replaced the
-     Speed tab on 2026-09-07.
+     The Engine tab. It was a strip above the tab row for a few hours on
+     2026-09-07 and that is written up in frontend/engine.py: it polled the
+     running game from every page and kept losing clicks to its own redraw.
   */
   .engine { border: 1px solid rgba(111, 216, 255, .24);
             background: var(--card-lift); clip-path: var(--notch);
-            box-shadow: inset 0 0 40px rgba(111, 216, 255, .06);
-            margin-top: 10px; }
+            box-shadow: inset 0 0 40px rgba(111, 216, 255, .06); }
   .engine .strip { display: grid; align-items: stretch;
                    grid-template-columns: minmax(300px, 2.4fr)
                                           repeat(auto-fit, minmax(140px, 1fr)); }
@@ -115,8 +114,10 @@
                           background: rgba(255, 179, 71, .04); }
   .engine .banner.files .kind { color: var(--revealed); }
   .engine .banner.files .say { color: var(--amber-dim); }
+  /* `start`, not the default stretch: the thruster box is six sliders tall
+     and every neighbour was being padded out to match it. */
   .engine .grid { padding: 14px 16px;
-                  display: grid; gap: 14px;
+                  display: grid; gap: 14px; align-items: start;
                   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .engine .box { border: 1px solid rgba(111, 216, 255, .14); padding: 10px 12px;
                  display: flex; flex-direction: column; gap: 7px; }

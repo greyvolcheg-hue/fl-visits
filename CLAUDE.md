@@ -330,6 +330,29 @@ dropped rather than printed. Until this was understood the page printed a bare
 `%M` at the end of a sentence, which reads as corruption.
 
 
+## Settled: the engine controls are a tab, not a strip
+
+Tried on 2026-09-07, following the design canvas, and reverted the same day at
+the owner's call after it would not work for him. Two things were wrong with it
+and both are structural, not cosmetic:
+
+- **It polled the running game from every page.** Reading cruise, lane, best
+  path and the docking takeover means scanning process memory, and the strip
+  did it every five seconds whether you were reading Trade, the log or nothing
+  at all. A tab polls only while it is open, which is the rule everything else
+  on this page already follows.
+- **It was rebuilt on every tick of that poll**, and a browser only fires
+  `click` when the press and the release land on the same element. See the next
+  section. `paint()` fixed the mechanism and the owner still could not open the
+  drawer, so the strip went rather than the hunt continuing.
+
+As a tab it also stopped showing two of its controls twice. Best path and the
+docking takeover were in the strip and again in the drawer, which is two places
+to read one setting.
+
+The canvas still draws it as a strip. That part of the design is not
+implemented and this is why.
+
 ## Settled: a poll that rewrites identical markup swallows clicks
 
 Found 2026-09-07, an hour after the redesign shipped, from the owner's report
@@ -394,10 +417,8 @@ concrete tracks and reads exactly like a hand-written column list.
 
 ## Writing to the running game
 
-The engine strip changes cruise speed in a live Freelancer, and this is the
-only part of the project that writes anything anywhere. It was the Speed tab
-until 2026-09-07 and is now above the tab row on every page, because what it
-changes applies to the whole game rather than to the page you are reading. It writes to process memory,
+The Engine tab changes cruise speed in a live Freelancer, and this is the only
+part of the project that writes anything anywhere. It writes to process memory,
 never to a save and never to a game file.
 
 It exists because `CRUISING_SPEED` is a single global in `constants.ini`, read
@@ -417,7 +438,7 @@ Searching for the speed value is useless, plain `1000.0` matched 6948 places,
 which is what killed the first two attempts.
 
 A change lasts until the game is closed. `constants.ini` still says what it
-said, which is the intended split: the file is the default, the strip is the
+said, which is the intended split: the file is the default, the tab is the
 session.
 
 `kernel.yama.ptrace_scope` is 0 on this machine, so no privileges beyond the
@@ -625,7 +646,7 @@ affect is how quickly the ring itself spins up, which is a separate complaint
 and has `spin_accel` and `secs_before_enter` beside it if it ever comes up.
 
 Also worth knowing when reading these files: `CRUISING_SPEED` in
-`constants.ini` currently says 5000.0, written by the engine strip's persist
+`constants.ini` currently says 5000.0, written by the Engine tab's persist
 button, and 153 asteroid field files carry a scaled `fill_dist` from
 `drawdist.py`. Both have `.vanilla` backups.
 

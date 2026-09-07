@@ -1,4 +1,4 @@
-"""The frame every view sits in: top bar, engine strip, tabs, render, poll.
+"""The frame every view sits in: top bar, tabs, render, poll.
 
 Views register themselves into `VIEW`:
 
@@ -16,10 +16,12 @@ Views register themselves into `VIEW`:
 was a 133-line chain of `if (tab === ...)` that repeated the same four steps
 per view.
 
-**The engine strip is not a view.** It sits above the tab row on every tab,
-because what it changes applies to the whole running game rather than to the
-page you happen to be reading. `frontend/engine.py` draws it and `poll` below
-ticks it, the same way it ticks the open tab.
+**Only the open tab is polled**, including the Engine tab. Reading the running
+game means scanning process memory, so a panel nobody is looking at must not
+cost anything. The engine controls were a strip above the tab row for a few
+hours on 2026-09-07 and that is exactly what went wrong with it: it polled the
+game from every page, and it was rebuilt on every tick whatever you were
+reading.
 """
 
 import os
@@ -166,7 +168,6 @@ function render() {
   $('#wrap').classList.toggle('chart', tab === 'chart');
   $('#sub').textContent = v.sub || 'SIRIUS SECTOR / FL-VISITS';
   drawStatus();
-  drawEngine();
   if (v.save && !latest) return;
   if (v.draw) {
     const html = v.draw(latest);
@@ -179,14 +180,12 @@ function render() {
 
 // Only the open tab is polled. Locating a value in the game means scanning
 // some 440 MiB of process memory, so refreshing a panel nobody is looking at
-// would burn real CPU. The engine strip is the exception and says why in
-// frontend/engine.py.
+// would burn real CPU. Nothing is exempt from that, the Engine tab included.
 async function poll() {
   try {
     const r = await fetch('api/state', { cache: 'no-store' });
     if (r.ok) { latest = await r.json(); polledAt = Date.now() / 1000; }
   } catch (e) { /* server gone; keep the last good state */ }
-  await pollEngine();
   const v = VIEW[tab];
   if (v && v.poll) { try { await v.poll(); } catch (e) {} }
   render();

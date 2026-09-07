@@ -50,10 +50,7 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "views-check.png"
 PASSES = ("empty", "full")
 FEEDS = {
     "latest": ["state"], "logData": ["log"], "ovData": ["overview"],
-    # The engine strip is not a view, but `render()` draws it on every pass,
-    # so a ReferenceError in it takes the page down exactly like one in a tab.
-    # The second string opens the drawer, which is separate markup.
-    "eng": ["engine", "engine?all=1"],
+    "eng": ["engine?all=1"],
     "tradeData": ["trade", "trade?good=commodity_gold"],
     "deltaData": ["deltas", "deltas?base=li01_01_base&good=commodity_water"],
     "routeData": ["routes", "routes?from=li01&to=rh01"],
@@ -68,6 +65,7 @@ FEEDS = {
 # built and the pass reports `ok` for a page that answers nothing. Naming the
 # table each string was chosen to produce is what tells those two apart.
 DREW = {
+    "engine": ".engine .box",
     "log": ".entry",
     "log:save": ".entry",
     "log:news": ".entry .head",
@@ -120,10 +118,6 @@ function grids(id) {
 function expand() {
   if (tradeData && tradeData.hold.systems.length)
     holdSys = tradeData.hold.systems[0].sys;
-  // The engine drawer is half the strip's markup and never drawn until it is
-  // opened, so open it: the LIVE MEMORY and GAME FILES blocks are exactly the
-  // kind of last-term concatenation that has taken this page down before.
-  engOpen = true;
 }
 
 function draw(pass, id, want) {

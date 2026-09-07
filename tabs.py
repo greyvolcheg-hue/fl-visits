@@ -22,6 +22,7 @@ import importlib
 # the strip shows no second row for it.
 LAYOUT = [
     ("overview", "Overview", ["overview"]),
+    ("engine", "Engine", ["engine"]),
     ("map", "Map", ["systems", "chart"]),
     ("gear", "Equipment", ["dps", "search"]),
     ("trade", "Trade", ["trade", "deltas", "routes"]),
@@ -29,12 +30,7 @@ LAYOUT = [
     ("log", "Neural Net", ["log"]),
 ]
 
-# Pairs that are part of the frame rather than a tab. The engine strip sits
-# above the tab row on every page, because what it changes applies to the whole
-# running game; it is a pair of files like any tab and simply has no row above.
-FRAME = ["engine"]
-
-LEAVES = [name for _id, _label, kids in LAYOUT for name in kids] + FRAME
+LEAVES = [name for _id, _label, kids in LAYOUT for name in kids]
 
 
 def _half(side, name):
