@@ -1,6 +1,15 @@
-"""Speed: cruise, thrusters, trade lanes, docking and draw distance, live.
+"""The engine strip: cruise, thrusters, lanes, docking and draw distance.
 
-The page half is in `frontend/speed.py`.
+The page half is in `frontend/engine.py`, and unlike every other pair here it
+is not a tab: the strip sits above the tab row on every page, because what it
+changes applies to the whole running game.
+
+**`/api/engine` is what the strip polls, and it exists to make one request
+where there were five.** It also stops at the first `find_pid`: with no game
+running there is nothing to read and four more failed scans say so four more
+times. The two expensive readings are behind `?all=1`, because `drawdist`
+surveys 153 files on disk and the strip is polled every five seconds whether
+or not anyone has opened the drawer.
 """
 
 from .live import bestpath as bp
@@ -17,6 +26,9 @@ from .live import tradelane as tl
 SPEED_CHOICES = [300, 500, 750, 1000, 1500, 2000, 2500, 5000]
 # 2500 is vanilla, 10000 is flhack's own ceiling, kept rather than reinvented.
 TRADELANE_CHOICES = [2500, 5000, 7500, 10000]
+# Where the docking takeover slider may go. 1000 is stock and 200 is what
+# settled after the owner flew 100, 200, 400 and 600 on 2026-09-05.
+TAKEOVER_RANGE = [100, 1000, 50]
 # A multiple of each field's own vanilla value. Geometry grows with the cube of
 # the radius, so 2x is roughly 8x the rocks.
 DRAWDIST_CHOICES = [1, 1.25, 1.5, 2]
@@ -61,6 +73,7 @@ def _thrusters(ctx):
 def _tradelane(ctx):
     """Trade lane speed and the HUD's own ceiling, or why not."""
     body = {"choices": TRADELANE_CHOICES, "vanilla": tl.VANILLA,
+            "takeover_range": TAKEOVER_RANGE,
             "value": None, "uncapped": False, "shown": None,
             "instant": False, "takeover": None,
             "takeover_default": dkd.NON_STATION,
@@ -124,7 +137,36 @@ def _bestpath(ctx):
     return body
 
 
-API = {"speed": _speed, "thrusters": _thrusters, "tradelane": _tradelane, "drawdist": _drawdist, "bestpath": _bestpath}
+def _engine(ctx):
+    """Every reading the strip shows, in one request and one pid lookup.
+
+    The per-knob endpoints below it are still real and still the ones a POST
+    answers with, so a reading has one spelling and this composes them rather
+    than repeating any of them.
+    """
+    body = {"running": False, "error": None, "cruise": None, "lane": None,
+            "best": None, "thrusters": None, "draw": None}
+    try:
+        sp.find_pid()
+        body["running"] = True
+    except sp.NotRunning as exc:
+        body["error"] = str(exc)
+        # The draw distance is a file, not a process, so it is readable with
+        # the game shut and is the one thing worth answering here.
+        if ctx.one("all"):
+            body["draw"] = _drawdist(ctx)
+        return body
+    body["cruise"] = _speed(ctx)
+    body["lane"] = _tradelane(ctx)
+    body["best"] = _bestpath(ctx)
+    if ctx.one("all"):
+        body["thrusters"] = _thrusters(ctx)
+        body["draw"] = _drawdist(ctx)
+    return body
+
+
+API = {"engine": _engine, "speed": _speed, "thrusters": _thrusters,
+       "tradelane": _tradelane, "drawdist": _drawdist, "bestpath": _bestpath}
 
 def _set_speed(ctx, sent):
     # Re-located every time: common.dll moves between runs, and the game may
@@ -151,15 +193,21 @@ def _set_tradelane(ctx, sent):
             rate, on = tl.set_accel(bool(sent["instant"]))
             return f"wind-up {rate:g}, {'near-instant' if on else 'stock'}"
         if "takeover" in sent:
-            # A toggle: the distance is a setting, not a choice made here, and
-            # only the game can say which way the patch is now.
+            # A distance, or a falsy value meaning "take the patch out". The
+            # distance is four bytes in the cave once the stub is in, so
+            # changing it does not re-patch anything.
+            want = sent["takeover"]
             installed, _d, _v = dkd.takeover_state()
-            if installed:
-                dkd.takeover_off()
+            if not want:
+                if installed:
+                    dkd.takeover_off()
                 return f"docking takes over at the stock {dkd.SENTINEL:g} again"
-            dkd.takeover_on(dkd.NON_STATION)
-            return (f"docking now takes over at {dkd.NON_STATION:g} "
-                    "for lanes and gates")
+            want = float(want)
+            if installed:
+                dkd.set_takeover(want)
+            else:
+                dkd.takeover_on(want)
+            return f"docking now takes over at {want:g} for lanes and gates"
         return f"trade lane speed set to {tl.set_speed(float(sent['value'])):g}"
 
 

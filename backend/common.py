@@ -16,6 +16,7 @@ from .game import equipment as eqp
 from .game import flvisits as fl
 from .game import market as mk
 from .game import reputation as rep
+from .game import ships as sh
 from .game import weapons as wp
 from .game import wrecks as wr
 
@@ -95,6 +96,10 @@ class GameData:
         # Prices never change while the game runs; only which bases
         # you have seen does, and that comes from the save.
         self.market = mk.load_market(game_dir)
+        # The 115 ship archetypes, by the hash a save names them with. Read
+        # once here because two tabs want the hold size and re-reading every
+        # DATA/SHIPS/*.ini per request to learn one number is absurd.
+        self.ships = sh.load_ships(game_dir)
         # Guns and shields with their stats, prices and dealers. Static too,
         # and it reuses `weapons` and `trade.base_index` rather than parsing
         # any of it a second time.

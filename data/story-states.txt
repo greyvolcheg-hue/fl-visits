@@ -1,0 +1,54 @@
+# The story states, in order, lowest first.
+#
+# `[StoryInfo] MissionNum` in a save is an index into this list. Checked on
+# every save on this disk, 18 of them, and every one agreed:
+# Mission_01a -> 1, Mission_02 -> 7, Mission_13 -> 40, No_Mission -> 5.
+#
+# The names are not in any INI. They live as a contiguous block of strings in
+# DLLS/BIN/content.dll, written there in reverse. `news.ini` gates every one of
+# its 403 items on a pair of them, and `mbases.ini` gates its rumors the same
+# way, so this list is what makes "what was on the wire back then" answerable.
+#
+# Extracted 2026-09-07 by backend/game/story.py's own note; do not hand-edit.
+base_0_rank
+mission_01a_loaded
+mission_01a_accepted
+mission_01b_loaded
+mission_01b_accepted
+freetime_01_02
+mission_02_loaded
+mission_02_accepted
+freetime_02_03
+mission_03_loaded
+mission_03_accepted
+freetime_03_04
+mission_04_loaded
+mission_04_accepted
+freetime_04_05
+mission_05_loaded
+mission_05_accepted
+freetime_05_06
+mission_06_loaded
+mission_06_accepted
+freetime_06_07
+mission_07_loaded
+mission_07_accepted
+freetime_07_08
+mission_08_loaded
+mission_08_accepted
+freetime_08_09
+mission_09_loaded
+mission_09_accepted
+freetime_09_10
+mission_10_loaded
+mission_10_accepted
+freetime_10_11
+mission_11_loaded
+mission_11_accepted
+freetime_11_12
+mission_12_loaded
+mission_12_accepted
+freetime_12_13
+mission_13_loaded
+mission_13_accepted
+mission_end

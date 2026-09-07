@@ -1,0 +1,29 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<div class="wrap" id="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <span class="markname">NEURAL COMPANION</span>
+      <span class="sub" id="sub">loading…</span>
+    </div>
+    <div class="status" id="status"></div>
+  </header>
+  <div class="engine" id="engine"></div>
+  <nav class="tabs" id="tabs"></nav>
+  <nav class="subtabs" id="subtabs" hidden></nav>
+  <div class="totals" id="totals"></div>
+  <div class="controls" id="togglewrap">
+    <label class="toggle">
+      <input type="checkbox" id="ext" checked> <span id="extlabel"></span>
+    </label>
+    <label class="toggle">
+      <input type="checkbox" id="hidedone" checked> <span id="hidelabel"></span>
+    </label>
+    <span class="groupacts">
+      <button id="collapseall">COLLAPSE ALL</button>
+      <button id="expandall">EXPAND ALL</button>
+    </span>
+  </div>
+  <div id="list"></div>
+</div>

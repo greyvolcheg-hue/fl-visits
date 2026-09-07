@@ -1,0 +1,146 @@
+  /* --- the top bar -------------------------------------------------------- */
+  .topbar { display: flex; align-items: center; justify-content: space-between;
+            gap: 18px; padding: 16px 4px 8px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .markname { font-size: 19px; font-weight: 700; letter-spacing: .26em;
+              color: var(--cyan-hi); text-shadow: 0 0 18px var(--glow); }
+  .brand .sub { font-family: var(--mono); font-size: 11px; letter-spacing: .16em;
+                color: var(--fainter); }
+  .status { display: flex; align-items: center; gap: 10px; font-family: var(--mono);
+            font-size: 11px; letter-spacing: .1em; color: var(--faint); }
+  .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+                 box-shadow: 0 0 10px var(--ok); }
+  .status .dot.cold { background: var(--unknown); box-shadow: none; }
+  .status .file { color: var(--dim); }
+  .status .sep { color: #3f5a6c; }
+
+  /* --- the tab strip ------------------------------------------------------ */
+  .tabs { display: flex; gap: 2px; flex-wrap: wrap; margin: 10px 0 0; }
+  .tab { padding: 9px 20px; background: rgba(8, 20, 30, .8);
+         border: 1px solid rgba(111, 216, 255, .14);
+         border-bottom: 2px solid transparent; color: var(--faint);
+         font-family: var(--display); font-size: 12.5px; font-weight: 600;
+         letter-spacing: .16em; cursor: pointer;
+         clip-path: polygon(0 7px, 7px 0, 100% 0, 100% 100%, 0 100%); }
+  .tab:hover { filter: brightness(1.35); }
+  .tab.on { background: rgba(111, 216, 255, .16);
+            border-color: rgba(111, 216, 255, .4);
+            border-bottom-color: var(--docked); color: var(--text); }
+  /* Smaller and unnotched, so two stacked strips do not read as two of the
+     same thing. */
+  .subtabs { display: flex; gap: 2px; flex-wrap: wrap; margin: 2px 0 0; }
+  .subtabs .tab { font-size: 11px; padding: 6px 15px; letter-spacing: .14em;
+                  clip-path: none; }
+  .tabs + .subtabs { margin-bottom: 10px; }
+  .tabs:not(:has(+ .subtabs:not([hidden]))) { margin-bottom: 10px; }
+
+  /* --- the engine strip --------------------------------------------------- */
+  /*
+     Always on screen, on every tab, because what it changes applies to the
+     whole game and not to the page you happen to be reading. It replaced the
+     Speed tab on 2026-09-07.
+  */
+  .engine { border: 1px solid rgba(111, 216, 255, .24);
+            background: var(--card-lift); clip-path: var(--notch);
+            box-shadow: inset 0 0 40px rgba(111, 216, 255, .06);
+            margin-top: 10px; }
+  .engine .strip { display: grid; align-items: stretch;
+                   grid-template-columns: minmax(300px, 2.4fr)
+                                          repeat(auto-fit, minmax(140px, 1fr)); }
+  .engine .main { min-width: 0; padding: 11px 20px;
+                  border-right: 1px solid rgba(111, 216, 255, .16);
+                  background: rgba(111, 216, 255, .05);
+                  display: flex; flex-direction: column; gap: 6px;
+                  justify-content: center; }
+  .engine .lead { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .engine .pip { width: 6px; height: 6px; background: var(--ok);
+                 box-shadow: 0 0 8px var(--ok); }
+  .engine .pip.cold { background: var(--unknown); box-shadow: none; }
+  .engine .lead .live { font-family: var(--mono); font-size: 10px;
+                        letter-spacing: .2em; color: var(--ok); }
+  .engine .lead .live.cold { color: var(--faint); }
+  .engine .lead .range { font-family: var(--mono); font-size: 10px;
+                         letter-spacing: .2em; color: var(--faint); }
+  .engine .big { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  .engine .big .val { font-family: var(--mono); font-size: 34px; font-weight: 600;
+                      line-height: .9; color: var(--cyan-hi);
+                      text-shadow: 0 0 26px var(--glow); }
+  .engine .presets { display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 2px; }
+  .engine .knob { min-width: 0; padding: 12px 15px;
+                  border-right: 1px solid rgba(111, 216, 255, .12);
+                  display: flex; flex-direction: column; gap: 7px;
+                  justify-content: center; }
+  .engine .knob:last-child { border-right: 0; }
+  .engine .knob .top { display: flex; align-items: baseline;
+                       justify-content: space-between; gap: 8px; }
+  .engine .knob .lbl { font-family: var(--mono); font-size: 9.5px;
+                       letter-spacing: .16em; color: var(--faint);
+                       white-space: nowrap; text-transform: none; margin: 0; }
+  .engine .knob .val { font-family: var(--mono); font-size: 15px; font-weight: 600;
+                       white-space: nowrap; color: var(--cyan-hi); }
+  .engine .knob .val.off { color: var(--faint); }
+  .engine .knob .val.on { color: var(--ok); }
+  .engine button.chip { padding: 2px 12px; background: rgba(111, 216, 255, .06);
+                        border: 1px solid rgba(111, 216, 255, .24); color: #8fd4f0;
+                        font-family: var(--mono); font-size: 10px;
+                        letter-spacing: .14em; cursor: pointer; align-self: flex-start; }
+  .engine button.chip:hover { filter: brightness(1.4); }
+  .engine button.chip.on { background: rgba(95, 224, 160, .12);
+                           border-color: rgba(95, 224, 160, .4); color: var(--ok); }
+  .engine button.chip:disabled { opacity: .35; cursor: default; }
+  .engine .presets button { padding: 2px 7px; background: rgba(111, 216, 255, .05);
+                            border: 1px solid rgba(111, 216, 255, .2);
+                            color: var(--faint); font-family: var(--mono);
+                            font-size: 10px; cursor: pointer; }
+  .engine .presets button.on { background: rgba(111, 216, 255, .2);
+                               border-color: rgba(111, 216, 255, .5);
+                               color: var(--text); }
+  .engine .presets button:disabled { opacity: .35; cursor: default; }
+  .engine .more { width: 100%; padding: 7px 18px; background: rgba(111, 216, 255, .06);
+                  border: 0; border-top: 1px solid rgba(111, 216, 255, .16);
+                  color: var(--docked); font-family: var(--mono); font-size: 10px;
+                  letter-spacing: .18em; text-align: left; cursor: pointer; }
+  .engine .more:hover { background: rgba(111, 216, 255, .14); }
+  .engine .drawer { border-top: 1px solid rgba(111, 216, 255, .16);
+                    background: rgba(4, 10, 16, .6); }
+  .engine .banner { display: flex; align-items: baseline; gap: 14px;
+                    padding: 11px 16px 9px; flex-wrap: wrap;
+                    border-bottom: 1px solid rgba(111, 216, 255, .12); }
+  .engine .banner .kind { font-family: var(--mono); font-size: 10px;
+                          letter-spacing: .22em; color: var(--docked); }
+  .engine .banner .say { font-size: 11.5px; color: var(--dim); }
+  /* Amber is the whole signal here: this half writes to disk. */
+  .engine .banner.files { border-top: 1px solid rgba(255, 179, 71, .2);
+                          border-bottom-color: rgba(255, 179, 71, .16);
+                          background: rgba(255, 179, 71, .04); }
+  .engine .banner.files .kind { color: var(--revealed); }
+  .engine .banner.files .say { color: var(--amber-dim); }
+  .engine .grid { padding: 14px 16px;
+                  display: grid; gap: 14px;
+                  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .engine .box { border: 1px solid rgba(111, 216, 255, .14); padding: 10px 12px;
+                 display: flex; flex-direction: column; gap: 7px; }
+  .engine .box .top { display: flex; align-items: baseline;
+                      justify-content: space-between; gap: 8px; }
+  .engine .box .lbl { font-family: var(--mono); font-size: 9.5px;
+                      letter-spacing: .18em; color: var(--faint); }
+  .engine .box .val { font-family: var(--mono); font-size: 14px; font-weight: 600;
+                      color: var(--cyan-hi); }
+  .engine .box .val.off { color: var(--faint); }
+  .engine .box .val.on { color: var(--ok); }
+  /* The six thrusters share one explanation, so they share one box. */
+  .engine .box.many { gap: 4px; }
+  .engine .box.many .top { padding-top: 4px; }
+  .engine .box .why { font-size: 11px; line-height: 1.4; color: var(--dim); }
+  .engine .box .from { font-family: var(--mono); font-size: 9.5px;
+                       letter-spacing: .12em; color: var(--faint); }
+  .engine .box.file { border-color: rgba(255, 179, 71, .3);
+                      background: rgba(255, 179, 71, .05); }
+  .engine .box.file .lbl { color: var(--revealed); }
+  .engine .box.file .val { color: var(--amber-hi); }
+  .engine .box.file .why { color: var(--amber-dim); }
+  .engine .box.file button.chip { background: rgba(255, 179, 71, .12);
+                                  border-color: rgba(255, 179, 71, .45);
+                                  color: var(--amber-hi); }
+  .engine .said { font-size: 11px; color: var(--dim); }
+  .engine .said.bad { color: var(--amber-hi); }

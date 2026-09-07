@@ -49,9 +49,11 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "views-check.png"
 # populated call; where it has one, the same payload is drawn in both passes.
 PASSES = ("empty", "full")
 FEEDS = {
-    "latest": ["state"], "speed": ["speed"], "thrusters": ["thrusters"],
-    "logData": ["log"],
-    "lane": ["tradelane"], "draw": ["drawdist"], "best": ["bestpath"],
+    "latest": ["state"], "logData": ["log"], "ovData": ["overview"],
+    # The engine strip is not a view, but `render()` draws it on every pass,
+    # so a ReferenceError in it takes the page down exactly like one in a tab.
+    # The second string opens the drawer, which is separate markup.
+    "eng": ["engine", "engine?all=1"],
     "tradeData": ["trade", "trade?good=commodity_gold"],
     "deltaData": ["deltas", "deltas?base=li01_01_base&good=commodity_water"],
     "routeData": ["routes", "routes?from=li01&to=rh01"],
@@ -67,6 +69,7 @@ FEEDS = {
 # table each string was chosen to produce is what tells those two apart.
 DREW = {
     "log": ".entry",
+    "overview": ".ovpanel",
     "data": ".tradetable .gun",
     "deltas": ".desttable .gun",
     "routes": ".routetable .gun",
@@ -77,6 +80,13 @@ DREW = {
 # whole table silently reads one column out of step. That shipped on
 # 2026-09-06, when a nav map cell was added to four row templates and two of
 # the grids were left at their old column count.
+#
+# **A grid that is meant to wrap says so with `wrapgrid`.** The Overview's
+# panels flow into as many columns as fit and its label/value list runs two
+# abreast for as long as it needs to, and neither is a row with a fixed set of
+# cells. Marking them beats guessing from the computed style, which resolves
+# `repeat(auto-fit, ...)` to concrete tracks and so cannot be told apart from a
+# hand-written column list.
 DRIVER = r"""
 const REPORT = [], GRID = [];
 
@@ -88,7 +98,7 @@ const REPORT = [], GRID = [];
 // `getComputedStyle` on every span in the gear table is the slow half.
 function grids(id) {
   document.querySelectorAll('#list *').forEach(row => {
-    if (!row.children.length) return;
+    if (!row.children.length || row.classList.contains('wrapgrid')) return;
     const st = getComputedStyle(row);
     if (st.display !== 'grid') return;
     const cols = st.gridTemplateColumns.split(' ').length;
@@ -107,6 +117,10 @@ function grids(id) {
 function expand() {
   if (tradeData && tradeData.hold.systems.length)
     holdSys = tradeData.hold.systems[0].sys;
+  // The engine drawer is half the strip's markup and never drawn until it is
+  // opened, so open it: the LIVE MEMORY and GAME FILES blocks are exactly the
+  // kind of last-term concatenation that has taken this page down before.
+  engOpen = true;
 }
 
 function sweep(pass, drew) {

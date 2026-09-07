@@ -2,6 +2,14 @@
 
 ID, LABEL = "search", "Search"
 
+CSS = """
+  .geartable { min-width: 40rem; }
+  .geartable .gun, .geartable .gunhead { grid-template-columns: inherit; }
+  /* A row is a button in all but name: clicking one opens where to buy it. */
+  .good { cursor: pointer; }
+  .good.on { border-color: var(--docked); }
+"""
+
 JS = r"""
 let gearData = null, gearKind = 'guns', gearFilters = [],
     gearOpen = '', gearVisitedOnly = false, gearSort = '', gearDir = 'down';

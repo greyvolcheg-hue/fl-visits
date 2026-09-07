@@ -55,29 +55,34 @@ def load_ships(game_dir):
     return out
 
 
-def player_ship(game_dir, save_path):
-    """{nickname, name, hold} for the ship in this save, or None.
+def from_save(save_text, ships):
+    """{nickname, name, hold} for the ship in this decoded save, or None.
+
+    Takes the text and the loaded table because both are already in hand once
+    per request: the save is decoded once under the lock and the 115 ship files
+    are read once at startup. `player_ship` below is the version for a command
+    line, where neither is.
 
     None rather than a guessed default: a wrong hold size would silently
     multiply every figure on the Routes tab by the wrong number, which is worse
     than the tab saying it does not know.
     """
-    try:
-        text = fl.decode_save(save_path)
-    except (OSError, ValueError):
-        return None
-    want = None
-    for line in text.splitlines():
+    for line in save_text.splitlines():
         head, _, tail = line.partition("=")
         if head.strip().lower() == "ship_archetype":
             try:
-                want = int(tail.split(",")[0].strip())
+                return ships.get(int(tail.split(",")[0].strip()))
             except (TypeError, ValueError):
                 return None
-            break
-    if want is None:
+    return None
+
+
+def player_ship(game_dir, save_path):
+    """The same, for a caller holding only paths."""
+    try:
+        return from_save(fl.decode_save(save_path), load_ships(game_dir))
+    except (OSError, ValueError):
         return None
-    return load_ships(game_dir).get(want)
 
 
 def main():

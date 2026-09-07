@@ -16,7 +16,7 @@ def _routes(ctx):
         # Per-unit margin is only half the answer: what a run is worth
         # is that times what the ship can carry. Read from the save, so
         # it follows the player into a new hull.
-        ship = sh.player_ship(ctx.game.dir, ctx.save)
+        ship = sh.from_save(ctx.saved(), ctx.game.ships)
         if ship and ship.get("hold"):
             body["ship"] = ship["name"]
             body["hold"] = ship["hold"]

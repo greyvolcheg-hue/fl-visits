@@ -3,6 +3,8 @@
 ID, LABEL = "chart", "Chart"
 
 CSS = """
+  .nochart { color: var(--amber-dim); }
+
   /* The one panel that takes the window rather than the 60rem column. */
   .wrap.chart { max-width: none; }
   .chartimg { display: block; margin-top: .75rem; }

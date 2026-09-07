@@ -2,6 +2,26 @@
 
 ID, LABEL = "rep", "Reputation"
 
+CSS = """
+  .reptable { min-width: 42rem; }
+  .reptable .gun, .reptable .gunhead {
+    grid-template-columns: minmax(14rem, 1fr) 5rem 4rem 14rem; }
+  .reprow { cursor: pointer; }
+  .reprow .others { text-align: left; color: var(--faint); font-size: 11px;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reprow:hover { border-color: var(--docked); }
+  .repwhy { margin: -.1rem 0 .5rem 1rem; padding-left: .9rem;
+            border-left: 2px solid var(--line); }
+  .repline { display: grid; gap: .5rem; padding: .1rem 0; font-size: 11.5px;
+             font-family: var(--mono);
+             grid-template-columns: minmax(12rem, 1fr) 4.5rem 4.5rem 4.5rem; }
+  .repline .nm { color: var(--faint); font-family: var(--display); }
+  .repline span:not(.nm) { text-align: right; }
+  .rephead { color: var(--fainter); font-family: var(--mono); font-size: 9.5px;
+             letter-spacing: .18em; text-transform: uppercase; padding-bottom: .1rem; }
+  .rephead .nm { text-align: left; }
+"""
+
 JS = r"""
 let repData = null, repTarget = '', repGoal = 'neutral';
 // Trade tab. The commodity list arrives once; the rows come per commodity,

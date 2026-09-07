@@ -1,4 +1,4 @@
-"""The frame every view sits in: tab strip, shared helpers, render, poll.
+"""The frame every view sits in: top bar, engine strip, tabs, render, poll.
 
 Views register themselves into `VIEW`:
 
@@ -15,20 +15,29 @@ Views register themselves into `VIEW`:
 `render` and `poll` then have no idea what a tab is. They used to: `render`
 was a 133-line chain of `if (tab === ...)` that repeated the same four steps
 per view.
+
+**The engine strip is not a view.** It sits above the tab row on every tab,
+because what it changes applies to the whole running game rather than to the
+page you happen to be reading. `frontend/engine.py` draws it and `poll` below
+ticks it, the same way it ticks the open tab.
 """
 
-CSS = open(__file__.replace("shell.py", "_css.txt")).read()
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+CSS = (open(os.path.join(HERE, "_theme.css")).read()
+       + open(os.path.join(HERE, "_shell.css")).read())
 
 JS = r"""
 // Where you were inside each parent, so coming back to Map does not always
-// dump you on Visits.
+// dump you on Systems.
 const leaf = { map: 'systems', gear: 'dps', trade: 'data' };
 // `topTab`, not `top`: `window.top` is non-configurable, so a global `let top`
 // is a SyntaxError that kills the whole script before a line of it runs.
-let topTab = 'map', tab = 'systems', latest = null;
+let topTab = 'overview', tab = 'overview', latest = null, polledAt = null;
 
-// Per tab, not per page: what you want expanded on Visits has nothing to do
-// with Wrecks, and "finished" means something different on each.
+// Per tab, not per page: what you want expanded on Systems has nothing to do
+// with anywhere else, and "finished" means something different on each.
 const extended = { systems: true };
 const hideDone = { systems: true };
 const collapsed = { systems: {} };
@@ -45,14 +54,23 @@ function foldOnFirstSight(d) {
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 const money = v => v.toLocaleString();
 
+// How long ago, in words. Used by the top bar and by the hold panel, which is
+// where it was until the top bar wanted the same sentence.
+function ago(t) {
+  const s = Date.now() / 1000 - t;
+  if (s < 90) return Math.max(0, Math.round(s)) + 's ago';
+  if (s < 5400) return Math.round(s / 60) + ' min ago';
+  return Math.round(s / 3600) + ' h ago';
+}
+
 function totals(pairs) {
   $('#totals').innerHTML = pairs
     .map(([n, l]) => `<div><span class="n">${n}</span><span class="lbl">${l}</span></div>`).join('');
 }
 
 // `fold` is optional: {id, open} makes the card a fold with a caret and a
-// data-sys handle. Speed reuses this look for Cruise and Thrusters and passes
-// nothing, so those stay open and unclickable.
+// data-sys handle. Anything reusing this look and passing nothing stays open
+// and unclickable.
 function card(title, done, total, percent, body, fold) {
   const shell = fold ? `class="sys foldable" data-sys="${esc(fold.id)}"` : 'class="sys"';
   const caret = fold ? `<span class="caret">${fold.open ? '▾' : '▸'}</span>` : '';
@@ -69,8 +87,8 @@ function byHouse(d, rows, renderRow, tally) {
   const shut = collapsed[tab] || {};
   return (d.house_order || []).filter(h => bucket[h]).map(h => {
     const rs = bucket[h], [done, total] = tally(rs), off = !!shut[h];
-    // Only a grouped heading carries data-house; Speed reuses the look for
-    // Cruise and Thrusters and must stay unfoldable.
+    // Only a grouped heading carries data-house; anything reusing the look
+    // must stay unfoldable.
     return `<h2 class="house" data-house="${esc(h)}">` +
            `<span class="caret">${off ? '▸' : '▾'}</span>${esc(h)}` +
            `<span class="hcount">${done} / ${total}</span></h2>` +
@@ -109,14 +127,27 @@ function go(parent, child) {
   if (v && v.open) v.open();
 }
 
+// The save this page is following, and how fresh what you are looking at is.
+// Two different ages and both matter: the save is written by the game when it
+// feels like it, the poll is us.
+function drawStatus() {
+  const cold = !latest;
+  $('#status').innerHTML =
+    `<span class="dot${cold ? ' cold' : ''}"></span>` +
+    (cold ? '<span>no save read yet</span>'
+          : `<span class="file">${esc(latest.save)}</span>` +
+            `<span class="sep">|</span><span>saved ${ago(latest.saved_at)}</span>`) +
+    (polledAt ? `<span class="sep">|</span><span>polled ${ago(polledAt)}</span>` : '');
+}
+
 function render() {
   const v = VIEW[tab] || {};
   $('#totals').hidden = !!v.bare;
   $('#togglewrap').hidden = !!v.bare;
   $('#wrap').classList.toggle('chart', tab === 'chart');
-  if (v.sub) $('#sub').textContent = v.sub;
-  else if (latest) $('#sub').textContent =
-    `${latest.save} · updated ${new Date(latest.saved_at * 1000).toLocaleTimeString()}`;
+  $('#sub').textContent = v.sub || 'SIRIUS SECTOR / FL-VISITS';
+  drawStatus();
+  drawEngine();
   if (v.save && !latest) return;
   if (v.draw) {
     const html = v.draw(latest);
@@ -127,12 +158,14 @@ function render() {
 
 // Only the open tab is polled. Locating a value in the game means scanning
 // some 440 MiB of process memory, so refreshing a panel nobody is looking at
-// would burn real CPU.
+// would burn real CPU. The engine strip is the exception and says why in
+// frontend/engine.py.
 async function poll() {
   try {
     const r = await fetch('api/state', { cache: 'no-store' });
-    if (r.ok) latest = await r.json();
+    if (r.ok) { latest = await r.json(); polledAt = Date.now() / 1000; }
   } catch (e) { /* server gone; keep the last good state */ }
+  await pollEngine();
   const v = VIEW[tab];
   if (v && v.poll) { try { await v.poll(); } catch (e) {} }
   render();

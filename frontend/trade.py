@@ -2,6 +2,31 @@
 
 ID, LABEL = "data", "Data"
 
+CSS = """
+  .tradetable { min-width: 40rem; }
+  .tradetable .gun, .tradetable .gunhead {
+    grid-template-columns: 5rem 3.5rem minmax(12rem, 1fr) minmax(8rem, 1fr) 5rem; }
+  .tradetable .gunhead span:first-child { text-align: right; }
+  /* Green edge means the shelf has it: the only rows you can buy at. */
+  .traderow.sells { border-color: rgba(95, 224, 160, .45); }
+  .holdbar { display: flex; align-items: baseline; flex-wrap: wrap; gap: .6rem;
+             background: var(--panel); border: 1px solid var(--line);
+             clip-path: var(--notch); padding: .6rem 1rem; margin: 0 0 .8rem; }
+  .holdbar .when { color: var(--faint); font-family: var(--mono);
+                   font-size: 10.5px; margin-left: auto; }
+  .holdtable { min-width: 40rem; }
+  .holdtable .gun, .holdtable .gunhead {
+    grid-template-columns: minmax(10rem, 1fr) 6rem 3.5rem 6rem minmax(8rem, 1fr); }
+  .holdrow { cursor: pointer; }
+  .holdrow.on { border-color: var(--docked); }
+  /* Same grid as the row above it minus the system, so the figures line up
+     under the total they add to. */
+  .holdleg { display: grid; align-items: baseline; gap: .9rem;
+             grid-template-columns: minmax(8rem, 1fr) 7rem 6rem
+                                    minmax(8rem, 1fr) 5rem;
+             font-size: 11.5px; }
+"""
+
 JS = r"""
 let tradeData = null, tradeGood = '', tradeVisitedOnly = false, holdSys = '';
 // Deltas sub-tab. `deltaQuery` is the base picker's search box, null when it is

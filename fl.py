@@ -31,6 +31,7 @@ COMMANDS = {
     "netlog": "backend.game.netlog",
     "reputation": "backend.game.reputation",
     "ships": "backend.game.ships",
+    "story": "backend.game.story",
     "visits": "backend.game.flvisits",
     "weapons": "backend.game.weapons",
     "wrecks": "backend.game.wrecks",

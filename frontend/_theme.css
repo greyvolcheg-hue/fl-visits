@@ -1,0 +1,246 @@
+  /* The Neural Companion palette, straight off the design canvas in design/.
+     Two families of colour and they are not interchangeable:
+
+       cyan    the instrument. Borders, accents, anything the tool itself says.
+       amber   your attention. Loot still aboard, and every control that
+               touches a file on disk rather than memory.
+
+     `--ok` green is reserved for finished: a wreck stripped, a system closed
+     out, a write that landed. It is never used for emphasis, because then
+     "green" would mean two things. */
+  :root {
+    --void: #04070c;
+    --bg: #04070c;
+    --panel: rgba(9, 21, 32, .92);
+    --card: rgba(11, 25, 37, .72);
+    --card-lift: linear-gradient(180deg, rgba(16, 38, 54, .95), rgba(8, 20, 30, .95));
+    --line: rgba(111, 216, 255, .2);
+    --line-soft: rgba(111, 216, 255, .1);
+    --glow: rgba(111, 216, 255, .55);
+
+    --docked: #6fd8ff;      /* the accent: focus, hover, "this one" */
+    --cyan-hi: #9fe4ff;     /* a number being read */
+    --text: #cfe6f5;
+    --dim: #8fb3c8;
+    --faint: #7d97ab;
+    --fainter: #5d7f96;
+    --unknown: #456375;
+
+    --ok: #5fe0a0;
+    --revealed: #ffb347;    /* amber: still loaded, and every file write */
+    --amber-hi: #ffcf8a;
+    --amber-dim: #c9a877;
+    --bad: #ff7a6e;
+
+    --display: 'Chakra Petch', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    /* The notch. One value, so every panel is cut the same amount and a panel
+       that wants a different one is a decision rather than a typo. */
+    --notch: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px),
+                     calc(100% - 10px) 100%, 0 100%);
+  }
+  * { box-sizing: border-box; }
+  /* The page hides things with the `hidden` property, and a class selector
+     carrying `display: flex` outranks the browser's own `[hidden]` rule. The
+     Speed tab set `hidden` on the totals row and the Show All bar and both
+     stayed on screen because of exactly that. Make the property mean what it
+     says rather than adding a second mechanism beside it. */
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; padding: 0 18px 60px; min-height: 100vh;
+    background: radial-gradient(1200px 700px at 20% -10%, #0a1c2b 0%, #04070c 70%)
+                var(--void);
+    color: var(--text);
+    font: 14px/1.55 var(--display);
+  }
+  /* The scanlines. Fixed, so they do not scroll with the page and read as a
+     screen rather than as a texture printed on it. Pointer events off or the
+     whole page would be unclickable. */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 60; pointer-events: none;
+    background: repeating-linear-gradient(180deg,
+      rgba(111, 216, 255, .045) 0 1px, transparent 1px 3px);
+    mix-blend-mode: screen;
+  }
+  .wrap { max-width: 1680px; margin: 0 auto; position: relative; z-index: 2; }
+
+  /* --- prose ------------------------------------------------------------ */
+  .note { color: var(--dim); font-size: 11.5px; line-height: 1.5;
+          margin: 0 0 .9rem; max-width: 84ch; }
+  .note.warn { color: var(--amber-dim); }
+  .note b.ok { color: var(--ok); font-weight: 600; }
+  .note code, code { font-family: var(--mono); font-size: .92em;
+                     color: var(--faint); }
+  .empty { color: var(--faint); font-size: 12.5px; padding: .6rem 0; }
+  .loot { color: var(--dim); font-size: 11.5px; }
+  /* The owning faction. Dimmed and a size down so it reads as an annotation
+     on the base name rather than as a second name; the dotted underline is
+     what says the hover has something to give. */
+  .fac { color: var(--fainter); font-size: .85em; font-family: var(--mono);
+         border-bottom: 1px dotted var(--line); cursor: help; }
+  .cell { flex: none; width: 3.6rem; color: #4d7d96;
+          font-family: var(--mono); font-size: 11px;
+          font-variant-numeric: tabular-nums; }
+
+  /* --- a panel ----------------------------------------------------------- */
+  .sys { background: var(--card); border: 1px solid var(--line);
+         padding: .8rem 1rem; margin-bottom: .5rem; }
+  .head { display: flex; align-items: center; gap: .75rem; }
+  .head b { font-size: 13.5px; font-weight: 600; letter-spacing: .03em; }
+  .count { margin-left: auto; color: var(--faint); font-family: var(--mono);
+           font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .bar { height: 4px; background: rgba(111, 216, 255, .1); margin: .5rem 0 .1rem;
+         overflow: hidden; }
+  .bar i { display: block; height: 100%;
+           background: linear-gradient(90deg, #2a86b8, var(--docked));
+           box-shadow: 0 0 12px var(--glow); }
+  .caret { flex: none; width: .8rem; color: var(--docked); font-family: var(--mono);
+           font-size: 11px; }
+
+  h2.house { display: flex; align-items: center; gap: .75rem;
+             font-family: var(--display); font-size: 13px; font-weight: 700;
+             letter-spacing: .2em; text-transform: uppercase; color: var(--dim);
+             margin: 1.4rem 0 .5rem; padding: .5rem .9rem;
+             background: rgba(111, 216, 255, .04);
+             border: 1px solid var(--line-soft); }
+  h2.house:first-child { margin-top: 0; }
+  h2.house[data-house] { cursor: pointer; user-select: none; }
+  h2.house[data-house]:hover { color: var(--cyan-hi);
+                               background: rgba(111, 216, 255, .1); }
+  .hcount { margin-left: auto; font-family: var(--mono); font-size: 11.5px;
+            letter-spacing: 0; text-transform: none; font-weight: 400;
+            color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  .row { display: flex; gap: .6rem; margin: .3rem 0; font-size: 12.5px;
+         align-items: baseline; }
+  .tag { flex: none; width: 6rem; font-family: var(--mono); font-size: 9.5px;
+         letter-spacing: .16em; text-transform: uppercase; padding-top: .15rem; }
+  .tag.d { color: var(--docked); }
+  .tag.r { color: var(--revealed); }
+  .tag.u { color: var(--unknown); }
+  .row.u span { color: #6a899c; }
+  .atlist { display: flex; flex-direction: column; gap: .15rem; }
+  .atrow { display: flex; gap: .5rem; align-items: baseline; }
+
+  /* --- the numbers row --------------------------------------------------- */
+  .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 1.6rem; padding: 1.1rem 1.3rem; margin-bottom: .9rem;
+            background: var(--card-lift); border: 1px solid var(--line);
+            clip-path: var(--notch); }
+  .totals div span { display: block; }
+  .n { font-family: var(--mono); font-size: 32px; font-weight: 600;
+       line-height: 1.05; color: var(--cyan-hi);
+       text-shadow: 0 0 22px rgba(111, 216, 255, .45); }
+  .lbl { color: var(--fainter); font-family: var(--mono); font-size: 9.5px;
+         letter-spacing: .24em; text-transform: uppercase; margin-top: .2rem; }
+
+  /* --- controls ---------------------------------------------------------- */
+  button, select, input { font-family: var(--display); }
+  label.toggle { display: inline-flex; align-items: center; gap: .5rem;
+                 cursor: pointer; color: var(--faint); font-family: var(--mono);
+                 font-size: 11px; letter-spacing: .06em; }
+  label.toggle input { accent-color: var(--docked); }
+  .controls { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap;
+              padding: .7rem 1rem; margin-bottom: .7rem;
+              background: var(--panel); border: 1px solid var(--line);
+              clip-path: var(--notch); }
+  .groupacts { display: flex; gap: .4rem; margin-left: auto; }
+  /* One button look, everywhere. The HUD has exactly two states for a
+     control, resting and chosen, and `.on` is the chosen one. */
+  .groupacts button, .logbar button, .holdbar button,
+  .addgun, .entry .acts button {
+    background: rgba(111, 216, 255, .06); color: #8fd4f0; cursor: pointer;
+    border: 1px solid var(--line); font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .12em; padding: .35rem .8rem;
+  }
+  .groupacts button:hover, .logbar button:hover, .holdbar button:hover,
+  .addgun:hover, .entry .acts button:hover {
+    background: rgba(111, 216, 255, .16); color: var(--text);
+  }
+  .logbar button.on, .entry .acts button.on {
+    background: rgba(111, 216, 255, .2); border-color: rgba(111, 216, 255, .5);
+    color: var(--cyan-hi);
+  }
+  .addgun:disabled { opacity: .35; cursor: default; }
+
+  select, input[type=text], input[type=search] {
+    background: rgba(4, 10, 16, .9); color: var(--text);
+    border: 1px solid rgba(111, 216, 255, .24); font-family: var(--mono);
+    font-size: 12px; padding: .4rem .6rem; outline: none;
+  }
+  select:focus, input:focus { border-color: var(--docked); }
+  .reppick { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+             padding: .7rem 1rem; margin-bottom: .7rem;
+             background: var(--panel); border: 1px solid var(--line);
+             clip-path: var(--notch); }
+  .reppick .sys { background: none; border: 0; padding: 0; margin: 0;
+                  color: var(--faint); font-size: 11.5px; }
+  .pick { display: flex; align-items: baseline; gap: .7rem; margin: 0 0 .7rem; }
+  .pick .nm { font-size: 14px; font-weight: 600; }
+  .pick .sys { background: none; border: 0; padding: 0; margin: 0;
+               color: var(--faint); font-family: var(--mono); font-size: 11px; }
+  .filters { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 .8rem; }
+  .filter { display: flex; align-items: center; gap: .45rem;
+            background: var(--card); border: 1px solid var(--line);
+            padding: .25rem .5rem .25rem .7rem; }
+  .filter .nm { font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+                text-transform: uppercase; color: var(--faint); }
+  .filter select, .filter input { font-size: 11.5px; padding: .15rem .35rem; }
+  .filter input { width: 5.5rem; text-align: right;
+                  font-variant-numeric: tabular-nums; }
+
+  /* --- the table shared by six tabs -------------------------------------- */
+  .guns { overflow-x: auto; }
+  .gun, .gunhead {
+    display: grid; align-items: baseline; gap: .5rem;
+    grid-template-columns: minmax(9rem, 1fr) repeat(2, 4.2rem) repeat(2, 5rem)
+                           4.2rem 4.2rem 1.4rem;
+  }
+  .gun { padding: .5rem .85rem; background: var(--card);
+         border: 1px solid var(--line-soft); margin-bottom: .25rem;
+         font-size: 12.5px; }
+  .gun:hover { border-color: var(--line); }
+  .gun .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+             white-space: nowrap; }
+  .gun .num { text-align: right; font-family: var(--mono);
+              font-variant-numeric: tabular-nums; }
+  .gun .num.h { color: var(--ok); }
+  .gun .num.s { color: var(--revealed); }
+  .gun .num.up { color: var(--ok); }
+  .gun .num.raw { color: var(--faint); font-size: 11px; }
+  /* The full-hold figure is the one being read, so it carries the weight. */
+  .gun .num.big { font-weight: 600; color: var(--cyan-hi); }
+  .gun .kill { background: none; border: none; color: var(--faint);
+               cursor: pointer; font: inherit; padding: 0; text-align: right; }
+  .gun .kill:hover { color: var(--bad); }
+  .gun.sum { background: none; border: 0; border-top: 1px solid var(--line);
+             margin-top: .4rem; font-weight: 600; }
+  .gunhead { padding: 0 .85rem .3rem; color: var(--fainter);
+             font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em;
+             text-transform: uppercase; }
+  .gunhead span { text-align: right; }
+  .gunhead .nm, .gunhead .othershead { text-align: left; }
+  .gunhead .grp { color: var(--dim); }
+  .gunhead .sortby { cursor: pointer; user-select: none; }
+  .gunhead .sortby:hover { color: var(--cyan-hi); }
+
+  .hits { margin: .4rem 0 0; max-height: 17rem; overflow-y: auto; }
+  .hit { display: flex; gap: .75rem; align-items: baseline; width: 100%;
+         text-align: left; background: none; border: none; color: var(--text);
+         font: inherit; font-size: 12.5px; cursor: pointer; padding: .3rem .85rem; }
+  .hit:hover { background: rgba(111, 216, 255, .08); }
+  .hit .num { flex: none; width: 5rem; text-align: right; color: var(--faint);
+              font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .hit .nm + .nm { flex: none; width: 10rem; color: var(--faint);
+                   font-size: 11.5px; }
+
+  /* A sibling of the row, not a cell in it: .gun is its own grid, so the
+     expansion sits outside and is tied to the row by the rule down its left. */
+  .gearwhere { display: flex; flex-direction: column; gap: .15rem;
+               margin: .05rem 0 .6rem 1.9rem; padding-left: .9rem;
+               border-left: 2px solid var(--line); }
+  /* Scoped to the Equipment rows on purpose. `.holdleg` is the other thing
+     inside this container and sizes its own last track at 5rem, so an
+     unscoped 9rem overflowed that column by 4rem and put a horizontal
+     scrollbar inside `.guns`. */
+  .gearwhere .atrow .cell { width: 9rem; }

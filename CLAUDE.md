@@ -104,7 +104,7 @@ denominator, and the denominator filter sat in both `flvisits.py` and
 the same failure the first thaw was for.
 
 The edit was kept to the smallest shape that removes the duplicate instead of
-adding a third copy of it: the rule moved to `docking.py` and both callers now
+adding a third copy of it: the rule moved to `bases.py` and both callers now
 ask that. Eight lines changed in the frozen file, all of them in `main()`, none
 in the decoding, the hash or the loaders.
 
@@ -150,13 +150,13 @@ reading catches that.
 - Denominator starts from the `[Base]` list in `universe.ini` (197), not the
   count of dockable space objects (250). A planet's mooring fixture is a second
   object pointing at the same base, so counting objects double counts every
-  planet. 197 then narrows to 181 reachable and 164 dockable; `docking.py` owns
+  planet. 197 then narrows to 181 reachable and 164 dockable; `bases.py` owns
   that and says why. 164 instead of 167 because Tohoku's two and Alaska's one
   are excluded by name: both systems are story-gated and nothing in the data
   says so. That rests on the owner's knowledge of the game and on no evidence.
   An earlier note here cited the saves, which was wrong: Tohoku is M09 and
   Alaska is M11, the save is on Mission_05, so their absence means only that
-  he has not reached them. `docking.py` carries the correction.
+  he has not reached them. `bases.py` carries the correction.
 
 ## Known gaps, deliberately not fixed
 
@@ -219,7 +219,7 @@ of this section, run-time reputation gating invisible in the files, was wrong:
 the reason is in the data and the denominator is now 167 instead of 181.
 
 The rule, and the three candidates that had to be eliminated to find it, are in
-`docking.py`. It is not restated here, and it is not duplicated in `flvisits.py`
+`bases.py`. It is not restated here, and it is not duplicated in `flvisits.py`
 or `serve.py`: both call it. Those two held their own copies of the old
 "reachable" filter and that is exactly how they drifted apart in August.
 
@@ -236,10 +236,42 @@ read as if it were a system. The fix is to follow the `file` key that
 `universe.ini` gives for each declared system instead, which excludes stray
 files by construction.
 
+## The look: `design/Neural Companion.dc.html` is the source, not a screenshot
+
+Added 2026-09-07. The page's visual language is a Claude Design canvas that
+lives in `design/`, drawn by the owner: dark HUD, Chakra Petch over IBM Plex
+Mono, cyan for the instrument and amber for anything that touches a file.
+Overview and Systems are drawn in full; Equipment, Trade, Reputation and Neural
+Net are drawn as markup; **Chart is the one screen it does not cover**, and was
+built from the same panel, border and label vocabulary as the rest.
+
+Read it before changing how anything looks. Its values are in
+`frontend/_theme.css` as tokens and nowhere else, so a colour has one spelling.
+
+**The canvas emits inline styles because that is how its editor works; the page
+uses classes.** Do not port a `style="..."` across. And a tab's own selectors
+live in that tab's module rather than in the theme: the two grid-column bugs
+this project has shipped were both a row template and its column list drifting
+apart in two different files.
+
+Three places the page deliberately departs from the canvas, all for the same
+reason, that every engine control writes into a live game: a slider posts on
+release rather than per pixel of drag, a redraw is held off while a slider is
+under a thumb, and the two expensive readings behind `ALL KNOBS` are fetched
+only when it is open. `frontend/engine.py` says so at the top.
+
+`check_views.py` skips any grid carrying `wrapgrid`. That is the marker for a
+grid that is meant to wrap, the Overview's panel flow and its label/value list,
+as against a table row whose cell count must match its column list. It cannot
+be told from the computed style, because `repeat(auto-fit, ...)` resolves to
+concrete tracks and reads exactly like a hand-written column list.
+
 ## Writing to the running game
 
-The Speed tab changes cruise speed in a live Freelancer, and this is the only
-part of the project that writes anything anywhere. It writes to process memory,
+The engine strip changes cruise speed in a live Freelancer, and this is the
+only part of the project that writes anything anywhere. It was the Speed tab
+until 2026-09-07 and is now above the tab row on every page, because what it
+changes applies to the whole game rather than to the page you are reading. It writes to process memory,
 never to a save and never to a game file.
 
 It exists because `CRUISING_SPEED` is a single global in `constants.ini`, read
@@ -259,7 +291,7 @@ Searching for the speed value is useless, plain `1000.0` matched 6948 places,
 which is what killed the first two attempts.
 
 A change lasts until the game is closed. `constants.ini` still says what it
-said, which is the intended split: the file is the default, the tab is the
+said, which is the intended split: the file is the default, the strip is the
 session.
 
 `kernel.yama.ptrace_scope` is 0 on this machine, so no privileges beyond the
@@ -401,7 +433,7 @@ the filter is ever removed: the shield list is led by `npc_shield01_mark10` at
 **The rule for what gets listed is acquirability**, not a nickname pattern: sold
 at a dockable base, or present in a wreck. That keeps the 17 codenamed guns,
 which are the hardest hitting in the game and are wreck loot, and drops the 12
-mission weapons that are in neither place. Same shape as `docking.py`'s rule and
+mission weapons that are in neither place. Same shape as `bases.py`'s rule and
 the Trade tab's undockable markets.
 
 ## Systems are identified by nickname, never by display name
@@ -413,7 +445,7 @@ and `Ew06`.
 
 Only one of each group has a market, so keying the trade selectors on labels
 would have worked today, by luck, and broken the moment anything looked at the
-single-player-only or multiplayer-only systems. `trade.py` rows therefore carry
+single-player-only or multiplayer-only systems. `market.py` rows therefore carry
 both `sys_nick` and `system`: the nickname is the identity, the label is what
 gets printed.
 
@@ -458,7 +490,7 @@ affect is how quickly the ring itself spins up, which is a separate complaint
 and has `spin_accel` and `secs_before_enter` beside it if it ever comes up.
 
 Also worth knowing when reading these files: `CRUISING_SPEED` in
-`constants.ini` currently says 5000.0, written by the Speed tab's persist
+`constants.ini` currently says 5000.0, written by the engine strip's persist
 button, and 153 asteroid field files carry a scaled `fill_dist` from
 `drawdist.py`. Both have `.vanilla` backups.
 

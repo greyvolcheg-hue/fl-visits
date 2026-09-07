@@ -76,7 +76,7 @@ PAGE = f"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Freelancer visits</title>
 <style>{frontend.css(PAGES)}</style>
-{frontend.read("_body.txt")}
+{frontend.read("_shell.html")}
 <script>
 const $ = s => document.querySelector(s);
 const TABS = {json.dumps(tabs.tabs())};

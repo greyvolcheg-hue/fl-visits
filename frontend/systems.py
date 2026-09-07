@@ -12,6 +12,16 @@ side, and their two system rows had drifted into different shapes.
 ID, LABEL = "systems", "Systems"
 
 CSS = """
+  .wreck { display: flex; gap: .6rem; margin: .25rem 0; font-size: 12.5px;
+           align-items: baseline; }
+  .wreck .mark { flex: none; width: 1rem; text-align: center;
+                 font-family: var(--mono); }
+  .wreck .nm { flex: none; min-width: 12rem; }
+  .wreck.f .mark { color: var(--ok); }
+  .wreck.o .mark, .wreck.o .nm { color: var(--revealed); }
+  .wreck.m .mark { color: var(--unknown); }
+  .wreck.m .nm { color: #6a899c; }
+
   /* The owning faction, dimmed and a size down so it reads as an annotation
      rather than a second name. The dotted underline advertises the hover. */
   .fac { color: var(--dim); font-size: .85em; border-bottom: 1px dotted var(--line);

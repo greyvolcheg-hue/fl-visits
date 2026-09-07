@@ -21,15 +21,20 @@ import importlib
 # (parent id, parent label, [leaf names]). A parent with one leaf is that leaf:
 # the strip shows no second row for it.
 LAYOUT = [
+    ("overview", "Overview", ["overview"]),
     ("map", "Map", ["systems", "chart"]),
-    ("speed", "Speed", ["speed"]),
     ("gear", "Equipment", ["dps", "search"]),
-    ("log", "Neural Net", ["log"]),
-    ("rep", "Reputation", ["rep"]),
     ("trade", "Trade", ["trade", "deltas", "routes"]),
+    ("rep", "Reputation", ["rep"]),
+    ("log", "Neural Net", ["log"]),
 ]
 
-LEAVES = [name for _id, _label, kids in LAYOUT for name in kids]
+# Pairs that are part of the frame rather than a tab. The engine strip sits
+# above the tab row on every page, because what it changes applies to the whole
+# running game; it is a pair of files like any tab and simply has no row above.
+FRAME = ["engine"]
+
+LEAVES = [name for _id, _label, kids in LAYOUT for name in kids] + FRAME
 
 
 def _half(side, name):

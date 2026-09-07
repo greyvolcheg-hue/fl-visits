@@ -5,6 +5,28 @@ The endpoint is in `backend/log.py`.
 
 ID, LABEL = "log", "Neural Net"
 
+CSS = """
+  .logbar { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+            padding: .7rem 1rem; margin-bottom: .7rem; background: var(--panel);
+            border: 1px solid var(--line); clip-path: var(--notch); }
+  .logbar .count { color: var(--faint); font-family: var(--mono);
+                   font-size: 11px; margin-left: auto; }
+  .entry { background: var(--panel); border: 1px solid var(--line-soft);
+           border-left: 2px solid transparent; padding: .8rem 1rem;
+           margin-bottom: .3rem; }
+  .entry.read { opacity: .45; }
+  .entry.star { border-left-color: var(--revealed); }
+  .entry .body { white-space: pre-wrap; overflow-wrap: anywhere;
+                 font-size: 12.5px; line-height: 1.5; max-width: 96ch; }
+  .entry .subs { margin: .5rem 0 0; padding-left: 1rem; color: var(--faint);
+                 font-size: 11.5px; }
+  .entry .acts { display: flex; gap: .35rem; margin-top: .6rem; }
+  .entry .acts button { padding: .15rem .6rem; font-size: 9.5px; }
+  .entry .acts button.on.done { background: rgba(95, 224, 160, .12);
+                                border-color: rgba(95, 224, 160, .4);
+                                color: var(--ok); }
+"""
+
 JS = r"""
 let logData = null, logNewestFirst = true, logPersonalOnly = true;
 

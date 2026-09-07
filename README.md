@@ -28,19 +28,27 @@ Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
 
-The web page has six tabs, two of which carry sub-tabs:
+The web page has six tabs, three of which carry sub-tabs, and one strip that is
+on screen whatever tab you are reading:
 
 | Tab | Sub-tabs |
 |---|---|
+| **Overview** | none |
 | **Map** | Systems, Chart |
 | **Equipment** | DPS, Search |
-| Speed, Neural Net, Reputation | none |
 | **Trade** | Data, Deltas, Routes |
+| Reputation, Neural Net | none |
 
 Two levels because the pairs group naturally, and because eight or nine buttons
 on one line stops being a strip and becomes a menu. Which sub-tab you were last
 on is remembered per parent, so leaving Routes for Map and coming back returns
 to Routes.
+
+**Overview** is the glance you take on undocking: how much of the sector you
+have opened, where the campaign has got to, what is unfound in the system you
+are standing in, what the base under your feet is worth carrying out of, and
+whoever likes you least. Every panel is a doorway into the tab that owns the
+full answer, and nothing on it is computed only there.
 
 **Systems** is one tree: house, then system, then the bases and the wrecks in
 it. Both levels start shut. Bases and wrecks used to be two tabs asking the same
@@ -55,19 +63,32 @@ a system whose wrecks are all found but not all emptied stays in the list.
 a short list of what is left. The folding happens once per tab: open a house and the five-second
 poll will not shut it again.
 
-**Speed** changes the cruise speed of the running game, from 300 to 5000, and
-it applies to the next cruise burn with no reload. It is the one thing here that writes, and it writes to the game's
-memory, never to a save or a file. Close the game and the setting is gone; `constants.ini` is still the
-default. The tab says so when no game is running, which is the usual state.
+**The engine strip** sits above the tab row on every page, because what it
+changes applies to the whole running game and not to the page you happen to be
+reading. It was a tab of its own until 2026-09-07.
+
+Four controls are always visible: cruise speed, trade lane speed, best path and
+the docking takeover. `ALL KNOBS` opens the rest, split into what is written
+into memory and what is written to a file, because those two have completely
+different lifetimes and the strip should not let you confuse them.
+
+A slider posts when you let go of it, never while you drag: `input` fires per
+pixel and every one of those would be a write into a live game. The number
+under your thumb follows the drag; the game hears about it once.
+
+**Cruise speed** runs 300 to 5000 and applies to the next cruise burn with no
+reload. It writes to the game's memory, never to a save or a file. Close the
+game and the setting is gone; `constants.ini` is still the default. The strip
+says so when no game is running, which is the usual state.
 
 This exists because cruise speed is a single global read once at startup, with
 no per-zone version anywhere in the game data, so "fast in open space, slow in
 an asteroid field" is not expressible in the files at all.
 
-**Thrusters** does the same for the six thrusters, from 120 to 420. These are
+**Thrusters** do the same for the six thrusters, from 120 to 420. These are
 **bonuses added to your normal speed, not the speed itself**: setting 320 gives
 you base plus 320. Vanilla is 120 on all six. All six are listed, so swapping thrusters needs no code change. Same rules as
-Speed: memory only, gone when the game closes.
+cruise: memory only, gone when the game closes.
 
 **Trade lanes** sets the speed inside a lane, 2500 (vanilla) to 10000. This one
 is not in any data file at all: `constants.ini` has no key for it, the

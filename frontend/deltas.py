@@ -2,6 +2,19 @@
 
 ID, LABEL = "deltas", "Deltas"
 
+CSS = """
+  .goodtable { min-width: 42rem; }
+  .goodtable .gun, .goodtable .gunhead {
+    grid-template-columns: minmax(11rem, 1fr) 4.5rem 4.5rem 5rem minmax(12rem, 1.4fr); }
+  .desttable { min-width: 40rem; }
+  .desttable .gun, .desttable .gunhead {
+    grid-template-columns: 5rem 5rem minmax(12rem, 1fr) minmax(8rem, 1fr) 5rem; }
+  .traderow.sells { border-color: rgba(95, 224, 160, .45); }
+  /* A good is a button in all but name: clicking one opens its destinations. */
+  .good { cursor: pointer; }
+  .good.on { border-color: var(--docked); }
+"""
+
 JS = r"""
 let deltaData = null, deltaBase = '', deltaGood = '',
     deltaVisitedOnly = false, deltaQuery = null;

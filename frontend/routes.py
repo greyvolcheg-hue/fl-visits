@@ -3,6 +3,15 @@
 ID, LABEL = "routes", "Routes"
 
 CSS = """
+  .routetable { min-width: 46rem; }
+  .routetable .gun, .routetable .gunhead {
+    grid-template-columns: minmax(10rem, 1fr) 4.5rem 4.5rem 5rem
+                           minmax(9rem, 1fr) minmax(9rem, 1fr); }
+  .routetable.withrun { min-width: 52rem; }
+  .routetable.withrun .gun, .routetable.withrun .gunhead {
+    grid-template-columns: minmax(10rem, 1fr) 4.5rem 4.5rem 4.5rem 6rem
+                           minmax(8rem, 1fr) minmax(8rem, 1fr); }
+
   /* The nav map cell, trailing the base it belongs to. */
   .at { color: var(--dim); font-style: normal; font-size: .85em; margin-left: .35rem; }
 """

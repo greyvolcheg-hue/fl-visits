@@ -2,6 +2,15 @@
 
 ID, LABEL = "dps", "DPS"
 
+CSS = """
+  .guntable { min-width: 46rem; }
+  #gunsearch { width: 100%; padding: .5rem .75rem; background: rgba(4, 10, 16, .9);
+               color: var(--text); border: 1px solid rgba(111, 216, 255, .24);
+               font-family: var(--mono); font-size: 12px; outline: none; }
+  #gunsearch:focus { border-color: var(--docked); }
+  .addgun { border-style: dashed; padding: .5rem 1rem; }
+"""
+
 JS = r"""
 let catalogue = null, gunQuery = null;
 let loadout = [];
