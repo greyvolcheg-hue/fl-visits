@@ -5,7 +5,12 @@ set -u
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
+# The port is read out of the arguments rather than assumed: passing
+# `--port 8732` used to start the server there and then wait on 8731 forever.
 PORT=8731
+for i in $(seq $#); do
+    [ "${!i}" = "--port" ] && { j=$((i + 1)); PORT="${!j}"; }
+done
 URL="http://127.0.0.1:$PORT/"
 
 python3 serve.py "$@" &

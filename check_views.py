@@ -31,7 +31,11 @@ import subprocess
 import sys
 import urllib.request
 
-BASE = "http://127.0.0.1:8731"
+# `--port N` to check a second server without stopping the one you are using.
+PORT = 8731
+if "--port" in sys.argv:
+    PORT = int(sys.argv[sys.argv.index("--port") + 1])
+BASE = f"http://127.0.0.1:{PORT}"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "views-check.png")
 
 # Which endpoint fills which view global. `state` feeds the save-backed tabs.
@@ -46,6 +50,7 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "views-check.png"
 PASSES = ("empty", "full")
 FEEDS = {
     "latest": ["state"], "speed": ["speed"], "thrusters": ["thrusters"],
+    "logData": ["log"],
     "lane": ["tradelane"], "draw": ["drawdist"], "best": ["bestpath"],
     "tradeData": ["trade", "trade?good=commodity_gold"],
     "deltaData": ["deltas", "deltas?base=li01_01_base&good=commodity_water"],
@@ -61,6 +66,7 @@ FEEDS = {
 # built and the pass reports `ok` for a page that answers nothing. Naming the
 # table each string was chosen to produce is what tells those two apart.
 DREW = {
+    "log": ".entry",
     "data": ".tradetable .gun",
     "deltas": ".desttable .gun",
     "routes": ".routetable .gun",

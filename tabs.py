@@ -1,0 +1,70 @@
+"""The site map: which tabs exist, and which pair of files each one is.
+
+Every tab is two modules with the same name, one on each side:
+
+    backend/<name>.py   API   {endpoint: fn(ctx)}          for GET  /api/<endpoint>
+                        POST  {endpoint: fn(ctx, sent)}    for POST
+                        FILES {url: (type, path, cache)}   for anything not JSON
+    frontend/<name>.py  ID, LABEL, CSS, JS, and one `VIEW.<id> = {...}`
+
+Neither half is required to exist: a tab that only draws what the shared
+`/api/state` already carries has no endpoints of its own, and a tab that serves
+a file has no page beyond the one that shows it.
+
+This file is neither backend nor frontend, because the shape of the page is
+neither. It is the only place the whole shape can be read at once, and adding a
+tab is a row here plus the file or two it names.
+"""
+
+import importlib
+
+# (parent id, parent label, [leaf names]). A parent with one leaf is that leaf:
+# the strip shows no second row for it.
+LAYOUT = [
+    ("map", "Map", ["systems", "chart"]),
+    ("speed", "Speed", ["speed"]),
+    ("gear", "Equipment", ["dps", "search"]),
+    ("log", "Neural Net", ["log"]),
+    ("rep", "Reputation", ["rep"]),
+    ("trade", "Trade", ["trade", "deltas", "routes"]),
+]
+
+LEAVES = [name for _id, _label, kids in LAYOUT for name in kids]
+
+
+def _half(side, name):
+    """One side of a tab, or None where that side does not exist."""
+    try:
+        return importlib.import_module(f"{side}.{name}")
+    except ModuleNotFoundError:
+        return None
+
+
+PAGES = {name: _half("frontend", name) for name in LEAVES}
+ENDS = {name: _half("backend", name) for name in LEAVES}
+
+
+def tabs():
+    """The tab strip, as the JS wants it."""
+    out = []
+    for tid, label, kids in LAYOUT:
+        entry = {"id": tid, "label": label}
+        if len(kids) > 1:
+            entry["kids"] = [[PAGES[k].ID, PAGES[k].LABEL] for k in kids]
+        out.append(entry)
+    return out
+
+
+def _table(modules, attr):
+    out = {}
+    for m in modules:
+        out.update(getattr(m, attr, {}) or {})
+    return out
+
+
+_ends = [m for m in ENDS.values() if m]
+_pages = [m for m in PAGES.values() if m]
+
+GET = _table(_ends, "API")
+SET = _table(_ends, "POST")
+FILES = _table(_ends, "FILES")

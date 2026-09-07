@@ -3,29 +3,63 @@
 Reads a Freelancer save game and reports what the player has found, grouped by
 system. Own git repo; the history in this folder is the undo button.
 
+## Where things live
+
+Three folders, one per layer, settled 2026-09-07 to the owner's own spec in
+`bug-and-feature-tracker.md`. **The folder a file sits in says what it may do**,
+and that is the whole point of the split:
+
+| Folder | Holds | May |
+|---|---|---|
+| `data/` | files the app ships or is given | nothing; it is data |
+| `backend/` | one `<tab>.py` per tab, plus `common.py` | read the game, answer an endpoint |
+| `backend/game/` | readers of the game's own formats | read files. No HTTP, no state |
+| `backend/live/` | the patchers | **write**: process memory, or a game file with a `.vanilla` beside it |
+| `frontend/` | one `<tab>.py` per tab, plus the shell | style and behaviour, nothing else |
+
+`tabs.py` at the root is the site map and the only place the shape of the page
+can be read at once. It is neither backend nor frontend because the shape is
+neither. `fl.py` is the one entry point for every command line.
+
 | File | What |
 |---|---|
-| `flvisits.py` | save decoding, the nickname hash, game data loading, bases CLI. **Frozen, see below.** |
-| `check_frozen.py` | fingerprints every value `flvisits.py` derives, over every save. Run before and after any thaw. |
-| `check_views.py` | draws every view in a real browser and reports which throw. Run after touching any view. |
-| `wrecks.py` | the 157 secret wrecks and their loot, as data and as a CLI |
-| `docking.py` | which bases can actually be docked at, and the denominator both programs use |
-| `navmap.py` | world position to nav map cell |
-| `speed.py` | reads and writes the cruise speed of the *running* game |
-| `thrusters.py` | the same for the six thruster bonuses |
-| `tradelane.py` | trade lane speed and the 999 cap on the HUD readout, live |
-| `persist.py` | writes the live cruise and thruster speeds back into the game's files |
-| `drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
-| `weapons.py` | gun and munition stats turned into DPS, static game data |
-| `equipment.py` | buyable guns and shields, their stats, and which dealers stock them |
-| `ships.py` | which ship the save is flying, and how big its hold is |
-| `netlog.py` | the Neural Net log out of a save, as readable text |
-| `reputation.py` | the empathy model: what an action does to every faction |
-| `trade.py` | commodity prices per base, which way each trade runs, and the margin between two of them |
-| `serve.py` | local web view on 127.0.0.1:8731, six tabs, three of them with sub-tabs |
-| `newgame.py` | what a new game starts you in, and how to change it |
-| `freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
+| `serve.py` | routes, and nothing else. 127.0.0.1:8731 |
+| `tabs.py` | which tabs exist, and which pair of files each one is |
+| `fl.py` | `fl.py <command>`; run it bare for the list |
+| `check_frozen.py` | fingerprints every value `flvisits.py` derives, over every save |
+| `check_views.py` | draws every view in a real browser and reports which throw |
+| `backend/common.py` | the loaded game, the per-request save, the house grouping |
+| `backend/game/flvisits.py` | save decoding, the nickname hash, game data loading |
+| `backend/game/bases.py` | which bases can be docked at, who owns them, and the nav map cell they sit in |
+| `backend/game/wrecks.py` | the 157 secret wrecks and their loot |
+| `backend/game/market.py` | commodity prices per base, and the margin between two of them |
+| `backend/game/weapons.py` | gun and munition stats turned into DPS |
+| `backend/game/equipment.py` | buyable guns and shields, and which dealers stock them |
+| `backend/game/reputation.py` | the empathy model: what an action does to every faction |
+| `backend/game/ships.py` | which ship the save is flying, and how big its hold is |
+| `backend/game/netlog.py` | the Neural Net log out of a save |
+| `backend/live/speed.py` | cruise speed of the *running* game |
+| `backend/live/thrusters.py` | the same for the six thruster bonuses |
+| `backend/live/tradelane.py` | trade lane speed and the 999 cap on the HUD readout |
+| `backend/live/dockdist.py` | when the autopilot cruises to a dock, and where it takes over |
+| `backend/live/bestpath.py` | let Set Best Path route through jump holes |
+| `backend/live/inject.py` | the code cave, and how a stub gets into it |
+| `backend/live/persist.py` | writes the live speeds back into the game's files |
+| `backend/live/drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
+| `backend/live/newgame.py` | what a new game starts you in |
+| `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
+| `design/` | the visual design, as a Claude Design canvas. The source the page is built from, not a screenshot of it. |
 | `run.sh` | start the server and open a browser on it |
+
+**A tab is a pair of files with the same name**, `backend/<name>.py` and
+`frontend/<name>.py`, and either half may be absent: a tab that only draws what
+`/api/state` already carries has no endpoints of its own. Adding one is a row in
+`tabs.py` plus the file or two it names.
+
+**Modules under `backend/` have no `if __name__ == "__main__"` block.** Inside a
+package a relative import has no parent, so `python3 backend/live/dockdist.py`
+cannot work and an entry point that cannot run is worse than none. Every one of
+them still has its `main()`, reached through `fl.py`.
 
 Everything new goes in its own file. `flvisits.py` supplies the primitives;
 `wrecks.py` adds its own INI reader because loadouts repeat their `equip` and

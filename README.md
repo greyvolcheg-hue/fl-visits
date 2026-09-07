@@ -11,8 +11,9 @@ cd ~/Projects/40-computer-geek/fl-visits
 
 ./run.sh                         # start the server and open the page
 python3 serve.py                 # web view on http://127.0.0.1:8731/
-python3 flvisits.py <save.fl>    # bases, in the terminal
-python3 wrecks.py <save.fl>      # wrecks, in the terminal
+python3 fl.py                    # every command line it has
+python3 fl.py visits <save.fl>   # bases, in the terminal
+python3 fl.py wrecks <save.fl>   # wrecks, in the terminal
 ```
 
 `run.sh` is the one-command version: it starts `serve.py`, waits for the port to answer instead of sleeping a guess, and opens a browser on the page. Ctrl+C
@@ -103,14 +104,14 @@ replaces atomically after checking the result decodes back to what was intended.
 Trade lane speed and the HUD cap are **not** written to files, because they are
 not in files to begin with.
 
-**`dockdist.py` is a command line only, and on purpose.** It owns docking, and
+**`fl.py dockdist` is a command line only, and on purpose.** It owns docking, and
 docking turned out to be two separate knobs that are easy to mistake for one.
 
 ```bash
-python3 dockdist.py                 # what the running game is using
-python3 dockdist.py --takeover 200  # docking takes over at 200 m
-python3 dockdist.py --takeover-off  # remove the patch, game keeps running
-python3 dockdist.py --vanilla       # everything back to stock
+python3 fl.py dockdist                 # what the running game is using
+python3 fl.py dockdist --takeover 200  # docking takes over at 200 m
+python3 fl.py dockdist --takeover-off  # remove the patch, game keeps running
+python3 fl.py dockdist --vanilla       # everything back to stock
 ```
 
 **`--takeover` is the one that does what you want.** It sets the distance at
@@ -121,7 +122,7 @@ that the approach is unplayable, and 200 is also what flhack picked on its own.
 Lanes and jump gates share the number; stations and planets keep 600, because a
 planet has a radius and 100 m from its centre is inside it.
 
-The distance lives in a descriptor, so this one is a code patch. `inject.py` puts a 75-byte stub in the zero
+The distance lives in a descriptor, so this one is a code patch. `backend/live/inject.py` puts a 75-byte stub in the zero
 padding at the end of `common.dll`'s `.text` and points two call sites at it.
 Nothing is allocated and nothing on disk is touched.
 
@@ -132,7 +133,7 @@ between the old value and the new one. It is measured from the object's centre,
 so subtract 495 to get the figure on your HUD for a lane.
 
 Memory only, both of them. A relaunch puts everything back and nothing can be
-left in a bad state. `dockdist.py` carries the disassembly.
+left in a bad state. `backend/live/dockdist.py` carries the disassembly.
 
 **Set Best Path through jump holes.** The game ships two route tables and routes
 with the duller one: `shortest_legal_path.ini` knows only jump gates, while
@@ -140,9 +141,9 @@ with the duller one: `shortest_legal_path.ini` knows only jump gates, while
 Both have been in the install since 2003. The button swaps which one gets read.
 
 ```bash
-python3 bestpath.py         # is it on, and which file each slot points at
-python3 bestpath.py --on
-python3 bestpath.py --off
+python3 fl.py bestpath         # is it on, and which file each slot points at
+python3 fl.py bestpath --on
+python3 fl.py bestpath --off
 ```
 
 Five bytes in three places, no injected code, nothing written to disk. The catch
@@ -349,7 +350,7 @@ single-system pick returns real runs and nothing degenerate.
 are actually flying, read from the save. New York → Leeds pays 840 a unit on
 Boron, which in a Sabre's 70-unit hold is 58,800 credits a trip. The
 multiplication is plain because every commodity in the game has `volume = 1.0`,
-so a hold of 70 is 70 units of anything; `ships.py` carries the note, and the
+so a hold of 70 is 70 units of anything; `backend/game/ships.py` carries the note, and the
 column disappears rather than guessing if no ship can be read.
 
 Only profitable lines are listed, with a count of what was dropped. There is no
@@ -374,7 +375,7 @@ the second.
 docked here so it is one click away while you are reading the other two.
 
 **No chart ships with this repo.** The good ones are fan-made and not mine to
-redistribute. Save any sector map as `freelancer-map.jpg` beside `serve.py` and
+redistribute. Save any sector map as `data/freelancer-map.jpg` and
 the tab picks it up; until then it says so. The community "wingless" chart is
 the one this was built against.
 
@@ -402,7 +403,7 @@ visited. *Unknown* is the rest. The denominator is 164 and never the 197 entries
 the game's own universe list: 16 are cutscene copies and story-only locations
 that no save can ever record, 15 are the Asteroid and Gas Miners, which look
 dockable in the data but refuse in play, and 3 are in Tohoku and Alaska,
-which are story-gated. `docking.py` explains how each group is told apart, and
+which are story-gated. `backend/game/bases.py` explains how each group is told apart, and
 is honest that the last three are the one exclusion no rule in the data
 produces, and that they rest on knowing the game and on nothing
 checkable in the files.
@@ -454,7 +455,7 @@ machine the install sits in an abandoned Proton prefix while play happens in a
 win32 one. `serve.py` searches sibling prefixes and takes the freshest save, so
 it copes, but do not assume the two paths are related.
 
-**`flvisits.py` is frozen.** It decodes three undocumented formats and resolves
+**`backend/game/flvisits.py` is the delicate one.** It decodes three undocumented formats and resolves
 a one-way hash by brute force; a tidy-looking edit can break it silently and
 still print a plausible report. See `CLAUDE.md` for the rule and for what
 clears it.

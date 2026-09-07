@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin:0; padding:0; background:#04070c; }
+  body { font-family:'Chakra Petch', system-ui, sans-serif; }
+  a { color:#6fd8ff; text-decoration:none; }
+  a:hover { color:#b6ecff; }
+  ::selection { background:rgba(111,216,255,.3); }
+  input[type=range] { -webkit-appearance:none; appearance:none; background:transparent; }
+  input[type=range]::-webkit-slider-runnable-track { height:7px; background:rgba(111,216,255,.12); border:1px solid rgba(111,216,255,.45); box-shadow:inset 0 0 6px rgba(111,216,255,.18); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:9px; height:19px; margin-top:-7px; background:#6fd8ff; box-shadow:0 0 8px rgba(111,216,255,.8); border:0; }
+  input[type=range]::-moz-range-track { height:7px; background:rgba(111,216,255,.12); border:1px solid rgba(111,216,255,.45); }
+  input[type=range]::-moz-range-thumb { width:9px; height:19px; border-radius:0; border:0; background:#6fd8ff; }
+  input[type=range].big::-webkit-slider-runnable-track { height:11px; background:rgba(111,216,255,.14); border:1px solid rgba(111,216,255,.55); }
+  input[type=range].big::-webkit-slider-thumb { width:13px; height:27px; margin-top:-9px; }
+  input[type=range].big::-moz-range-track { height:11px; background:rgba(111,216,255,.14); border:1px solid rgba(111,216,255,.55); }
+  input[type=range].big::-moz-range-thumb { width:13px; height:27px; }
+  @keyframes flick { 0%,97%{opacity:1} 98%{opacity:.82} 100%{opacity:1} }
+</style>
+</helmet>
+<div style="min-height:100vh; background:radial-gradient(1200px 700px at 20% -10%, #0a1c2b 0%, #04070c 70%); color:#cfe6f5; position:relative; animation:flick 9s infinite linear;">
+
+  <div style="position:fixed; inset:0; pointer-events:none; z-index:60; background:repeating-linear-gradient(180deg, rgba(111,216,255,.045) 0 1px, transparent 1px 3px); opacity:{{ scanOpacity }}; mix-blend-mode:screen;"></div>
+
+  <div style="position:relative; z-index:2; max-width:1680px; margin:0 auto; padding:0 18px 60px; display:flex; flex-direction:column; gap:10px;">
+
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:18px; padding:16px 4px 8px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:baseline; gap:14px;">
+        <div style="font-size:19px; font-weight:700; letter-spacing:.26em; color:#9fe4ff; text-shadow:0 0 18px rgba(111,216,255,.55);">NEURAL COMPANION</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.16em; color:#5d7f96;">SIRIUS SECTOR / FL-VISITS v2</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; color:#7d97ab;">
+        <span style="width:7px; height:7px; background:#5fe0a0; box-shadow:0 0 10px #5fe0a0; border-radius:50%;"></span>
+        <span style="color:#a7c6d8;">{{ saveName }}</span>
+        <span style="color:#3f5a6c;">|</span>
+        <span>polled {{ pollAge }}</span>
+      </div>
+    </div>
+
+    <div style="border:1px solid rgba(111,216,255,.24); background:linear-gradient(180deg, rgba(16,38,54,.95), rgba(8,20,30,.95)); clip-path:polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); box-shadow:inset 0 0 40px rgba(111,216,255,.06);">
+      <div style="display:grid; grid-template-columns:minmax(320px, 2.4fr) repeat(3, minmax(132px, 1fr)); align-items:stretch;">
+
+        <div style="min-width:0; padding:11px 20px 11px; border-right:1px solid rgba(111,216,255,.16); background:rgba(111,216,255,.05); display:flex; flex-direction:column; gap:6px; justify-content:center;">
+          <div style="display:flex; align-items:center; gap:9px;">
+            <span style="width:6px; height:6px; background:#5fe0a0; box-shadow:0 0 8px #5fe0a0;"></span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.2em; color:#5fe0a0; white-space:nowrap;">ENGINE LIVE</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.2em; color:#7d97ab; white-space:nowrap;">/ CRUISE 300–5000</span>
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:12px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:600; line-height:.9; white-space:nowrap; color:#9fe4ff; text-shadow:0 0 26px rgba(111,216,255,.55);">{{ cruiseValue }}</span>
+            <div style="display:flex; gap:4px; padding-bottom:2px;">
+              <sc-for list="{{ cruisePresets }}" as="p" hint-placeholder-count="4">
+                <button onClick="{{ p.set }}" style="padding:2px 7px; background:{{ p.bg }}; border:1px solid {{ p.border }}; color:{{ p.color }}; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.06em; white-space:nowrap; cursor:pointer;" style-hover="filter:brightness(1.4)">{{ p.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <input class="big" type="range" min="300" max="5000" step="50" value="{{ cruiseRaw }}" onChange="{{ onCruise }}" onInput="{{ onCruise }}" style="width:100%; height:20px; cursor:ew-resize;" />
+        </div>
+
+        <sc-for list="{{ strip }}" as="knob" hint-placeholder-count="3">
+          <div style="min-width:0; padding:12px 15px; border-right:1px solid rgba(111,216,255,.12); display:flex; flex-direction:column; gap:7px; justify-content:center;">
+            <div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; white-space:nowrap; color:#7d97ab;">{{ knob.label }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; white-space:nowrap; color:{{ knob.color }}; text-shadow:0 0 12px rgba(111,216,255,.45);">{{ knob.value }}</span>
+            </div>
+            <sc-if value="{{ knob.isRange }}" hint-placeholder-val="{{ true }}">
+              <input type="range" min="{{ knob.min }}" max="{{ knob.max }}" step="{{ knob.step }}" value="{{ knob.raw }}" onChange="{{ knob.onInput }}" onInput="{{ knob.onInput }}" style="width:100%; height:15px; cursor:ew-resize;" />
+            </sc-if>
+            <sc-if value="{{ knob.isToggle }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ knob.onToggle }}" style="align-self:flex-start; padding:2px 12px; background:{{ knob.togBg }}; border:1px solid {{ knob.togBorder }}; color:{{ knob.color }}; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; cursor:pointer;" style-hover="filter:brightness(1.4)">{{ knob.togText }}</button>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <button onClick="{{ toggleEngine }}" style="width:100%; padding:7px 18px; background:rgba(111,216,255,.06); border:0; border-top:1px solid rgba(111,216,255,.16); color:#6fd8ff; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.18em; text-align:left; cursor:pointer;" style-hover="background:rgba(111,216,255,.14)">{{ engineBtn }}</button>
+
+      <sc-if value="{{ engineOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="border-top:1px solid rgba(111,216,255,.16); background:rgba(4,10,16,.6); display:flex; flex-direction:column; gap:0;">
+
+          <div style="display:flex; align-items:baseline; gap:14px; padding:11px 16px 9px; border-bottom:1px solid rgba(111,216,255,.12); flex-wrap:wrap;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.22em; color:#6fd8ff;">LIVE MEMORY</span>
+            <span style="font-size:11.5px; color:#8fb3c8;">Written into the running game, never to a save or a file. Cruise lands on your next burn with no reload; close the game and every one of these is gone.</span>
+          </div>
+          <div style="padding:14px 16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(238px, 1fr)); gap:14px;">
+            <sc-for list="{{ liveKnobs }}" as="knob" hint-placeholder-count="4">
+              <div style="border:1px solid rgba(111,216,255,.14); padding:10px 12px; display:flex; flex-direction:column; gap:7px;">
+                <div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px;">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">{{ knob.label }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600; color:{{ knob.color }};">{{ knob.value }}</span>
+                </div>
+                <sc-if value="{{ knob.isRange }}" hint-placeholder-val="{{ true }}">
+                  <input type="range" min="{{ knob.min }}" max="{{ knob.max }}" step="{{ knob.step }}" value="{{ knob.raw }}" onChange="{{ knob.onInput }}" onInput="{{ knob.onInput }}" style="width:100%; height:15px; cursor:ew-resize;" />
+                </sc-if>
+                <sc-if value="{{ knob.isToggle }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ knob.onToggle }}" style="align-self:flex-start; padding:2px 12px; background:{{ knob.togBg }}; border:1px solid {{ knob.togBorder }}; color:{{ knob.color }}; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; cursor:pointer;" style-hover="filter:brightness(1.4)">{{ knob.togText }}</button>
+                </sc-if>
+                <div style="font-size:11px; line-height:1.4; color:#8fb3c8;">{{ knob.note }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:#7d97ab;">{{ knob.origin }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex; align-items:baseline; gap:14px; padding:11px 16px 9px; border-top:1px solid rgba(255,179,71,.2); border-bottom:1px solid rgba(255,179,71,.16); background:rgba(255,179,71,.04); flex-wrap:wrap;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.22em; color:#ffb347;">GAME FILES</span>
+            <span style="font-size:11.5px; color:#c9a877;">Touches files on disk. Each one is backed up to .vanilla the first time, and an existing backup is never overwritten.</span>
+          </div>
+          <div style="padding:14px 16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px;">
+            <div style="border:1px solid rgba(255,179,71,.3); padding:10px 12px; display:flex; flex-direction:column; gap:8px; background:rgba(255,179,71,.05);">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#ffb347;">WRITE CRUISE + THRUSTERS TO FILES</div>
+              <div style="font-size:11px; line-height:1.45; color:#c9a877;">Takes the two speeds you have set live and puts them in constants.ini and st_equip.ini, so the next launch starts with them. Safe to press mid-flight — both files are read once at startup.</div>
+              <div style="font-size:11px; line-height:1.45; color:#a08560;">Trade lane speed, the HUD cap, docking and best path are not written, because they are not in files to begin with.</div>
+              <button style="align-self:flex-start; padding:4px 14px; background:rgba(255,179,71,.12); border:1px solid rgba(255,179,71,.45); color:#ffcf8a; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.14em; cursor:pointer;" style-hover="background:rgba(255,179,71,.22)">WRITE {{ cruiseValue }} / {{ thrusterValue }}</button>
+            </div>
+            <div style="border:1px solid rgba(255,179,71,.24); padding:10px 12px; display:flex; flex-direction:column; gap:7px;">
+              <div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#ffb347;">ASTEROID DRAW DISTANCE</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600; color:#ffcf8a;">{{ asteroidValue }}</span>
+              </div>
+              <input type="range" min="1" max="3" step="0.5" value="{{ asteroidRaw }}" onChange="{{ onAsteroid }}" onInput="{{ onAsteroid }}" style="width:100%; height:15px; cursor:ew-resize;" />
+              <div style="font-size:11px; line-height:1.45; color:#c9a877;">Scales [Field] fill_dist across 153 field files in DATA/SOLAR/ASTEROIDS. Vanilla runs 1000–2500, median 1400 — which is why a field reads as empty until you are nearly inside it.</div>
+              <div style="font-size:11px; line-height:1.45; color:#a08560;">{{ asteroidCost }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:#c9a877;">lands the next time a system loads</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="display:flex; gap:2px; flex-wrap:wrap; margin-top:2px;">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="7">
+        <button onClick="{{ t.go }}" style="padding:9px 20px; background:{{ t.bg }}; border:1px solid {{ t.border }}; border-bottom:2px solid {{ t.under }}; color:{{ t.color }}; font-family:'Chakra Petch',sans-serif; font-size:12.5px; font-weight:600; letter-spacing:.16em; cursor:pointer; clip-path:polygon(0 7px, 7px 0, 100% 0, 100% 100%, 0 100%);" style-hover="filter:brightness(1.35)">{{ t.label }}</button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ isDash }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:12px; align-items:start;">
+
+        <div style="grid-column:1 / -1; border:1px solid rgba(111,216,255,.22); background:linear-gradient(135deg, rgba(14,33,48,.92), rgba(7,17,26,.92)); clip-path:polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%); padding:20px 22px; display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:26px;">
+          <sc-for list="{{ meters }}" as="m" hint-placeholder-count="2">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:baseline; justify-content:space-between;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.24em; color:#5d7f96;">{{ m.label }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d97ab;">{{ m.pct }}</span>
+              </div>
+              <div style="display:flex; align-items:baseline; gap:8px;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:40px; font-weight:600; line-height:1; color:#9fe4ff; text-shadow:0 0 22px rgba(111,216,255,.5);">{{ m.have }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:19px; color:#4d6b7e;">/ {{ m.total }}</span>
+              </div>
+              <div style="height:6px; background:rgba(111,216,255,.1); position:relative;">
+                <div style="position:absolute; inset:0 auto 0 0; width:{{ m.width }}; background:linear-gradient(90deg,#2a86b8,#6fd8ff); box-shadow:0 0 14px rgba(111,216,255,.6);"></div>
+              </div>
+              <div style="font-size:12px; color:#7d97ab; line-height:1.4;">{{ m.note }}</div>
+            </div>
+          </sc-for>
+          <div style="display:flex; flex-direction:column; gap:10px; border-left:1px solid rgba(111,216,255,.14); padding-left:22px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.24em; color:#5d7f96;">STORY</span>
+            <div style="font-size:26px; font-weight:600; color:#cfe6f5; letter-spacing:.04em;">{{ mission }}</div>
+            <div style="font-size:12px; color:#7d97ab; line-height:1.45;">{{ missionNote }}</div>
+          </div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); clip-path:polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); padding:0;">
+          <div style="padding:10px 16px; border-bottom:1px solid rgba(111,216,255,.16); font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.22em; color:#6fd8ff;">WHERE I AM</div>
+          <div style="padding:14px 16px; display:flex; flex-direction:column; gap:0;">
+            <sc-for list="{{ position }}" as="row" hint-placeholder-count="6">
+              <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px dashed rgba(111,216,255,.1);">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.14em; color:#5d7f96;">{{ row.k }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:{{ row.color }}; text-align:right;">{{ row.v }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); clip-path:polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);">
+          <div style="padding:10px 16px; border-bottom:1px solid rgba(111,216,255,.16); display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.22em; color:#6fd8ff;">UNFOUND NEARBY</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5d7f96;">{{ nearSystem }}</span>
+          </div>
+          <div style="padding:8px 16px 14px;">
+            <sc-for list="{{ nearby }}" as="n" hint-placeholder-count="5">
+              <div style="display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px dashed rgba(111,216,255,.1);">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; width:12px; color:{{ n.color }};">{{ n.mark }}</span>
+                <span style="flex:1; font-size:13px; color:#cfe6f5;">{{ n.name }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d97ab;">{{ n.kind }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#6fd8ff; width:52px; text-align:right;">{{ n.coord }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); clip-path:polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);">
+          <div style="padding:10px 16px; border-bottom:1px solid rgba(111,216,255,.16); display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.22em; color:#6fd8ff;">BEST CARGO FROM HERE</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5d7f96;">hold {{ hold }}</span>
+          </div>
+          <div style="padding:8px 16px 14px;">
+            <sc-for list="{{ cargo }}" as="c" hint-placeholder-count="4">
+              <div style="display:flex; align-items:baseline; gap:10px; padding:8px 0; border-bottom:1px dashed rgba(111,216,255,.1);">
+                <span style="flex:1 1 auto; min-width:0; font-size:13px; color:#cfe6f5;">{{ c.name }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d97ab; text-align:right; flex:0 0 auto;">{{ c.to }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5fe0a0; width:66px; text-align:right;">{{ c.run }}</span>
+              </div>
+            </sc-for>
+            <div style="font-size:11px; color:#5d7f96; padding-top:10px; line-height:1.4;">{{ cargoNote }}</div>
+          </div>
+        </div>
+
+        <div style="border:1px solid rgba(255,122,110,.28); background:rgba(24,12,14,.75); clip-path:polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);">
+          <div style="padding:10px 16px; border-bottom:1px solid rgba(255,122,110,.24); display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.22em; color:#ff9b90;">WORST STANDING</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#ff7a6e;">{{ worstRep }}</span>
+          </div>
+          <div style="padding:12px 16px 14px;">
+            <div style="font-size:17px; font-weight:600; color:#ffd4cf; margin-bottom:10px;">{{ worstFaction }}</div>
+            <sc-for list="{{ repActions }}" as="a" hint-placeholder-count="3">
+              <div style="display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px dashed rgba(255,122,110,.14);">
+                <span style="flex:1; font-size:12.5px; color:#e7cdc9;">{{ a.what }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#ffb347;">{{ a.count }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#a08a86; width:70px; text-align:right;">{{ a.side }}</span>
+              </div>
+            </sc-for>
+            <button onClick="{{ goRep }}" style="margin-top:12px; padding:4px 14px; background:rgba(255,122,110,.1); border:1px solid rgba(255,122,110,.35); color:#ff9b90; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.14em; cursor:pointer;" style-hover="background:rgba(255,122,110,.2)">FULL BREAKDOWN</button>
+          </div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); clip-path:polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);">
+          <div style="padding:10px 16px; border-bottom:1px solid rgba(111,216,255,.16); display:flex; justify-content:space-between; align-items:baseline;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.22em; color:#6fd8ff;">NEURAL NET / LATEST</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5d7f96;">{{ netCount }}</span>
+          </div>
+          <div style="padding:6px 16px 14px;">
+            <sc-for list="{{ netEntries }}" as="e" hint-placeholder-count="4">
+              <div style="padding:10px 0; border-bottom:1px dashed rgba(111,216,255,.1);">
+                <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:3px;">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:{{ e.tagColor }};">{{ e.tag }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#456375;">#{{ e.n }}</span>
+                </div>
+                <div style="font-size:12.5px; line-height:1.45; color:#b7d2e2; text-wrap:pretty;">{{ e.text }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSystems }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; flex-direction:column; gap:10px;">
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); padding:12px 16px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; clip-path:polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);">
+          <input type="text" placeholder="system, base, wreck…" value="{{ query }}" onChange="{{ onQuery }}" onInput="{{ onQuery }}" style="flex:1 1 220px; min-width:180px; background:rgba(4,10,16,.9); border:1px solid rgba(111,216,255,.24); color:#cfe6f5; font-family:'IBM Plex Mono',monospace; font-size:12.5px; padding:7px 11px; outline:none;" />
+          <sc-for list="{{ checks }}" as="c" hint-placeholder-count="2">
+            <button onClick="{{ c.toggle }}" style="display:flex; align-items:center; gap:9px; background:transparent; border:0; cursor:pointer; padding:0;">
+              <span style="width:14px; height:14px; border:1px solid {{ c.border }}; background:{{ c.fill }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#04070c; line-height:1;">{{ c.glyph }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.1em; color:{{ c.color }};">{{ c.label }}</span>
+            </button>
+          </sc-for>
+          <div style="display:flex; gap:6px;">
+            <button onClick="{{ expandAll }}" style="padding:5px 12px; background:rgba(111,216,255,.07); border:1px solid rgba(111,216,255,.24); color:#8fd4f0; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; cursor:pointer;" style-hover="background:rgba(111,216,255,.16)">EXPAND</button>
+            <button onClick="{{ collapseAll }}" style="padding:5px 12px; background:rgba(111,216,255,.07); border:1px solid rgba(111,216,255,.24); color:#8fd4f0; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; cursor:pointer;" style-hover="background:rgba(111,216,255,.16)">COLLAPSE</button>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5d7f96; margin-left:auto;">{{ treeSummary }}</div>
+        </div>
+
+        <sc-for list="{{ houses }}" as="h" hint-placeholder-count="5">
+          <div style="border:1px solid {{ h.border }}; background:rgba(7,17,26,.85);">
+            <button onClick="{{ h.toggle }}" style="width:100%; display:flex; align-items:center; gap:14px; padding:11px 16px; background:{{ h.headBg }}; border:0; cursor:pointer; text-align:left;" style-hover="filter:brightness(1.3)">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#6fd8ff; width:10px;">{{ h.caret }}</span>
+              <span style="font-size:14.5px; font-weight:700; letter-spacing:.2em; color:{{ h.color }};">{{ h.name }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#5d7f96;">{{ h.code }}</span>
+              <span style="flex:1;"></span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#7d97ab;">{{ h.stats }}</span>
+              <span style="width:90px; height:4px; background:rgba(111,216,255,.12); position:relative;">
+                <span style="position:absolute; inset:0 auto 0 0; width:{{ h.width }}; background:#6fd8ff; box-shadow:0 0 10px rgba(111,216,255,.7);"></span>
+              </span>
+            </button>
+
+            <sc-if value="{{ h.open }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:10px 12px 14px; display:flex; flex-direction:column; gap:6px; border-top:1px solid rgba(111,216,255,.14);">
+                <sc-for list="{{ h.systems }}" as="s" hint-placeholder-count="4">
+                  <div style="border:1px solid rgba(111,216,255,.14); background:rgba(11,25,37,.7);">
+                    <button onClick="{{ s.toggle }}" style="width:100%; display:flex; align-items:center; gap:12px; padding:8px 14px; background:transparent; border:0; cursor:pointer; text-align:left;" style-hover="background:rgba(111,216,255,.06)">
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#4d7d96; width:9px;">{{ s.caret }}</span>
+                      <span style="font-size:13.5px; font-weight:600; color:#cfe6f5; letter-spacing:.03em;">{{ s.name }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#456375;">{{ s.nick }}</span>
+                      <span style="flex:1;"></span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6fd8ff;">{{ s.baseStat }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:{{ s.wreckColor }};">{{ s.wreckStat }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:{{ s.flagColor }}; min-width:96px; text-align:right;">{{ s.flag }}</span>
+                    </button>
+
+                    <sc-if value="{{ s.open }}" hint-placeholder-val="{{ false }}">
+                      <div style="border-top:1px solid rgba(111,216,255,.12); display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:0;">
+                        <div style="padding:10px 14px 12px; border-right:1px solid rgba(111,216,255,.1);">
+                          <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:#7d97ab; padding-bottom:6px;">BASES</div>
+                          <sc-for list="{{ s.bases }}" as="b" hint-placeholder-count="3">
+                            <div style="display:flex; align-items:baseline; gap:9px; padding:5px 0; border-bottom:1px dashed rgba(111,216,255,.08);">
+                              <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; width:10px; color:{{ b.color }};">{{ b.mark }}</span>
+                              <span style="flex:1 1 auto; min-width:0; font-size:12.5px; color:{{ b.nameColor }};">{{ b.name }}</span>
+                              <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5d7f96;">{{ b.owner }}</span>
+                              <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#4d7d96; width:48px; text-align:right;">{{ b.coord }}</span>
+                            </div>
+                          </sc-for>
+                          <sc-if value="{{ s.noBases }}" hint-placeholder-val="{{ false }}">
+                            <div style="font-size:12px; color:#8fb3c8; padding:6px 0;">nothing to show under these filters</div>
+                          </sc-if>
+                        </div>
+                        <div style="padding:10px 14px 12px;">
+                          <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:#7d97ab; padding-bottom:6px;">WRECKS</div>
+                          <sc-for list="{{ s.wrecks }}" as="w" hint-placeholder-count="2">
+                            <div style="padding:5px 0; border-bottom:1px dashed rgba(111,216,255,.08);">
+                              <div style="display:flex; align-items:baseline; gap:9px;">
+                                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; width:10px; color:{{ w.color }};">{{ w.mark }}</span>
+                                <span style="flex:1 1 auto; min-width:0; font-size:12.5px; color:{{ w.nameColor }};">{{ w.name }}</span>
+                                <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:{{ w.color }};">{{ w.state }}</span>
+                                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#4d7d96; width:48px; text-align:right;">{{ w.coord }}</span>
+                              </div>
+                              <sc-if value="{{ w.showLoot }}" hint-placeholder-val="{{ false }}">
+                                <div style="font-size:11.5px; color:#8fb3c8; padding:3px 0 2px 19px; line-height:1.4;">{{ w.loot }}</div>
+                              </sc-if>
+                            </div>
+                          </sc-for>
+                          <sc-if value="{{ s.noWrecks }}" hint-placeholder-val="{{ false }}">
+                            <div style="font-size:12px; color:#8fb3c8; padding:6px 0;">no wrecks here</div>
+                          </sc-if>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ h.empty }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:12.5px; color:#8fb3c8; padding:8px 4px;">every system in this house is closed out — untick “hide completed”</div>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+
+        <div style="display:flex; gap:22px; flex-wrap:wrap; padding:6px 4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5d7f96;">
+          <span><span style="color:#5fe0a0;">+</span> stripped</span>
+          <span><span style="color:#ffb347;">*</span> found, cargo still aboard</span>
+          <span><span style="color:#7d97ab;">−</span> not found</span>
+          <span><span style="color:#6fd8ff;">■</span> docked</span>
+          <span><span style="color:#6fd8ff;">□</span> revealed by story</span>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasSubs }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap; padding:2px 4px 4px;">
+        <sc-for list="{{ subTabs }}" as="t" hint-placeholder-count="3">
+          <button onClick="{{ t.go }}" style="padding:0 0 3px; background:transparent; border:0; border-bottom:2px solid {{ t.under }}; color:{{ t.color }}; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.18em; cursor:pointer;" style-hover="filter:brightness(1.4)">{{ t.label }}</button>
+        </sc-for>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d97ab; margin-left:auto;">{{ subNote }}</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDps }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,340px); gap:12px; align-items:start;">
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); min-width:0;">
+          <div style="display:grid; grid-template-columns:minmax(0,2.2fr) repeat(4, minmax(56px,.8fr)) 34px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(111,216,255,.16); font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:#7d97ab;">
+            <span>WEAPON</span><span style="text-align:right;">HULL</span><span style="text-align:right;">SHIELD</span><span style="text-align:right;">RATE</span><span style="text-align:right;">REFIRE</span><span></span>
+          </div>
+          <sc-for list="{{ dpsRows }}" as="w" hint-placeholder-count="4">
+            <div style="display:grid; grid-template-columns:minmax(0,2.2fr) repeat(4, minmax(56px,.8fr)) 34px; gap:10px; padding:9px 16px; border-bottom:1px dashed rgba(111,216,255,.1); align-items:center;">
+              <span style="min-width:0; font-size:13px; color:#cfe6f5;">{{ w.name }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#9fe4ff; text-align:right;">{{ w.hull }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#9fe4ff; text-align:right;">{{ w.shield }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#a7c6d8; text-align:right;">{{ w.rate }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#7d97ab; text-align:right;">{{ w.refire }}</span>
+              <button onClick="{{ w.drop }}" style="justify-self:end; width:24px; height:24px; background:rgba(255,122,110,.08); border:1px solid rgba(255,122,110,.3); color:#ff9b90; font-family:'IBM Plex Mono',monospace; font-size:12px; cursor:pointer;" style-hover="background:rgba(255,122,110,.2)">×</button>
+            </div>
+          </sc-for>
+          <div style="padding:12px 16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button onClick="{{ openPicker }}" style="padding:5px 14px; background:rgba(111,216,255,.08); border:1px solid rgba(111,216,255,.3); color:#8fd4f0; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; cursor:pointer;" style-hover="background:rgba(111,216,255,.18)">{{ pickerBtn }}</button>
+            <span style="font-size:11.5px; color:#8fb3c8;">Reads the game's own equipment files — no save and no running game needed. Picks survive a reload.</span>
+          </div>
+          <sc-if value="{{ pickerOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="border-top:1px solid rgba(111,216,255,.16); padding:12px 16px; display:flex; flex-direction:column; gap:8px; background:rgba(4,10,16,.6);">
+              <input type="text" placeholder="search 247 mountable guns…" value="{{ pickQuery }}" onChange="{{ onPickQuery }}" onInput="{{ onPickQuery }}" style="background:rgba(4,10,16,.9); border:1px solid rgba(111,216,255,.24); color:#cfe6f5; font-family:'IBM Plex Mono',monospace; font-size:12.5px; padding:7px 11px; outline:none;" />
+              <sc-for list="{{ pickResults }}" as="p" hint-placeholder-count="4">
+                <button onClick="{{ p.add }}" style="display:grid; grid-template-columns:minmax(0,1fr) 60px 60px; gap:10px; padding:6px 4px; background:transparent; border:0; border-bottom:1px dashed rgba(111,216,255,.1); cursor:pointer; text-align:left;" style-hover="background:rgba(111,216,255,.07)">
+                  <span style="min-width:0; font-size:12.5px; color:#cfe6f5;">{{ p.name }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#9fe4ff; text-align:right;">{{ p.hull }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#7d97ab; text-align:right;">{{ p.cls }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.22); background:linear-gradient(135deg, rgba(14,33,48,.92), rgba(7,17,26,.92)); padding:18px 20px; display:flex; flex-direction:column; gap:18px;">
+          <sc-for list="{{ dpsTotals }}" as="t" hint-placeholder-count="2">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.24em; color:#7d97ab;">{{ t.label }}</span>
+              <div style="display:flex; align-items:baseline; gap:8px;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:600; line-height:1; color:#9fe4ff; text-shadow:0 0 22px rgba(111,216,255,.5);">{{ t.value }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7d97ab;">dps</span>
+              </div>
+              <span style="font-size:11.5px; color:#8fb3c8; line-height:1.4;">{{ t.note }}</span>
+            </div>
+          </sc-for>
+          <div style="font-size:11px; color:#8fb3c8; line-height:1.45; border-top:1px dashed rgba(111,216,255,.16); padding-top:12px;">Shield damage per shot is hull × 0.5 + energy, where 0.5 is HULL_DAMAGE_FACTOR read out of constants.ini. The weaponmoddb.ini type table (0.8–1.2) is deliberately ignored — it would make every figure depend on what the target is flying.</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSearch }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); padding:12px 16px; display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
+            <div style="display:flex; gap:2px;">
+              <sc-for list="{{ kindPicks }}" as="k" hint-placeholder-count="2">
+                <button onClick="{{ k.go }}" style="padding:5px 16px; background:{{ k.bg }}; border:1px solid {{ k.border }}; color:{{ k.color }}; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.16em; cursor:pointer;" style-hover="filter:brightness(1.35)">{{ k.label }}</button>
+              </sc-for>
+            </div>
+            <button onClick="{{ toggleDockedOnly }}" style="display:flex; align-items:center; gap:9px; background:transparent; border:0; cursor:pointer; padding:0;">
+              <span style="width:14px; height:14px; border:1px solid {{ dockedBox.border }}; background:{{ dockedBox.fill }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#04070c; line-height:1;">{{ dockedBox.glyph }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.1em; color:{{ dockedBox.color }};">BUYABLE WHERE I HAVE DOCKED</span>
+            </button>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d97ab; margin-left:auto;">{{ searchCount }}</div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">PARAMETERS</span>
+            <sc-for list="{{ params }}" as="p" hint-placeholder-count="5">
+              <button onClick="{{ p.toggle }}" style="padding:3px 11px; background:{{ p.bg }}; border:1px solid {{ p.border }}; color:{{ p.color }}; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.1em; cursor:pointer;" style-hover="filter:brightness(1.35)">{{ p.label }}</button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ muzzleOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; border-top:1px dashed rgba(111,216,255,.14); padding-top:10px;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">PROJECTILE SPEED — EXACT PICK, NOT A MINIMUM</span>
+              <sc-for list="{{ muzzles }}" as="m" hint-placeholder-count="8">
+                <button onClick="{{ m.go }}" style="padding:3px 9px; background:{{ m.bg }}; border:1px solid {{ m.border }}; color:{{ m.color }}; font-family:'IBM Plex Mono',monospace; font-size:10.5px; cursor:pointer;" style-hover="filter:brightness(1.35)">{{ m.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div style="font-size:11.5px; color:#8fb3c8; line-height:1.45;">Every parameter is a filter and a column at once. Filters stack and never reorder the list — that is what the headings are for; click one twice to turn it round.</div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9);">
+          <div style="display:grid; grid-template-columns:24px minmax(0,2.4fr) repeat(5, minmax(58px,.85fr)); gap:10px; padding:9px 16px; border-bottom:1px solid rgba(111,216,255,.16);">
+            <span></span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:#7d97ab;">NAME</span>
+            <sc-for list="{{ searchCols }}" as="c" hint-placeholder-count="5">
+              <button onClick="{{ c.sort }}" style="background:transparent; border:0; text-align:right; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.14em; color:{{ c.color }};" style-hover="filter:brightness(1.4)">{{ c.label }}</button>
+            </sc-for>
+          </div>
+          <sc-for list="{{ searchRows }}" as="r" hint-placeholder-count="6">
+            <div style="border-bottom:1px dashed rgba(111,216,255,.1);">
+              <button onClick="{{ r.toggle }}" style="width:100%; display:grid; grid-template-columns:24px minmax(0,2.4fr) repeat(5, minmax(58px,.85fr)); gap:10px; padding:8px 16px; background:transparent; border:0; cursor:pointer; text-align:left; align-items:center;" style-hover="background:rgba(111,216,255,.06)">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#4d7d96;">{{ r.caret }}</span>
+                <span style="min-width:0; display:flex; align-items:baseline; gap:8px;">
+                  <span style="font-size:13px; color:{{ r.nameColor }};">{{ r.name }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:{{ r.tagColor }};">{{ r.tag }}</span>
+                </span>
+                <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="5">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; text-align:right; color:{{ c.color }};">{{ c.v }}</span>
+                </sc-for>
+              </button>
+              <sc-if value="{{ r.open }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:4px 16px 12px 40px; display:flex; flex-direction:column; gap:5px;">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">{{ r.whereLabel }}</div>
+                  <sc-for list="{{ r.where }}" as="d" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:baseline; gap:10px;">
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; width:10px; color:{{ d.color }};">{{ d.mark }}</span>
+                      <span style="flex:1 1 auto; min-width:0; font-size:12.5px; color:#cfe6f5;">{{ d.base }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8fb3c8;">{{ d.system }}</span>
+                    </div>
+                  </sc-for>
+                  <div style="font-size:11px; color:#8fb3c8; line-height:1.4; padding-top:4px;">{{ r.whereNote }}</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="padding:10px 16px; font-size:11.5px; color:#8fb3c8; line-height:1.45;">{{ searchFooter }}</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isTradeData }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); padding:12px 16px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">COMMODITY</span>
+          <div style="display:flex; gap:5px; flex-wrap:wrap;">
+            <sc-for list="{{ commodities }}" as="c" hint-placeholder-count="5">
+              <button onClick="{{ c.go }}" style="padding:4px 12px; background:{{ c.bg }}; border:1px solid {{ c.border }}; color:{{ c.color }}; font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer;" style-hover="filter:brightness(1.35)">{{ c.label }}</button>
+            </sc-for>
+          </div>
+          <button onClick="{{ toggleDockedOnly }}" style="display:flex; align-items:center; gap:9px; background:transparent; border:0; cursor:pointer; padding:0; margin-left:auto;">
+            <span style="width:14px; height:14px; border:1px solid {{ dockedBox.border }}; background:{{ dockedBox.fill }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#04070c; line-height:1;">{{ dockedBox.glyph }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.1em; color:{{ dockedBox.color }};">DOCKED ONLY</span>
+          </button>
+        </div>
+
+        <div style="border:1px solid rgba(95,224,160,.28); background:rgba(8,24,18,.7); padding:14px 18px; display:flex; align-items:center; gap:24px; flex-wrap:wrap;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:#5fe0a0;">CHEAPEST IN STOCK → DEAREST ANYWHERE</span>
+            <span style="font-size:14px; color:#cfe6f5;">{{ dataRun }}</span>
+          </div>
+          <div style="display:flex; align-items:baseline; gap:8px; margin-left:auto;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:28px; font-weight:600; color:#5fe0a0;">{{ dataRunMargin }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8fb3c8;">a unit</span>
+          </div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9);">
+          <div style="display:grid; grid-template-columns:14px minmax(0,2fr) minmax(0,1.4fr) minmax(70px,.7fr) minmax(80px,.8fr); gap:10px; padding:9px 16px; border-bottom:1px solid rgba(111,216,255,.16); font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:#7d97ab;">
+            <span></span><span>BASE</span><span>SYSTEM</span><span style="text-align:right;">PRICE</span><span style="text-align:right;">×MULT</span>
+          </div>
+          <sc-for list="{{ dataRows }}" as="r" hint-placeholder-count="8">
+            <div style="display:grid; grid-template-columns:14px minmax(0,2fr) minmax(0,1.4fr) minmax(70px,.7fr) minmax(80px,.8fr); gap:10px; padding:8px 16px; border-bottom:1px dashed rgba(111,216,255,.1); align-items:center; background:{{ r.rowBg }};">
+              <span style="width:8px; height:8px; background:{{ r.dot }}; box-shadow:{{ r.glow }};"></span>
+              <span style="min-width:0; font-size:13px; color:#cfe6f5;">{{ r.base }}</span>
+              <span style="min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#8fb3c8;">{{ r.system }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:{{ r.priceColor }}; text-align:right;">{{ r.price }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#7d97ab; text-align:right;">{{ r.mult }}</span>
+            </div>
+          </sc-for>
+          <div style="padding:10px 16px; display:flex; gap:20px; flex-wrap:wrap; font-size:11.5px; color:#8fb3c8;">
+            <span><span style="color:#5fe0a0;">●</span> holds stock — the only rows you can buy at</span>
+            <span><span style="color:#7d97ab;">●</span> holds none, will only be sold to</span>
+            <span>{{ dataFooter }}</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDeltas }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); padding:12px 16px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">BASE UNDER MY FEET</span>
+          <div style="display:flex; gap:5px; flex-wrap:wrap;">
+            <sc-for list="{{ deltaBases }}" as="b" hint-placeholder-count="4">
+              <button onClick="{{ b.go }}" style="padding:4px 12px; background:{{ b.bg }}; border:1px solid {{ b.border }}; color:{{ b.color }}; font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer;" style-hover="filter:brightness(1.35)">{{ b.label }}</button>
+            </sc-for>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d97ab; margin-left:auto;">{{ deltaNote }}</div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9);">
+          <div style="display:grid; grid-template-columns:24px minmax(0,1.8fr) minmax(64px,.7fr) minmax(72px,.8fr) minmax(72px,.8fr) minmax(0,1.6fr); gap:10px; padding:9px 16px; border-bottom:1px solid rgba(111,216,255,.16); font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:#7d97ab;">
+            <span></span><span>ON THE SHELF</span><span style="text-align:right;">BUY</span><span style="text-align:right;">BEST</span><span style="text-align:right;">DIFF</span><span>WHERE</span>
+          </div>
+          <sc-for list="{{ deltaRows }}" as="r" hint-placeholder-count="5">
+            <div style="border-bottom:1px dashed rgba(111,216,255,.1);">
+              <button onClick="{{ r.toggle }}" style="width:100%; display:grid; grid-template-columns:24px minmax(0,1.8fr) minmax(64px,.7fr) minmax(72px,.8fr) minmax(72px,.8fr) minmax(0,1.6fr); gap:10px; padding:8px 16px; background:transparent; border:0; cursor:pointer; text-align:left; align-items:center;" style-hover="background:rgba(111,216,255,.06)">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#4d7d96;">{{ r.caret }}</span>
+                <span style="min-width:0; font-size:13px; color:#cfe6f5;">{{ r.name }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#a7c6d8; text-align:right;">{{ r.buy }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#9fe4ff; text-align:right;">{{ r.best }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5fe0a0; text-align:right;">{{ r.diff }}</span>
+                <span style="min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#8fb3c8;">{{ r.where }}</span>
+              </button>
+              <sc-if value="{{ r.open }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:4px 16px 12px 40px; display:flex; flex-direction:column; gap:5px;">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">EVERY BASE TRADING IT — BY WHAT IT LEAVES YOU A UNIT</div>
+                  <sc-for list="{{ r.all }}" as="d" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:baseline; gap:10px;">
+                      <span style="flex:1 1 auto; min-width:0; font-size:12.5px; color:#cfe6f5;">{{ d.base }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8fb3c8;">{{ d.system }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:{{ d.color }}; width:76px; text-align:right;">{{ d.net }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="padding:10px 16px; font-size:11.5px; color:#8fb3c8; line-height:1.45;">{{ deltaFooter }}</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isRoutes }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); padding:12px 16px; display:flex; gap:22px; align-items:center; flex-wrap:wrap;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">FROM</span>
+            <sc-for list="{{ routeFrom }}" as="p" hint-placeholder-count="3">
+              <button onClick="{{ p.go }}" style="padding:4px 12px; background:{{ p.bg }}; border:1px solid {{ p.border }}; color:{{ p.color }}; font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer;" style-hover="filter:brightness(1.35)">{{ p.label }}</button>
+            </sc-for>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">TO</span>
+            <sc-for list="{{ routeTo }}" as="p" hint-placeholder-count="3">
+              <button onClick="{{ p.go }}" style="padding:4px 12px; background:{{ p.bg }}; border:1px solid {{ p.border }}; color:{{ p.color }}; font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer;" style-hover="filter:brightness(1.35)">{{ p.label }}</button>
+            </sc-for>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d97ab; margin-left:auto;">{{ routeShip }}</div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9);">
+          <div style="display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1.7fr) minmax(0,1.7fr) minmax(64px,.6fr) minmax(72px,.7fr) minmax(84px,.9fr); gap:10px; padding:9px 16px; border-bottom:1px solid rgba(111,216,255,.16); font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:#7d97ab;">
+            <span>COMMODITY</span><span>BUY AT</span><span>SELL AT</span><span style="text-align:right;">BUY</span><span style="text-align:right;">MARGIN</span><span style="text-align:right;">RUN</span>
+          </div>
+          <sc-for list="{{ routeRows }}" as="r" hint-placeholder-count="6">
+            <div style="display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1.7fr) minmax(0,1.7fr) minmax(64px,.6fr) minmax(72px,.7fr) minmax(84px,.9fr); gap:10px; padding:8px 16px; border-bottom:1px dashed rgba(111,216,255,.1); align-items:center;">
+              <span style="min-width:0; font-size:13px; color:#cfe6f5;">{{ r.name }}</span>
+              <span style="min-width:0; font-size:12.5px; color:#a7c6d8;">{{ r.from }}</span>
+              <span style="min-width:0; font-size:12.5px; color:#a7c6d8;">{{ r.to }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#8fb3c8; text-align:right;">{{ r.buy }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#9fe4ff; text-align:right;">{{ r.margin }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:13.5px; color:#5fe0a0; text-align:right;">{{ r.run }}</span>
+            </div>
+          </sc-for>
+          <div style="padding:10px 16px; font-size:11.5px; color:#8fb3c8; line-height:1.45;">{{ routeFooter }}</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isRep }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); padding:12px 16px; display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">FACTION — WORST FIRST</span>
+            <div style="display:flex; gap:5px; flex-wrap:wrap;">
+              <sc-for list="{{ factions }}" as="fa" hint-placeholder-count="5">
+                <button onClick="{{ fa.go }}" style="display:flex; align-items:baseline; gap:8px; padding:4px 12px; background:{{ fa.bg }}; border:1px solid {{ fa.border }}; color:{{ fa.color }}; font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer;" style-hover="filter:brightness(1.35)">
+                  <span>{{ fa.label }}</span>
+                  <span style="color:{{ fa.repColor }};">{{ fa.rep }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">TARGET STANDING</span>
+            <div style="display:flex; gap:2px;">
+              <sc-for list="{{ targets }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.go }}" style="padding:5px 16px; background:{{ t.bg }}; border:1px solid {{ t.border }}; color:{{ t.color }}; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; cursor:pointer;" style-hover="filter:brightness(1.35)">{{ t.label }}</button>
+              </sc-for>
+            </div>
+            <div style="font-size:12px; color:#8fb3c8; margin-left:auto;">{{ repHeadline }}</div>
+          </div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9);">
+          <div style="display:grid; grid-template-columns:24px minmax(0,2.6fr) minmax(88px,.9fr) minmax(64px,.6fr) minmax(0,1.4fr); gap:10px; padding:9px 16px; border-bottom:1px solid rgba(111,216,255,.16); font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:#7d97ab;">
+            <span></span><span>REPEATABLE ACTION</span><span style="text-align:right;">HOW MANY</span><span style="text-align:right;">+/−</span><span>WORST LOSS</span>
+          </div>
+          <sc-for list="{{ repRows }}" as="r" hint-placeholder-count="6">
+            <div style="border-bottom:1px dashed rgba(111,216,255,.1); background:{{ r.rowBg }};">
+              <button onClick="{{ r.toggle }}" style="width:100%; display:grid; grid-template-columns:24px minmax(0,2.6fr) minmax(88px,.9fr) minmax(64px,.6fr) minmax(0,1.4fr); gap:10px; padding:8px 16px; background:transparent; border:0; cursor:pointer; text-align:left; align-items:center;" style-hover="background:rgba(111,216,255,.06)">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#4d7d96;">{{ r.caret }}</span>
+                <span style="min-width:0; display:flex; align-items:baseline; gap:9px;">
+                  <span style="font-size:13px; color:#cfe6f5;">{{ r.what }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:{{ r.tagColor }};">{{ r.tag }}</span>
+                </span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:{{ r.countColor }}; text-align:right;">{{ r.count }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#a7c6d8; text-align:right;">{{ r.spread }}</span>
+                <span style="min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#ff9b90;">{{ r.worst }}</span>
+              </button>
+              <sc-if value="{{ r.open }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:4px 16px 12px 40px; display:flex; flex-direction:column; gap:5px;">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:#7d97ab;">EVERY FACTION IT MOVES — BEFORE → AFTER</div>
+                  <sc-for list="{{ r.moves }}" as="m" hint-placeholder-count="4">
+                    <div style="display:flex; align-items:baseline; gap:10px;">
+                      <span style="flex:1 1 auto; min-width:0; font-size:12.5px; color:#cfe6f5;">{{ m.faction }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:#ffb347;">{{ m.pin }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#8fb3c8; width:60px; text-align:right;">{{ m.before }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7d97ab;">→</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:{{ m.color }}; width:60px; text-align:right;">{{ m.after }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="padding:10px 16px; font-size:11.5px; color:#8fb3c8; line-height:1.5;">{{ repFooter }}</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isNet }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); padding:12px 16px; display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
+          <button onClick="{{ togglePersonal }}" style="display:flex; align-items:center; gap:9px; background:transparent; border:0; cursor:pointer; padding:0;">
+            <span style="width:14px; height:14px; border:1px solid {{ personalBox.border }}; background:{{ personalBox.fill }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#04070c; line-height:1;">{{ personalBox.glyph }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.1em; color:{{ personalBox.color }};">PERSONAL ONLY</span>
+          </button>
+          <button onClick="{{ flipNet }}" style="padding:5px 14px; background:rgba(111,216,255,.07); border:1px solid rgba(111,216,255,.24); color:#8fd4f0; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; cursor:pointer;" style-hover="background:rgba(111,216,255,.16)">{{ netOrderBtn }}</button>
+          <span style="font-size:11.5px; color:#8fb3c8;">No date column — the save holds no dates at all, only the order the entries were written in.</span>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d97ab; margin-left:auto;">{{ netShown }}</div>
+        </div>
+
+        <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9);">
+          <sc-for list="{{ netRows }}" as="e" hint-placeholder-count="6">
+            <div style="display:grid; grid-template-columns:56px minmax(0,1fr) auto; gap:14px; padding:12px 16px; border-bottom:1px dashed rgba(111,216,255,.1); align-items:start; background:{{ e.rowBg }};">
+              <div style="display:flex; flex-direction:column; gap:3px;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7d97ab;">#{{ e.n }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.1em; color:{{ e.tagColor }};">{{ e.tag }}</span>
+              </div>
+              <div style="min-width:0; font-size:13px; line-height:1.5; color:{{ e.textColor }}; text-wrap:pretty;">{{ e.text }}</div>
+              <div style="display:flex; gap:6px;">
+                <button onClick="{{ e.mark }}" style="padding:3px 10px; background:{{ e.markBg }}; border:1px solid {{ e.markBorder }}; color:{{ e.markColor }}; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.4)">{{ e.markText }}</button>
+                <button onClick="{{ e.read }}" style="padding:3px 10px; background:{{ e.readBg }}; border:1px solid {{ e.readBorder }}; color:{{ e.readColor }}; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.4)">{{ e.readText }}</button>
+              </div>
+            </div>
+          </sc-for>
+          <div style="padding:10px 16px; font-size:11.5px; color:#8fb3c8;">Marks live in your browser, not in the save, and survive a reload.</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isOther }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid rgba(111,216,255,.2); background:rgba(9,21,32,.9); padding:26px; clip-path:polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%); display:flex; flex-direction:column; gap:12px; max-width:760px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.24em; color:#6fd8ff;">NOT IN THIS PASS YET</div>
+        <div style="font-size:22px; font-weight:600; color:#cfe6f5; letter-spacing:.04em;">{{ otherTitle }}</div>
+        <div style="font-size:13.5px; line-height:1.6; color:#8fb3c8; text-wrap:pretty;">{{ otherBody }}</div>
+        <button onClick="{{ goDash }}" style="align-self:flex-start; margin-top:6px; padding:6px 16px; background:rgba(111,216,255,.08); border:1px solid rgba(111,216,255,.3); color:#8fd4f0; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; cursor:pointer;" style-hover="background:rgba(111,216,255,.18)">BACK TO OVERVIEW</button>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;scanlines&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;scanIntensity&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0,&quot;max&quot;:2,&quot;step&quot;:0.25,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Look&quot;}}">
+const B = (name, state, owner, coord) => ({ name, state, owner, coord });
+const W = (name, state, coord, loot) => ({ name, state, coord, loot: loot || "" });
+
+const HOUSES = [
+  { code: "LI", name: "LIBERTY", systems: [
+    { nick: "Li01", name: "New York", bases: [
+        B("Planet Manhattan", "docked", "Liberty", "D5 C"), B("Planet Pittsburgh", "docked", "Deep Space Eng.", "F6 UL"),
+        B("Newark Station", "docked", "Deep Space Eng.", "D4 LR"), B("Fort Bush", "docked", "Police (LI)", "C5 C"),
+        B("West Point Military Academy", "docked", "Liberty Navy", "E3 LL"), B("Norfolk Shipyard", "revealed", "Liberty Navy", "B6 C"),
+        B("Trenton Outpost", "docked", "Deep Space Eng.", "E6 UR"), B("Buffalo Base", "revealed", "Liberty Rogues", "B3 LR"),
+        B("Rochester Base", "unknown", "Liberty Rogues", "C2 UR"), B("Baltimore Shipyard", "unknown", "Liberty Navy", "F4 C"),
+        B("Detroit Munitions", "unknown", "Liberty Navy", "D2 LL"), B("Zone 21 Shield Facility", "unknown", "Liberty Navy", "E2 C") ],
+      wrecks: [ W("Patrol 27 hull", "stripped", "B4 UR"), W("Patrol 27 hull", "stripped", "C6 C"), W("Patrol 27 hull", "stripped", "F3 LL"),
+        W("Transport hull", "missing", "D7 UL", "Optronics x8, Toxic Waste x14"), W("Rogue Wolf hull", "missing", "B2 C", "Justice Mk II, Nanobots x6") ] },
+    { nick: "Li02", name: "California", bases: [
+        B("Planet Los Angeles", "docked", "Liberty", "D4 C"), B("California Minor", "docked", "Liberty", "E5 LR"),
+        B("Willard Research Station", "revealed", "Cryer Pharm.", "C3 UL"), B("San Diego Border Station", "docked", "Liberty Navy", "F6 C") ],
+      wrecks: [ W("Liberty Cruiser hull", "found", "E3 UR", "Adv. Starbeam, Shield Battery x12"), W("Bounty hunter hull", "missing", "C6 LL", "Justice Mk III") ] },
+    { nick: "Li03", name: "Colorado", bases: [
+        B("Planet Denver", "docked", "Liberty", "D5 C"), B("Pueblo Station", "docked", "Deep Space Eng.", "C4 UR"),
+        B("Ouray Base", "unknown", "Xenos", "F3 LL") ],
+      wrecks: [ W("Xeno raider hull", "missing", "F2 UR", "Lavablade Mk II"), W("Mining barge", "missing", "B5 C") ] },
+    { nick: "Li04", name: "Texas", bases: [
+        B("Planet Houston", "docked", "Liberty Police", "D4 C"), B("Beaumont Base", "unknown", "Liberty Rogues", "F5 LL"),
+        B("Huntsville Prison", "revealed", "Liberty Police", "C6 UR") ],
+      wrecks: [ W("Prison transport", "missing", "E6 C", "Cardamine x10") ] },
+    { nick: "Li05", name: "Alaska", bases: [ B("Nome Base", "unknown", "Liberty Navy", "D4 C") ], wrecks: [] }
+  ]},
+  { code: "BR", name: "BRETONIA", systems: [
+    { nick: "Br01", name: "New London", bases: [
+        B("Planet New London", "docked", "Bretonia", "D5 C"), B("Southampton Shipyard", "docked", "Bretonia Armed F.", "E4 UR"),
+        B("Waterloo Station", "revealed", "Bretonia Mining", "C4 LL"), B("Kensington Shipping Platform", "unknown", "Bretonia Mining", "F5 C"),
+        B("Trafalgar Base", "unknown", "Mollys", "B3 UL") ],
+      wrecks: [ W("Cargo hauler", "missing", "F2 LR", "Boron x20"), W("BAF gunboat", "missing", "B6 C", "Adv. Skyblast") ] },
+    { nick: "Br02", name: "Manchester", bases: [
+        B("Planet Manchester", "revealed", "Bretonia", "D4 C"), B("Birmingham Station", "unknown", "Bretonia Mining", "E5 UR") ],
+      wrecks: [ W("Bretonian freighter", "missing", "C3 C", "Cobalt x25") ] },
+    { nick: "Br03", name: "Cambridge", bases: [
+        B("Planet Cambridge", "unknown", "Bretonia", "D5 C"), B("Cambridge Research Station", "unknown", "Cambridge Research", "E3 LL") ],
+      wrecks: [ W("Research probe", "missing", "F6 UR", "Alien Artifacts x4") ] },
+    { nick: "Br04", name: "Leeds", bases: [
+        B("Planet Leeds", "unknown", "Bretonia", "D4 C"), B("LD-14", "unknown", "Bretonia Mining", "E6 UL"),
+        B("Stokes Mining Station", "unknown", "Bretonia Mining", "C5 C") ], wrecks: [] }
+  ]},
+  { code: "KU", name: "KUSARI", systems: [
+    { nick: "Ku01", name: "New Tokyo", bases: [
+        B("Planet New Tokyo", "unknown", "Kusari", "D5 C"), B("Tokyo Storage Facility", "unknown", "Samura", "E4 UR"),
+        B("Narita Outpost", "unknown", "Kusari Naval F.", "C6 LL") ],
+      wrecks: [ W("Samura freighter", "missing", "F4 C", "Optical Chips x12"), W("Blood Dragon hull", "missing", "B3 UR", "Dragon Fang") ] },
+    { nick: "Ku02", name: "Honshu", bases: [
+        B("Planet Honshu", "unknown", "Kusari", "D4 C"), B("Yanagi Depot", "unknown", "Junkers", "F5 UL") ],
+      wrecks: [ W("Junker scow", "missing", "E2 C", "Scrap Metal x30") ] },
+    { nick: "Ku03", name: "Sigma-13", bases: [ B("Freeport 6", "unknown", "Zoners", "D4 C") ],
+      wrecks: [ W("Derelict hull A", "missing", "C3 UR"), W("Derelict hull B", "missing", "E5 LL"), W("Derelict hull C", "missing", "F4 C") ] }
+  ]},
+  { code: "RH", name: "RHEINLAND", systems: [
+    { nick: "Rh01", name: "New Berlin", bases: [
+        B("Planet New Berlin", "unknown", "Rheinland", "D5 C"), B("The Ring", "unknown", "Kruger Minerals", "E4 UR"),
+        B("Oder Shipyard", "unknown", "Rheinland Military", "C4 C") ],
+      wrecks: [ W("Rheinland transport", "missing", "F3 LR", "Basic Alloy x22") ] },
+    { nick: "Rh02", name: "Frankfurt", bases: [ B("Planet Holstein", "unknown", "Rheinland", "D4 C"), B("Bonn Station", "unknown", "Daumann", "E5 C") ],
+      wrecks: [ W("Daumann barge", "missing", "C6 UL", "H-Fuel x18") ] },
+    { nick: "Rh03", name: "Hamburg", bases: [ B("Planet Hamburg", "unknown", "Rheinland", "D5 C") ],
+      wrecks: [ W("Bundschuh hull", "missing", "B4 UR", "Wildfire Mk II") ] }
+  ]},
+  { code: "IND", name: "BORDER & EDGE WORLDS", systems: [
+    { nick: "Iw03", name: "Dublin", bases: [ B("Battleship Hood", "unknown", "Bretonia Armed F.", "D4 C"), B("Arranmore Base", "unknown", "Mollys", "E5 LR") ],
+      wrecks: [ W("The Storm", "found", "D6 C", "Adv. Debilitator, Nanobots x20"), W("Molly hull", "missing", "C3 UR", "Wildfire Mk I") ] },
+    { nick: "Ew02", name: "Omicron Beta", bases: [ B("Ruiz Base", "unknown", "Outcasts", "D4 C") ],
+      wrecks: [ W("Alien probe wreck", "missing", "F5 C", "Alien Organisms x6") ] },
+    { nick: "Ew04", name: "Omega-41", bases: [ B("Freeport 9", "unknown", "Zoners", "D5 C") ],
+      wrecks: [ W("Volsung wreck", "missing", "E3 UR", "ARCHANGEL, Nanobots x40") ] },
+    { nick: "Iw06", name: "Omega-7", bases: [ B("Freistadt Base", "unknown", "Red Hessians", "D4 C"), B("Battleship Rheinland", "unknown", "Corsairs", "C5 C") ],
+      wrecks: [ W("Hessian gunboat", "missing", "F4 LL", "Hellflurry Mk II") ] }
+  ]}
+];
+
+const NET = [
+  { n: 113, personal: true, text: "Manhattan is under smog again. Juni says she has work for me; I say I have a docking fee to pay off." },
+  { n: 112, personal: false, text: "Liberty Navy patrol has closed the corridor to Norfolk Shipyard until further notice." },
+  { n: 111, personal: true, text: "Found the third Patrol 27 hull. Empty, like the first two — but that makes three of three." },
+  { n: 110, personal: false, text: "Cardamine prices at Buffalo Base are up. Someone in this system is paying far too much." }
+];
+
+const GUNS = [
+  { name: "ARCHANGEL", hull: 386.0, shield: 193.0, rate: 2.0, cls: 10, muzzle: 750, price: "wreck", rank: 32, gate: "—", wreck: "the Volsung wreck, Omega-41", dealers: [] },
+  { name: "SILVER FIRE", hull: 299.4, shield: 149.7, rate: 2.5, cls: 10, muzzle: 700, price: "wreck", rank: 30, gate: "—", wreck: "the derelict hull, Omega-41", dealers: [] },
+  { name: "Adv. Skyrail", hull: 121.2, shield: 60.6, rate: 2.0, cls: 9, muzzle: 700, price: "42,600", rank: 26, gate: "Bretonia +0.6", dealers: [["Southampton Shipyard", "New London", true], ["Planet New London", "New London", true], ["Waterloo Station", "New London", false]] },
+  { name: "Adv. Debilitator", hull: 5.6, shield: 189.6, rate: 3.03, cls: 9, muzzle: 650, price: "38,800", rank: 25, gate: "Zoners +0.3", dealers: [["Freeport 9", "Omega-41", false], ["Freeport 6", "Sigma-13", false]] },
+  { name: "Heavy Starbeam", hull: 22.4, shield: 11.2, rate: 8.33, cls: 6, muzzle: 600, price: "6,240", rank: 12, gate: "—", dealers: [["Planet Manhattan", "New York", true], ["Newark Station", "New York", true], ["Planet Los Angeles", "California", true]] },
+  { name: "Adv. Starbeam", hull: 18.4, shield: 9.2, rate: 8.33, cls: 5, muzzle: 600, price: "3,980", rank: 9, gate: "—", dealers: [["Planet Manhattan", "New York", true], ["Fort Bush", "New York", true], ["Trenton Outpost", "New York", true]] },
+  { name: "Adv. Stunpulse", hull: 5.6, shield: 189.6, rate: 2.0, cls: 8, muzzle: 550, price: "18,400", rank: 20, gate: "Liberty +0.4", dealers: [["West Point Military Academy", "New York", true], ["Norfolk Shipyard", "New York", false]] },
+  { name: "Stunpulse", hull: 4.6, shield: 155.3, rate: 2.0, cls: 6, muzzle: 550, price: "7,100", rank: 14, gate: "—", dealers: [["Planet Manhattan", "New York", true], ["Planet Denver", "Colorado", true]] },
+  { name: "Dragon Fang", hull: 96.8, shield: 48.4, rate: 3.03, cls: 8, muzzle: 702, price: "24,900", rank: 22, gate: "Blood Dragons +0.5", dealers: [["Narita Outpost", "New Tokyo", false]] },
+  { name: "Wildfire Mk II", hull: 74.2, shield: 37.1, rate: 4.0, cls: 7, muzzle: 800, price: "15,700", rank: 18, gate: "Mollys +0.4", dealers: [["Arranmore Base", "Dublin", false]] },
+  { name: "Justice Mk III", hull: 44.6, shield: 22.3, rate: 5.88, cls: 6, muzzle: 600, price: "8,900", rank: 15, gate: "—", dealers: [["Buffalo Base", "New York", false], ["Beaumont Base", "Texas", false]] },
+  { name: "Lavablade Mk II", hull: 61.4, shield: 30.7, rate: 4.0, cls: 7, muzzle: 650, price: "12,300", rank: 17, gate: "Xenos +0.3", dealers: [["Ouray Base", "Colorado", false]] }
+];
+
+const SHIELDS = [
+  { name: "Adv. Brigandine", cap: 8460, regen: 176, price: "289,150", rank: 30, gate: "Corsairs +0.6", cls: 10, dealers: [["Battleship Rheinland", "Omega-7", false]] },
+  { name: "Adv. Bloodstone", cap: 7120, regen: 158, price: "184,600", rank: 27, gate: "Outcasts +0.5", cls: 9, dealers: [["Ruiz Base", "Omicron Beta", false]] },
+  { name: "Champion Type 2", cap: 5240, regen: 121, price: "96,400", rank: 22, gate: "—", cls: 8, dealers: [["Planet New London", "New London", true], ["Southampton Shipyard", "New London", true]] },
+  { name: "Guardian Type 1", cap: 3180, regen: 88, price: "38,700", rank: 17, gate: "—", cls: 6, dealers: [["Planet Manhattan", "New York", true], ["Planet Los Angeles", "California", true]] },
+  { name: "Advance Type 1", cap: 1640, regen: 52, price: "11,200", rank: 11, gate: "—", cls: 4, dealers: [["Planet Manhattan", "New York", true], ["Newark Station", "New York", true], ["Planet Denver", "Colorado", true]] }
+];
+
+const MARKET = {
+  Gold: { price: 425, rows: [
+    ["Cambridge Research Station", "Cambridge", 1530, 3.6, false, false],
+    ["Planet Cambridge", "Cambridge", 1445, 3.4, false, false],
+    ["Willard Research Station", "California", 1360, 3.2, true, false],
+    ["Planet Pittsburgh", "New York", 638, 1.5, true, true],
+    ["Newark Station", "New York", 552, 1.3, true, true],
+    ["Planet New London", "New London", 255, 0.6, true, false],
+    ["Southampton Shipyard", "New London", 255, 0.6, true, false],
+    ["Waterloo Station", "New London", 255, 0.6, false, false],
+    ["Kensington Shipping Platform", "New London", 255, 0.6, false, false]
+  ]},
+  Boron: { price: 120, rows: [
+    ["LD-14", "Leeds", 960, 8.0, false, false],
+    ["Stokes Mining Station", "Leeds", 900, 7.5, false, false],
+    ["Planet Leeds", "Leeds", 840, 7.0, false, false],
+    ["Planet New London", "New London", 456, 3.8, true, false],
+    ["Planet Pittsburgh", "New York", 120, 1.0, true, true],
+    ["Newark Station", "New York", 132, 1.1, false, true]
+  ]},
+  Cardamine: { price: 90, rows: [
+    ["Planet Manhattan", "New York", 828, 9.2, false, true],
+    ["Planet Los Angeles", "California", 792, 8.8, false, true],
+    ["Planet New Tokyo", "New Tokyo", 756, 8.4, false, false],
+    ["Buffalo Base", "New York", 558, 6.2, true, false],
+    ["Ruiz Base", "Omicron Beta", 90, 1.0, true, false]
+  ]},
+  Optronics: { price: 644, rows: [
+    ["Planet New London", "New London", 1288, 2.0, false, false],
+    ["Cambridge Research Station", "Cambridge", 1224, 1.9, false, false],
+    ["Planet Manhattan", "New York", 644, 1.0, true, true],
+    ["Newark Station", "New York", 663, 1.03, true, true]
+  ]},
+  "Alien Organisms": { price: 100, rows: [
+    ["Cambridge Research Station", "Cambridge", 2000, 20.0, false, false],
+    ["Willard Research Station", "California", 2000, 20.0, false, false],
+    ["Planet Cambridge", "Cambridge", 2000, 20.0, false, false],
+    ["Ruiz Base", "Omicron Beta", 100, 1.0, true, false]
+  ]}
+};
+
+const DELTAS = {
+  "Planet Pittsburgh": { system: "New York", docked: true, goods: [
+    ["Boron", 120, 960, "LD-14, Leeds", [["LD-14", "Leeds", 840], ["Stokes Mining Station", "Leeds", 780], ["Planet Leeds", "Leeds", 720], ["Planet New London", "New London", 336]]]
+  ]},
+  "Planet Manhattan": { system: "New York", docked: true, goods: [
+    ["Optronics", 644, 1288, "Planet New London, New London", [["Planet New London", "New London", 644], ["Cambridge Research Station", "Cambridge", 580]]],
+    ["Consumer Goods", 244, 432, "Waterloo Station, New London", [["Waterloo Station", "New London", 188], ["Planet Leeds", "Leeds", 164]]],
+    ["Toxic Waste", 15, 108, "Yanagi Depot, Honshu", [["Yanagi Depot", "Honshu", 93], ["Newark Station", "New York", 41]]],
+    ["Luxury Food", 65, 372, "Planet New Tokyo, New Tokyo", [["Planet New Tokyo", "New Tokyo", 307], ["Planet Honshu", "Honshu", 264]]]
+  ]},
+  "Buffalo Base": { system: "New York", docked: false, goods: [
+    ["Cardamine", 558, 828, "Planet Manhattan, New York", [["Planet Manhattan", "New York", 270], ["Planet Los Angeles", "California", 234], ["Planet New Tokyo", "New Tokyo", 198]]],
+    ["Scrap Metal", 22, 96, "Planet Pittsburgh, New York", [["Planet Pittsburgh", "New York", 74]]]
+  ]},
+  "Ruiz Base": { system: "Omicron Beta", docked: false, goods: [
+    ["Alien Organisms", 100, 2000, "Cambridge Research Station, Cambridge", [["Cambridge Research Station", "Cambridge", 1900], ["Willard Research Station", "California", 1900], ["Planet Cambridge", "Cambridge", 1900]]],
+    ["Cardamine", 90, 828, "Planet Manhattan, New York", [["Planet Manhattan", "New York", 738], ["Planet Los Angeles", "California", 702]]]
+  ]}
+};
+
+const ROUTES = {
+  "New York→Leeds": { traded: 22, rows: [
+    ["Boron", "Planet Pittsburgh", "LD-14", 120, 840],
+    ["Consumer Goods", "Planet Manhattan", "Planet Leeds", 244, 164],
+    ["Optical Chips", "Newark Station", "Stokes Mining Station", 412, 148],
+    ["Water", "Planet Manhattan", "LD-14", 8, 46],
+    ["Oxygen", "Trenton Outpost", "Planet Leeds", 12, 38]
+  ], dropped: 8 },
+  "New York→New London": { traded: 25, rows: [
+    ["Optronics", "Planet Manhattan", "Planet New London", 644, 644],
+    ["Toxic Waste", "Planet Manhattan", "Waterloo Station", 15, 121],
+    ["Consumer Goods", "Planet Manhattan", "Waterloo Station", 244, 188],
+    ["Superconductors", "Newark Station", "Southampton Shipyard", 786, 92],
+    ["Water", "Fort Bush", "Planet New London", 8, 52]
+  ], dropped: 8 },
+  "New York→New York": { traded: 12, rows: [
+    ["Cardamine", "Buffalo Base", "Planet Manhattan", 558, 270],
+    ["Scrap Metal", "Newark Station", "Planet Pittsburgh", 22, 74],
+    ["Toxic Waste", "Planet Manhattan", "Newark Station", 15, 41],
+    ["Water", "Trenton Outpost", "Planet Manhattan", 8, 22]
+  ], dropped: 0 },
+  "Omicron Beta→Cambridge": { traded: 8, rows: [
+    ["Alien Organisms", "Ruiz Base", "Cambridge Research Station", 100, 1900],
+    ["Cardamine", "Ruiz Base", "Planet Cambridge", 90, 612],
+    ["Artifacts", "Ruiz Base", "Cambridge Research Station", 940, 288],
+    ["Luxury Goods", "Ruiz Base", "Planet Cambridge", 730, 96]
+  ], dropped: 4 }
+};
+
+const FACTIONS = [
+  { name: "Liberty Rogues", rep: -0.68, bars: 46, actions: [
+    { what: "Fly missions from Rogue bases", delta: 0.06, helps: 3, hurts: 5, worst: "Liberty Police −0.24", moves: [["Liberty Rogues", -0.68, -0.62, ""], ["Outcasts", 0.12, 0.15, ""], ["Liberty Police", 0.41, 0.17, ""], ["Liberty Navy", 0.38, 0.14, ""], ["Bounty Hunters", -0.9, -0.9, "pinned"]] },
+    { what: "Kill Liberty Police pilots", delta: 0.018, helps: 6, hurts: 7, worst: "Liberty Navy −0.06", moves: [["Liberty Rogues", -0.68, -0.662, ""], ["Liberty Police", 0.41, 0.35, ""], ["Liberty Navy", 0.38, 0.32, ""], ["Xenos", -0.14, -0.11, ""]] },
+    { what: "Abort missions offered by Liberty Police", delta: 0.011, helps: 4, hurts: 3, worst: "Liberty Police −0.05", moves: [["Liberty Rogues", -0.68, -0.669, ""], ["Liberty Police", 0.41, 0.36, ""], ["Junkers", 0.22, 0.24, ""]] },
+    { what: "Kill Xenos pilots", delta: -0.014, helps: 5, hurts: 4, worst: "Outcasts −0.04", moves: [["Liberty Rogues", -0.68, -0.694, ""], ["Xenos", -0.14, -0.32, ""], ["Liberty Navy", 0.38, 0.44, ""]] }
+  ]},
+  { name: "Xenos", rep: -0.41, bars: 12, actions: [
+    { what: "Kill Liberty Navy pilots", delta: 0.021, helps: 4, hurts: 8, worst: "Liberty Navy −0.07", moves: [["Xenos", -0.41, -0.389, ""], ["Liberty Navy", 0.38, 0.31, ""], ["Liberty Rogues", -0.68, -0.66, ""]] },
+    { what: "Fly missions from Ouray Base", delta: 0.05, helps: 2, hurts: 6, worst: "Liberty Police −0.2", moves: [["Xenos", -0.41, -0.36, ""], ["Liberty Police", 0.41, 0.21, ""], ["Corsairs", -0.05, -0.02, ""]] },
+    { what: "Kill Liberty Police pilots", delta: 0.016, helps: 5, hurts: 7, worst: "Liberty Police −0.06", moves: [["Xenos", -0.41, -0.394, ""], ["Liberty Police", 0.41, 0.35, ""]] }
+  ]},
+  { name: "Bretonia Mining", rep: 0.08, bars: 31, actions: [
+    { what: "Fly missions from Stokes Mining Station", delta: 0.055, helps: 4, hurts: 3, worst: "Mollys −0.19", moves: [["Bretonia Mining", 0.08, 0.135, ""], ["Bretonia Armed Forces", 0.31, 0.34, ""], ["Mollys", -0.52, -0.71, ""]] },
+    { what: "Kill Molly pilots", delta: 0.019, helps: 6, hurts: 4, worst: "Mollys −0.07", moves: [["Bretonia Mining", 0.08, 0.099, ""], ["Mollys", -0.52, -0.59, ""], ["Bretonia Police", 0.28, 0.33, ""]] },
+    { what: "Kill Bretonia Police pilots", delta: -0.022, helps: 3, hurts: 6, worst: "Bretonia Armed Forces −0.08", moves: [["Bretonia Mining", 0.08, 0.058, ""], ["Bretonia Police", 0.28, 0.19, ""], ["Mollys", -0.52, -0.44, ""]] }
+  ]},
+  { name: "Junkers", rep: 0.22, bars: 38, actions: [
+    { what: "Fly missions from Yanagi Depot", delta: 0.048, helps: 3, hurts: 4, worst: "Kusari Police −0.18", moves: [["Junkers", 0.22, 0.268, ""], ["Kusari Police", 0.19, 0.01, ""], ["Blood Dragons", -0.31, -0.27, ""]] },
+    { what: "Kill Hessian pilots", delta: 0.015, helps: 5, hurts: 3, worst: "Red Hessians −0.06", moves: [["Junkers", 0.22, 0.235, ""], ["Red Hessians", -0.47, -0.53, ""]] },
+    { what: "Kill Kusari Police pilots", delta: -0.02, helps: 4, hurts: 6, worst: "Kusari Naval Forces −0.07", moves: [["Junkers", 0.22, 0.2, ""], ["Kusari Police", 0.19, 0.12, ""]] }
+  ]}
+];
+
+const NET_ALL = [
+  { n: 113, personal: true, text: "Manhattan is under smog again. Juni says she has work for me; I say I have a docking fee to pay off." },
+  { n: 112, personal: false, text: "Liberty Navy patrol has closed the corridor to Norfolk Shipyard until further notice." },
+  { n: 111, personal: true, text: "Found the third Patrol 27 hull. Empty, like the first two — but that makes three of three." },
+  { n: 110, personal: false, text: "Cardamine prices at Buffalo Base are up. Someone in this system is paying far too much." },
+  { n: 109, personal: true, text: "Trent says the Rogues at Buffalo will talk to anyone with credits. The bartender wanted 124,000 of mine." },
+  { n: 108, personal: true, text: "Ran Boron out of Pittsburgh again. Four trips and the Patriot still handles like a brick with a hold." },
+  { n: 107, personal: false, text: "Bounty posted on Xeno raiders operating out of Colorado. Payment on proof of kill." },
+  { n: 106, personal: true, text: "The wreck in California still has its cargo. I marked it and left it — no room for a Starbeam today." }
+];
+
+class Component extends DCLogic {
+  state = {
+    tab: "dash", engineOpen: false, showAll: true, hideCompleted: true, query: "",
+    houses: {}, systems: {},
+    cruise: 5000, lane: 8000, bestPath: true, dock: 200, hudCap: true, thruster: 320, asteroid: 1.5, windUp: true,
+    subEquip: "dps", subTrade: "data",
+    dpsPicks: ["Adv. Starbeam", "Adv. Starbeam", "Heavy Starbeam", "Adv. Stunpulse"],
+    pickerOpen: false, pickQuery: "",
+    searchKind: "guns", dockedOnly: false, params: ["hull"], muzzle: null, sortCol: "hull", sortDir: -1, openRows: {},
+    commodity: "Gold", deltaBase: "Planet Manhattan", routeA: "New York", routeB: "Leeds",
+    faction: "Liberty Rogues", target: 0.5,
+    personalOnly: true, netDesc: true, netMarks: {}, netRead: {}
+  };
+
+  set(k, v) { this.setState({ [k]: v }); }
+  flip(map, key) {
+    const next = Object.assign({}, this.state[map]);
+    next[key] = !next[key];
+    this.setState({ [map]: next });
+  }
+  allHouses(open) {
+    const h = {};
+    HOUSES.forEach(x => { h[x.code] = open; });
+    this.setState({ houses: h, systems: {} });
+  }
+
+  visibleTree() {
+    const { showAll, hideCompleted, query } = this.state;
+    const q = query.trim().toLowerCase();
+    const out = [];
+    HOUSES.forEach(house => {
+      const systems = [];
+      house.systems.forEach(sys => {
+        const doneBases = sys.bases.filter(b => b.state === "docked").length;
+        const foundWrecks = sys.wrecks.filter(w => w.state !== "missing").length;
+        const stripped = sys.wrecks.filter(w => w.state === "stripped").length;
+        const complete = doneBases === sys.bases.length && stripped === sys.wrecks.length;
+        if (hideCompleted && complete) return;
+        const hit = !q || sys.name.toLowerCase().includes(q) || sys.nick.toLowerCase().includes(q)
+          || sys.bases.some(b => b.name.toLowerCase().includes(q))
+          || sys.wrecks.some(w => w.name.toLowerCase().includes(q));
+        if (!hit) return;
+        const bases = showAll ? sys.bases : sys.bases.filter(b => b.state !== "unknown");
+        const wrecks = showAll ? sys.wrecks : sys.wrecks.filter(w => w.state !== "missing");
+        systems.push({ sys, bases, wrecks, doneBases, foundWrecks, stripped, complete });
+      });
+      out.push({ house, systems });
+    });
+    return out;
+  }
+
+  renderVals() {
+    const s = this.state;
+    const tabs = [["dash", "OVERVIEW"], ["sys", "SYSTEMS"], ["chart", "CHART"], ["equip", "EQUIPMENT"], ["trade", "TRADE"], ["rep", "REPUTATION"], ["net", "NEURAL NET"]];
+    const range = (label, key, min, max, step, unit, note) => ({
+      label, isRange: true, isToggle: false, min, max, step, raw: s[key], value: (unit ? s[key] + unit : String(s[key])),
+      color: "#9fe4ff", note: note || "", onInput: e => this.set(key, Number(e.target.value))
+    });
+    const toggle = (label, key, on, off, note) => ({
+      label, isRange: false, isToggle: true, value: s[key] ? "ON" : "OFF", color: s[key] ? "#5fe0a0" : "#7d97ab",
+      togText: s[key] ? on : off, togBg: s[key] ? "rgba(95,224,160,.12)" : "rgba(111,216,255,.06)",
+      togBorder: s[key] ? "rgba(95,224,160,.4)" : "rgba(111,216,255,.24)", note: note || "",
+      onToggle: () => this.set(key, !s[key])
+    });
+
+    const tree = this.visibleTree();
+    let shownSystems = 0, shownBases = 0, shownWrecks = 0;
+    tree.forEach(t => t.systems.forEach(x => { shownSystems++; shownBases += x.bases.length; shownWrecks += x.wrecks.length; }));
+
+    const houses = tree.map(({ house, systems }) => {
+      const allBases = house.systems.reduce((n, x) => n + x.bases.length, 0);
+      const dockedBases = house.systems.reduce((n, x) => n + x.bases.filter(b => b.state === "docked").length, 0);
+      const allWrecks = house.systems.reduce((n, x) => n + x.wrecks.length, 0);
+      const foundWrecks = house.systems.reduce((n, x) => n + x.wrecks.filter(w => w.state !== "missing").length, 0);
+      const open = !!s.houses[house.code];
+      return {
+        name: house.name, code: house.code, open, caret: open ? "▾" : "▸",
+        color: open ? "#9fe4ff" : "#8fb3c8",
+        border: open ? "rgba(111,216,255,.3)" : "rgba(111,216,255,.16)",
+        headBg: open ? "rgba(111,216,255,.1)" : "rgba(111,216,255,.03)",
+        stats: "bases " + dockedBases + "/" + allBases + "   wrecks " + foundWrecks + "/" + allWrecks,
+        width: Math.round(100 * (dockedBases + foundWrecks) / Math.max(1, allBases + allWrecks)) + "%",
+        toggle: () => this.flip("houses", house.code),
+        empty: systems.length === 0,
+        systems: systems.map(({ sys, bases, wrecks, doneBases, foundWrecks: fw, stripped, complete }) => {
+          const sopen = !!s.systems[sys.nick];
+          const loaded = fw - stripped;
+          return {
+            name: sys.name, nick: sys.nick, open: sopen, caret: sopen ? "▾" : "▸",
+            baseStat: "■ " + doneBases + "/" + sys.bases.length,
+            wreckStat: sys.wrecks.length ? "+ " + stripped + "/" + sys.wrecks.length : "— no wrecks",
+            wreckColor: loaded > 0 ? "#ffb347" : (stripped === sys.wrecks.length && sys.wrecks.length ? "#5fe0a0" : "#7d97ab"),
+            flag: complete ? "CLOSED OUT" : (loaded > 0 ? "CARGO ABOARD" : "OPEN"),
+            flagColor: complete ? "#5fe0a0" : (loaded > 0 ? "#ffb347" : "#7d97ab"),
+            toggle: () => this.flip("systems", sys.nick),
+            noBases: bases.length === 0, noWrecks: wrecks.length === 0,
+            bases: bases.map(b => ({
+              name: b.name, owner: b.owner, coord: b.coord,
+              mark: b.state === "docked" ? "■" : (b.state === "revealed" ? "□" : "−"),
+              color: b.state === "unknown" ? "#456375" : "#6fd8ff",
+              nameColor: b.state === "docked" ? "#cfe6f5" : (b.state === "revealed" ? "#a7c6d8" : "#6a899c")
+            })),
+            wrecks: wrecks.map(w => ({
+              name: w.name, coord: w.coord, loot: w.loot || "empty",
+              showLoot: w.state === "missing" || w.state === "found",
+              mark: w.state === "stripped" ? "+" : (w.state === "found" ? "*" : "−"),
+              state: w.state === "stripped" ? "stripped" : (w.state === "found" ? "cargo aboard" : "not found"),
+              color: w.state === "stripped" ? "#5fe0a0" : (w.state === "found" ? "#ffb347" : "#7d97ab"),
+              nameColor: w.state === "missing" ? "#6a899c" : "#cfe6f5"
+            }))
+          };
+        })
+      };
+    });
+
+    const otherCopy = {
+      chart: ["Map → Chart", "The Sirius sector chart with every jump link, overlaid with what you have found. The chart is fan-made and not part of the repo: the panel picks up freelancer-map.jpg dropped next to serve.py."],
+      equip: ["Equipment → DPS and Search", "Gun stacks summed into hull and shield DPS, plus search where a parameter is both a filter and a column — filtering never reorders the sort. 235 guns and 79 shields you can actually get hold of."],
+      trade: ["Trade → Data, Deltas, Routes", "Three ways into the same price set: by commodity, by the base under your feet, and by a pair of systems. Routes computes run — the margin on a full hold of the ship you are actually flying."],
+      rep: ["Reputation", "The repeatable actions that move standing the way you want, priced in what they cost you elsewhere. Bribes are listed separately: they set 0.6, they do not add to it."],
+      net: ["Neural Net", "The log out of the save. “Interesting” and “read” marks live in the browser. No dates, because the save has no dates — only entry order."]
+    };
+    const other = otherCopy[s.tab] || ["", ""];
+
+    return {
+      scanOpacity: this.props.scanlines === false ? 0 : (this.props.scanIntensity ?? 1),
+      saveName: "AutoSave.fl", pollAge: "2s ago",
+      tabs: tabs.map(([id, label]) => ({
+        label, go: () => this.set("tab", id),
+        bg: s.tab === id ? "rgba(111,216,255,.16)" : "rgba(8,20,30,.8)",
+        border: s.tab === id ? "rgba(111,216,255,.4)" : "rgba(111,216,255,.14)",
+        under: s.tab === id ? "#6fd8ff" : "transparent",
+        color: s.tab === id ? "#cfe6f5" : "#7d97ab"
+      })),
+      isDash: s.tab === "dash", isSystems: s.tab === "sys",
+      isOther: s.tab !== "dash" && s.tab !== "sys",
+      otherTitle: other[0], otherBody: other[1],
+      goDash: () => this.set("tab", "dash"), goRep: () => this.set("tab", "rep"),
+
+      cruiseValue: s.cruise.toLocaleString("en-US"), cruiseRaw: s.cruise,
+      onCruise: e => this.set("cruise", Number(e.target.value)),
+      cruisePresets: [300, 1000, 2500, 5000].map(v => ({
+        label: v.toLocaleString("en-US"),
+        set: () => this.set("cruise", v),
+        bg: s.cruise === v ? "rgba(111,216,255,.2)" : "rgba(111,216,255,.05)",
+        border: s.cruise === v ? "rgba(111,216,255,.5)" : "rgba(111,216,255,.2)",
+        color: s.cruise === v ? "#cfe6f5" : "#7d97ab"
+      })),
+
+      strip: [
+        range("TRADE LANE", "lane", 2500, 10000, 100, "", ""),
+        toggle("BEST PATH", "bestPath", "ON", "OFF"),
+        range("TAKEOVER", "dock", 100, 1000, 50, " m", "")
+      ],
+      engineOpen: s.engineOpen, toggleEngine: () => this.set("engineOpen", !s.engineOpen),
+      engineBtn: s.engineOpen ? "LESS ▴" : "ALL KNOBS ▾",
+      thrusterValue: "+" + s.thruster,
+      asteroidRaw: s.asteroid, asteroidValue: s.asteroid + "×",
+      onAsteroid: e => this.set("asteroid", Number(e.target.value)),
+      asteroidCost: s.asteroid === 1
+        ? "At 1× nothing changes: the shipped numbers stay as they are."
+        : s.asteroid + "× the distance is roughly " + Math.round(Math.pow(s.asteroid, 3) * 10) / 10 + "× the geometry — a median 385 filled cubes becomes " + Math.round(385 * Math.pow(s.asteroid, 3)) + ", on a single-threaded 2003 renderer. Billboards are left alone on purpose.",
+      liveKnobs: [
+        Object.assign(range("THRUSTERS (BONUS)", "thruster", 120, 420, 10, "", "A bonus added to your normal speed, not the speed itself: 320 gives you base plus 320. Vanilla is 120 on all six, and all six are listed."), { origin: "st_equip.ini values, patched in memory" }),
+        Object.assign(range("TRADE LANE SPEED", "lane", 2500, 10000, 100, "", "2500 is vanilla. This one is in no data file at all — it is a constant inside common.dll."), { origin: "address from flhack, checked before writing" }),
+        Object.assign(toggle("LANE WIND-UP", "windUp", "NEAR-INSTANT", "STOCK RAMP", "At the stock rate of 0.125 a ship spends most of a short lane still accelerating, so a higher speed alone is barely felt. Deceleration is left alone."), { origin: "same setting in practice as lane speed" }),
+        Object.assign(toggle("HUD SPEED CAP", "hudCap", "RAISED TO 9999", "STOCK 999", "The HUD refuses to print a speed over 999, so a raised lane speed shows a dash instead of a number."), { origin: "not in files; never written to disk" }),
+        Object.assign(toggle("BEST PATH VIA JUMP HOLES", "bestPath", "ON", "OFF", "Swaps which route table gets read: systems_shortest_path.ini includes jump holes, shortest_legal_path.ini only gates. Dies on every save load — content.dll and server.dll reload with the save, so press it again."), { origin: "bestpath.py · five bytes in three places" }),
+        Object.assign(range("DOCKING TAKEOVER", "dock", 100, 1000, 50, " m", ""), {
+          note: "Where the game stops flying you and starts docking you. Stock is 1000 m; 200 is what settled after flying 100, 200, 400 and 600. Lanes and jump gates share it, stations and planets keep 600.",
+          origin: "dockdist.py --takeover · memory only, relaunch restores stock" })
+      ],
+
+      meters: [
+        { label: "BASES / DOCKED", have: 41, total: 164, pct: "25%", width: "25%", note: "plus 6 revealed by story but never visited" },
+        { label: "WRECKS / FOUND", have: 5, total: 157, pct: "3%", width: "3.2%", note: "2 of them still hold their cargo" }
+      ],
+      mission: "Mission 05", missionNote: "Tohoku and Alaska are story-locked — their three bases stay out of the denominator.",
+
+      position: [
+        { k: "SYSTEM", v: "New York · Li01", color: "#9fe4ff" },
+        { k: "DOCKED AT", v: "Planet Manhattan", color: "#cfe6f5" },
+        { k: "SHIP", v: "Patriot", color: "#cfe6f5" },
+        { k: "HOLD", v: "45 units", color: "#cfe6f5" },
+        { k: "BALANCE", v: "218,400 credits", color: "#5fe0a0" },
+        { k: "RANK", v: "9", color: "#cfe6f5" }
+      ],
+
+      nearSystem: "New York · Li01",
+      nearby: [
+        { mark: "*", color: "#ffb347", name: "Transport hull", kind: "wreck", coord: "D7 UL" },
+        { mark: "−", color: "#456375", name: "Rogue Wolf hull", kind: "wreck", coord: "B2 C" },
+        { mark: "□", color: "#6fd8ff", name: "Norfolk Shipyard", kind: "Liberty Navy", coord: "B6 C" },
+        { mark: "□", color: "#6fd8ff", name: "Buffalo Base", kind: "Liberty Rogues", coord: "B3 LR" },
+        { mark: "−", color: "#456375", name: "Rochester Base", kind: "Liberty Rogues", coord: "C2 UR" },
+        { mark: "−", color: "#456375", name: "Detroit Munitions", kind: "Liberty Navy", coord: "D2 LL" }
+      ],
+
+      hold: "45",
+      cargo: [
+        { name: "Boron · Planet Pittsburgh", to: "LD-14, Leeds", run: "+37,800" },
+        { name: "Optronics · Planet Manhattan", to: "Planet New London", run: "+28,980" },
+        { name: "Cardamine · Buffalo Base", to: "Planet Manhattan", run: "+12,150" },
+        { name: "Consumer Goods · Planet Manhattan", to: "Waterloo Station", run: "+8,460" }
+      ],
+      cargoNote: "For the coder: sell ends are restricted to bases already docked at — never an unvisited one. run is the margin on a full Patriot hold; every commodity has volume 1.0, so 45 means 45 units of anything.",
+
+      worstFaction: "Liberty Rogues",
+      worstRep: "−0.68",
+      repActions: [
+        { what: "Xenos pilots killed", count: "×34", side: "+3 / −2" },
+        { what: "Bartender bribe, Buffalo Base", count: "124,000 cr.", side: "+1 / −4" },
+        { what: "Junker missions from Yanagi Depot", count: "×9", side: "+2 / −3" }
+      ],
+
+      netCount: "113 entries · 66 personal",
+      netEntries: NET.map(e => ({
+        n: e.n, text: e.text,
+        tag: e.personal ? "*PERSONAL ENTRY" : "GENERAL BRIEFING",
+        tagColor: e.personal ? "#ffb347" : "#5d7f96"
+      })),
+
+      houses,
+      query: s.query, onQuery: e => this.set("query", e.target.value),
+      checks: [
+        { label: "SHOW ALL", on: s.showAll, glyph: s.showAll ? "×" : "", fill: s.showAll ? "#6fd8ff" : "transparent", border: s.showAll ? "#6fd8ff" : "rgba(111,216,255,.3)", color: s.showAll ? "#cfe6f5" : "#7d97ab", toggle: () => this.set("showAll", !s.showAll) },
+        { label: "HIDE COMPLETED", on: s.hideCompleted, glyph: s.hideCompleted ? "×" : "", fill: s.hideCompleted ? "#6fd8ff" : "transparent", border: s.hideCompleted ? "#6fd8ff" : "rgba(111,216,255,.3)", color: s.hideCompleted ? "#cfe6f5" : "#7d97ab", toggle: () => this.set("hideCompleted", !s.hideCompleted) }
+      ],
+      expandAll: () => this.allHouses(true), collapseAll: () => this.allHouses(false),
+      treeSummary: shownSystems + " systems · " + shownBases + " bases · " + shownWrecks + " wrecks listed"
+    };
+  }
+}
+</script>
+</body>
+</html>

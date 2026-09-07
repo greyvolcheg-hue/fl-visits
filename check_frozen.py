@@ -21,8 +21,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import docking as dk  # noqa: E402
-import flvisits as fl  # noqa: E402
+from backend.game import bases as bs  # noqa: E402
+from backend.game import flvisits as fl  # noqa: E402
 
 SAVES = os.path.expanduser(
     "~/Games/freelancer-win32/drive_c/users/*/Documents/My Games/"
@@ -55,7 +55,7 @@ def main():
     print(f"systemfile count={len(files)} digest={digest('|'.join(files))}")
 
     # 4. the dockable rule, which both programs take their denominator from.
-    dock = dk.dockable_bases(game, data, fl.system_files, fl.ipath)
+    dock = bs.dockable_bases(game, data, fl.system_files, fl.ipath)
     print(f"dockable   count={len(dock)} digest={digest('|'.join(sorted(dock)))}")
 
     # 5. every save decoded, and every visit resolved through the hash.
