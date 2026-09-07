@@ -63,9 +63,28 @@ function ago(t) {
   return Math.round(s / 3600) + ' h ago';
 }
 
+// Write html into a node only when it differs from what is already there, and
+// say whether anything was written.
+//
+// **This is not an optimisation.** Assigning `innerHTML` destroys and rebuilds
+// every child, and a browser only fires `click` when the press and the release
+// land on the same element. The five-second poll was rewriting the engine strip
+// and the whole panel with byte-identical markup on every tick, so any click
+// whose press and release straddled a tick was swallowed with no error and no
+// trace: the ALL KNOBS button "worked once and then stopped". Text selection,
+// focus and scroll position went the same way.
+//
+// Proved rather than guessed, in a headless browser: press the button, run a
+// poll, release it, and the release lands on a different element.
+function paint(node, html) {
+  if (node.innerHTML === html) return false;
+  node.innerHTML = html;
+  return true;
+}
+
 function totals(pairs) {
-  $('#totals').innerHTML = pairs
-    .map(([n, l]) => `<div><span class="n">${n}</span><span class="lbl">${l}</span></div>`).join('');
+  paint($('#totals'), pairs
+    .map(([n, l]) => `<div><span class="n">${n}</span><span class="lbl">${l}</span></div>`).join(''));
 }
 
 // `fold` is optional: {id, open} makes the card a fold with a caret and a
@@ -132,12 +151,12 @@ function go(parent, child) {
 // feels like it, the poll is us.
 function drawStatus() {
   const cold = !latest;
-  $('#status').innerHTML =
+  paint($('#status'),
     `<span class="dot${cold ? ' cold' : ''}"></span>` +
     (cold ? '<span>no save read yet</span>'
           : `<span class="file">${esc(latest.save)}</span>` +
             `<span class="sep">|</span><span>saved ${ago(latest.saved_at)}</span>`) +
-    (polledAt ? `<span class="sep">|</span><span>polled ${ago(polledAt)}</span>` : '');
+    (polledAt ? `<span class="sep">|</span><span>polled ${ago(polledAt)}</span>` : ''));
 }
 
 function render() {
@@ -151,7 +170,9 @@ function render() {
   if (v.save && !latest) return;
   if (v.draw) {
     const html = v.draw(latest);
-    if (html !== null) $('#list').innerHTML = html;
+    // A draw returning null means "leave the panel alone"; identical markup
+    // means the same thing and must not cost the panel its event handlers.
+    if (html !== null && !paint($('#list'), html)) return;
   }
   if (v.wire) v.wire();
 }

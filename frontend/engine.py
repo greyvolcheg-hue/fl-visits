@@ -253,15 +253,17 @@ function drawEngine() {
   // thumb. Two seconds covers a pointer that left the window without release.
   if (Date.now() - engHeld < 2000) return;
   const box = $('#engine');
-  if (!eng) { box.innerHTML = ''; return; }
+  if (!eng) { paint(box, ''); return; }
   const said = engSaid
     ? `<div class="banner"><span class="said${engSaidBad ? ' bad' : ''}">` +
       `${esc(engSaid)}</span></div>` : '';
-  box.innerHTML = engStrip() +
+  const html = engStrip() +
     `<button class="more" id="engmore">${engOpen ? 'LESS ▴' : 'ALL KNOBS ▾'}</button>` +
     said +
     (engOpen ? `<div class="drawer">${engMemory()}${engFiles()}</div>` : '');
-  wireEngine();
+  // Only rewire when the markup actually changed. `paint` says whether it did;
+  // handlers survive a skipped paint because the elements they are on do.
+  if (paint(box, html)) wireEngine();
 }
 
 // One POST shape for every control here. Three copies of this drifted apart

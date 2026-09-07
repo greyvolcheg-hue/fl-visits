@@ -330,6 +330,38 @@ dropped rather than printed. Until this was understood the page printed a bare
 `%M` at the end of a sentence, which reads as corruption.
 
 
+## Settled: a poll that rewrites identical markup swallows clicks
+
+Found 2026-09-07, an hour after the redesign shipped, from the owner's report
+that `ALL KNOBS` "opened once and then stopped opening".
+
+`render()` runs on the five-second poll and was assigning `innerHTML` on the
+engine strip, the panel and the totals row every single time. **The markup was
+byte-identical**, 1389 characters of it for the strip, because the values it
+prints only change when you change them.
+
+Assigning `innerHTML` destroys and rebuilds every child, and **a browser only
+fires `click` when the press and the release land on the same element**. So a
+click whose mousedown and mouseup straddled a tick produced no `click` event at
+all: no error, no console line, nothing to see. Every button on every tab was
+exposed, not just that one.
+
+Proved in a headless browser rather than reasoned about: press the button, run
+one `render()`, release it, and `document.querySelector('#engmore')` is a
+different object from the one the press landed on.
+
+The fix is `paint(node, html)` in `frontend/shell.py`, which writes only when
+the html differs and returns whether it did. **It is not an optimisation and
+must not be removed as one.** Rewiring is skipped along with the paint, which
+is correct: handlers survive because the elements they are on do. Text
+selection, focus and scroll position stop being thrown away every five seconds
+as a side effect.
+
+The general rule for anything on this page: a five-second poll is allowed to
+compare, never to rebuild. If a panel must be rebuilt on a tick, its buttons
+are not clickable and no amount of testing the handler will show it.
+
+
 ## The look: `design/Neural Companion.dc.html` is the source, not a screenshot
 
 Added 2026-09-07. The page's visual language is a Claude Design canvas that
