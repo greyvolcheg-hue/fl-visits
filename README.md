@@ -407,14 +407,49 @@ to re-send 12 times a minute. The panel is drawn once for the same reason:
 rewriting its markup on every poll would throw away a decoded 2560px image and
 decode it again.
 
-**Neural Net** is the in-game log, readable while you fly. Mark an entry
-interesting or read; the marks live in your browser and survive reloads. Sorting
-is newest first with a button to flip it, and there is **no date column, because
-the save holds no dates** at all, only the order the entries were written in.
-*Personal only* narrows it to the pilot's diary, which the game heads with
-`*PERSONAL ENTRY`, 66 of the 113 entries in a mid-campaign save. **It starts
-on**, since the diary is the half worth reading; untick it for the objective
-lines as well.
+**Neural Net** carries three sources behind three chips, labelled rather than
+merged because they do not behave alike. Mark anything interesting or read; the
+marks live in your browser and survive reloads.
+
+**SAVE** is the in-game log, readable while you fly. Sorting is newest first
+with a button to flip it, and there is **no date column, because the save holds
+no dates** at all, only the order the entries were written in. *Personal only*
+narrows it to the pilot's diary, which the game heads with `*PERSONAL ENTRY`.
+**It starts on**, since the diary is the half worth reading; untick it for the
+objective lines as well.
+
+An objective line like "Meet Juni on Planet Manhattan%M" is not corruption and
+is no longer printed that way. The `type` on a log substitution is the ASCII
+code of the placeholder's letter, so `%M` takes the parameter of type 77 and
+the entry reads "Start scanning nearby ships / Scan nearby ships and look for
+anything suspicious". Where no parameter of that type exists, the detail is
+empty and the placeholder is dropped.
+
+**NEWS** is the wire, and it is **the one thing here that genuinely appears as
+you play**. All 403 items in `news.ini` carry `rank = <from state>, <to state>`,
+a pair of story states, and the tab shows everything whose window has opened,
+newest debut first. 223 of them have broken by mission 3 and 385 by mission 13.
+An item still inside its window says *ON THE WIRE*; one the story has moved past
+says what it ran until, because "gone now" and "not yet" are different answers.
+*On the wire now* narrows to the first kind.
+
+A save's story state is `[StoryInfo] MissionNum`, an index into a table of 42
+names that lives in `content.dll` and nowhere else. `data/story-states.txt` is
+that table; `python3 fl.py story <save.fl>` prints where a save sits in it.
+
+**RUMORS** is what the people in the bars say, scoped to every base you have
+docked at, grouped by system and base and attributed to the speaker and their
+faction. It is real intelligence, not flavour: they name smuggling runs, where a
+faction collects, and which fields are worth patrolling.
+
+**They never unlock.** All 7803 rumor lines in `mbases.ini` carry the same wide
+open window, so every one of them is available from the first minute of a new
+game. What changes is where you have been, and the panel says so rather than
+letting you wait for one that never comes.
+
+Mission dialogue is not here and cannot be: a `[Dialog] Line` in a mission
+script names a `.utf` audio asset, and Freelancer ships no subtitles for
+in-space comms. There is no text to show.
 
 ## What the numbers mean
 

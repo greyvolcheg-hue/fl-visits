@@ -69,6 +69,9 @@ FEEDS = {
 # table each string was chosen to produce is what tells those two apart.
 DREW = {
     "log": ".entry",
+    "log:save": ".entry",
+    "log:news": ".entry .head",
+    "log:rumors": ".entry .said",
     "overview": ".ovpanel",
     "data": ".tradetable .gun",
     "deltas": ".desttable .gun",
@@ -123,26 +126,49 @@ function expand() {
   engOpen = true;
 }
 
+function draw(pass, id, want) {
+  tab = id.split(':')[0];
+  $('#list').innerHTML = '';
+  try { render(); }
+  catch (err) { REPORT.push('FAIL  ' + pass + ' ' + id + ': ' + err); return; }
+  if (want && !document.querySelector(want))
+    REPORT.push('EMPTY ' + pass + ' ' + id + ': nothing matched ' + want);
+  else
+    REPORT.push('ok    ' + pass + ' ' + id);
+  grids(id);
+}
+
 function sweep(pass, drew) {
-  expand();
-  for (const id of Object.keys(VIEW)) {
-    tab = id;
-    $('#list').innerHTML = '';
-    try { render(); }
-    catch (err) { REPORT.push('FAIL  ' + pass + ' ' + id + ': ' + err); continue; }
-    const want = drew[id];
-    if (want && !document.querySelector(want))
-      REPORT.push('EMPTY ' + pass + ' ' + id + ': nothing matched ' + want);
-    else
-      REPORT.push('ok    ' + pass + ' ' + id);
-    grids(id);
-  }
+  if (!alive()) return;
+  try { expand(); } catch (err) { REPORT.push('FAIL  ' + pass + ' expand: ' + err); }
+  for (const id of Object.keys(VIEW)) draw(pass, id, drew[id]);
+  // The Neural Net's three sources are three separate branches with three
+  // separate last-term concatenations, and only the default one is reached by
+  // the loop above. All three have to be drawn or two of them are unchecked.
+  ['news', 'rumors', 'save'].forEach(src => {
+    logSource = src;
+    draw(pass, 'log:' + src, drew['log:' + src]);
+  });
+}
+
+// **The report has to survive the page script being dead.** A SyntaxError in
+// the inline script leaves `VIEW`, `$` and every view global undefined, which
+// is the single failure this tool exists to catch, and the first version of
+// this driver then threw on `Object.keys(VIEW)` before `finish()` could write
+// anything. A blank page is not a report.
+function alive() {
+  if (typeof VIEW !== 'undefined' && typeof $ !== 'undefined') return true;
+  REPORT.push('FAIL  the page script did not run at all: ' +
+    (typeof $ === 'undefined' ? '`$` is undefined' : '`VIEW` is undefined') +
+    '. That is a SyntaxError somewhere in one of the frontend modules; open ' +
+    'the page in a browser and read the console for the line.');
+  return false;
 }
 
 function finish() {
   // The hold table only exists when the save has cargo in it, so say which
   // way that went rather than let a silent pass stand for a check.
-  if (tradeData && !tradeData.hold.items.length)
+  if (typeof tradeData !== 'undefined' && tradeData && !tradeData.hold.items.length)
     REPORT.push('note  this save has an empty hold, so .holdtable never drew');
   const bad = REPORT.filter(r => r[0] === 'F' || r[0] === 'E').length + GRID.length;
   document.body.innerHTML =
@@ -176,7 +202,9 @@ def main():
         seed = "\n".join(
             f"{var} = {get('api/' + eps[min(i, len(eps) - 1)])};"
             for var, eps in FEEDS.items())
-        runs.append(f"{seed}\nsweep({name!r}, {json.dumps(DREW if i else {})});")
+        runs.append(f"try {{\n{seed}\n}} catch (err) {{ "
+                    f"REPORT.push('FAIL  {name} seed: ' + err); }}\n"
+                    f"sweep({name!r}, {json.dumps(DREW if i else {})});")
 
     harness = os.path.join(os.path.dirname(OUT), ".views-check.html")
     with open(harness, "w") as fh:

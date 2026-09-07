@@ -38,6 +38,11 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/game/reputation.py` | the empathy model: what an action does to every faction |
 | `backend/game/ships.py` | which ship the save is flying, and how big its hold is |
 | `backend/game/netlog.py` | the Neural Net log out of a save |
+| `backend/game/story.py` | how far through the campaign a save is, and what that state is called |
+| `backend/game/news.py` | the 403 news items and the story window each one runs in |
+| `backend/game/rumors.py` | what the people in every bar say, and who is saying it |
+| `backend/game/infocards.py` | the RT_HTML half of the resource DLLs, which is where rumor text lives |
+| `data/story-states.txt` | the 42 story states in order. `MissionNum` in a save indexes this |
 | `backend/live/speed.py` | cruise speed of the *running* game |
 | `backend/live/thrusters.py` | the same for the six thruster bonuses |
 | `backend/live/tradelane.py` | trade lane speed and the 999 cap on the HUD readout |
@@ -63,17 +68,21 @@ them still has its `main()`, reached through `fl.py`.
 
 Everything new goes in its own file. `flvisits.py` supplies the primitives;
 `wrecks.py` adds its own INI reader because loadouts repeat their `equip` and
-`cargo` keys and the frozen reader collapses repeats.
+`cargo` keys and the one in `flvisits.py` collapses repeats.
 
-## `flvisits.py` is frozen. Do not edit it.
+## `flvisits.py` is no longer frozen. `check_frozen.py` is the guard instead.
 
-Not to refactor it, not to tidy it, not to "improve" it, not to fix its style.
-Frozen 2026-08-31 at the owner's request, and the reason is not sentiment:
+**Unfrozen 2026-09-07, permanently, at the owner's request.** The freeze was
+the right call in August and the ceremony around it had stopped paying: three
+thaws in five weeks, each one obviously correct, each one costing a round trip.
+What made every one of those safe was never the rule. It was the check.
+
+The reason for the caution has not changed, so read this before editing:
 
 It unpicks three undocumented formats in a row. FLS1 save encryption, BINI
-binary INI, and PE string tables in the resource DLLs. On top of that it
-resolves a **one-way** hash by brute force, hashing every nickname in the game
-data and looking the result up, because the mapping cannot be inverted.
+binary INI, and PE resource tables in the DLLs. On top of that it resolves a
+**one-way** hash by brute force, hashing every nickname in the game data and
+looking the result up, because the mapping cannot be inverted.
 
 None of that is re-derivable by reading the code. The constants were found by
 searching, then confirmed empirically against real saves, and several plausible
@@ -82,11 +91,13 @@ it silently: the script will still run, still print a report, and the report
 will be wrong. That is the worst failure mode there is, because it looks like
 success.
 
-**Build new things beside it, in their own files.** Import from it, wrap it,
-read its output. Do not touch it.
+**So the rule is now one line: run `check_frozen.py` before and after, and diff.**
+Not "read the diff and think about it". The one save that legitimately moves is
+`AutoSave.fl`, because the game rewrites it while you play; everything else must
+be identical byte for byte. If you cannot produce that diff, do not commit the
+edit.
 
-If a change is genuinely unavoidable, say plainly what breaks without it, get
-the owner's go, and re-run the checks below first.
+Everything below is the record of what was changed and why. Keep adding to it.
 
 **Thawed once, 2026-08-31, with the owner's explicit go.** The denominator
 counted all 197 `[Base]` entries in `universe.ini`, including 15 that no space
@@ -126,12 +137,25 @@ what the file says rather than what it computes:
 - A comment in `main()` said 167 dockable and 30 dropped. The real figures are
   164 and 33, stale since the story-locked three were excluded.
 
-**`check_frozen.py` is what made this safe and is the tool for the next thaw.**
+**Edited twice on 2026-09-07, after the freeze was lifted**, both times so that
+the bar rumors could be read at all:
+
+- `read_string_table(path)` became `read_string_table(path, rtype=RT_STRING)`.
+  Rumor text is RT_HTML (type 23) and names are RT_STRING (type 6); the PE
+  resource walk is identical and only the type constant and the indexing differ.
+  The alternative was a second copy of that walk in `infocards.py`.
+- `resource_dlls()` came out of `load_names()`. `infocards.py` reads the same
+  seven DLLs in the same order, and a second copy of that loop would have been
+  a second answer to "which DLL is index 2".
+
+`check_frozen.py` identical on both, across all 123 stable lines.
+
+**`check_frozen.py` is what made every one of these safe.**
 It fingerprints everything the module decides, across every save on disk, and
 prints it in a stable order: the hash table, the string tables, the system
 walk, the dockable set, and each save's resolved visits with their flags. Run
-it before, run it after, diff. Here that was **96 saves, 219,634 visit entries,
-7,372 resolved, and every digest identical**.
+it before, run it after, diff. On the 2026-08-31 thaw that was **96 saves,
+219,634 visit entries, 7,372 resolved, and every digest identical**.
 
 Use it rather than reasoning about whether an edit was safe. This file's
 failure mode is a report that is wrong while looking right, and no amount of
@@ -235,6 +259,76 @@ directory and taking the system from the folder name, so a cutscene file was
 read as if it were a system. The fix is to follow the `file` key that
 `universe.ini` gives for each declared system instead, which excludes stray
 files by construction.
+
+## Settled: the story state is `MissionNum`, and only news moves with it
+
+Closed 2026-09-07, and it is three findings that have to be read together.
+
+**A save's story state is `[StoryInfo] MissionNum`, an index into a table of 42
+names.** The names are not in any INI: they sit as a contiguous block of strings
+in `DLLS/BIN/content.dll`, written in reverse, and they are kept as
+`data/story-states.txt` rather than read out of a binary at run time. Verified
+on **all 18 saves on this disk**, every one consistent:
+
+    Restart.fl   Mission_01a  MissionNum 1   -> mission_01a_loaded
+    Save116a.fl  Mission_02   MissionNum 7   -> mission_02_accepted
+    Save707c.fl  No_Mission   MissionNum 5   -> freetime_01_02
+    Save144d.fl  Mission_13   MissionNum 40  -> mission_13_accepted
+
+The `No_Mission` row is the one worth keeping: the states between two missions
+are real states with their own names, so a reader that only understood
+`Mission_NN` would call that save "nowhere".
+
+**News is gated on that state and genuinely grows as you play.** All 403
+`[NewsItem]` entries in `DATA/MISSIONS/news.ini` carry
+`rank = <from state>, <to state>`, and 223 of them have opened at
+`mission_03_loaded` against 385 at `mission_13_accepted`. An item whose window
+has closed behind you is a different thing from one you have not reached, which
+is why the tab draws them by debut and marks each one live or past.
+
+**Bar rumors are gated too, and the gate is decorative.** All **7803** `rumor`
+lines in `mbases.ini` carry exactly one window, `base_0_rank .. mission_end`.
+Not one of them ever opens or closes: every rumor in Sirius is available from
+the first minute of a new game. It is read and applied anyway so a mod that
+does gate them keeps working, but **do not go looking for a rumor that
+unlocks**. What changes is where you have docked, so that is what the tab
+scopes them to: 161 bases carry rumors, a median of 16 each.
+
+**Mission dialogue cannot be added, because the text does not exist.** A
+`[Dialog] Line` in a mission script names a `.utf` audio asset;
+`DATA/AUDIO/DIALOGUE/` is 40 folders of sound and nothing else. Freelancer
+ships no subtitles for in-space comms. This was checked before the work started
+and it is the reason "news and dialogue" became "news and bar rumors".
+
+**Rumor text is RT_HTML, not RT_STRING.** `MiscText.dll` holds 3101 resources
+of type 23 and **zero** of type 6, which is why a rumor id reads as unresolvable
+until the resource *type* is the thing you change rather than the file. All 3030
+distinct rumor ids resolve once it is, none missing. `infocards.py` unwraps the
+RDL: `<PARA/>` is a line break and everything else is furniture.
+
+**Deliberately not done: `rumorknowdb`.** 564 lines over 112 targets name the
+hidden jump hole (`li02_to_li04_hole`), wreck or base a given speaker knows
+about. That is a real cross-link between the Neural Net and the Systems tree
+and it is out of scope until someone asks for it.
+
+## Settled: the `type` on a log substitution is the placeholder's letter
+
+Closed 2026-09-07. A save's log line is
+`log = <ids>, <count>, [<param ids>, <type>, 0] * count`, and `type` is the
+**ASCII code of the letter in the text**. `22505` reads
+"Meet Juni on Planet Manhattan%M" and its parameters are `(196609, 83)`,
+`(0, 82)` and `(1, 77)`; 77 is `M`, so `%M` takes the third.
+
+Where the detail is real that is the whole second half of the entry:
+"Start scanning nearby ships%M" plus `(25240, 77)` is "Start scanning nearby
+ships / Scan nearby ships and look for anything suspicious".
+
+Checked across every save on disk: 210 log texts carry a placeholder, all of
+them `%M`, and 186 have a parameter of the matching type. The other 24 have
+none, which is the game saying the detail is empty, so the placeholder is
+dropped rather than printed. Until this was understood the page printed a bare
+`%M` at the end of a sentence, which reads as corruption.
+
 
 ## The look: `design/Neural Companion.dc.html` is the source, not a screenshot
 
@@ -468,6 +562,15 @@ and `document` behave the same way. The variable is `topTab` now.
 the page and shows whether the strip drew. The shot fires at the load event,
 before the first `fetch` resolves, so an empty body in it is expected and is not
 evidence of anything; the tab strip is the part that tells you.
+
+**`check_views.py` has to survive the page script being dead, and did not.**
+Found 2026-09-07, when an unclosed template literal in `frontend/log.py` took
+the whole inline script down. The driver's own first act was
+`Object.keys(VIEW)`, and with the script dead `VIEW` is undefined, so the driver
+threw before it could write a single line and the report came out as a blank
+page. The one failure the tool exists for was the one failure it could not
+report. It now checks `$` and `VIEW` first and says so in words, and the seeding
+runs inside a try of its own.
 
 ## Changes made to this install by hand, outside the tool
 

@@ -9,13 +9,17 @@ import the web server to reach the game data. The server now serves and this
 holds what is served.
 """
 
+import functools
 import os
 
 from .game import bases as bs
 from .game import equipment as eqp
 from .game import flvisits as fl
 from .game import market as mk
+from .game import infocards as ic
+from .game import news as nw
 from .game import reputation as rep
+from .game import rumors as ru
 from .game import ships as sh
 from .game import weapons as wp
 from .game import wrecks as wr
@@ -104,6 +108,25 @@ class GameData:
         # and it reuses `weapons` and `trade.base_index` rather than parsing
         # any of it a second time.
         self.gear = eqp.load_catalogue(game_dir)
+
+    # --- the Neural Net's three big tables, loaded on first use ------------
+    #
+    # Not in `__init__` because they are the expensive ones and only one tab
+    # wants them: the infocards are 3 MB of XML to parse and the rumor walk
+    # covers 3051 sections. Startup is the thing being protected here, and a
+    # page opened on Trade should not pay for a log it will never draw.
+
+    @functools.cached_property
+    def cards(self):
+        return ic.load_cards(self.dir)
+
+    @functools.cached_property
+    def news(self):
+        return nw.load_news(self.dir, self.names)
+
+    @functools.cached_property
+    def rumors(self):
+        return ru.load_rumors(self.dir, self.names, self.cards)
 
     def label(self, ids, fallback):
         try:

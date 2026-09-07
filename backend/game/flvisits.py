@@ -210,6 +210,10 @@ def system_files(data_dir):
 
 # --- display names from the resource DLLs ---------------------------------
 
+RT_STRING = 6   # names: 16 to a resource id
+RT_HTML = 23    # infocards: one UTF-16 RDL document per resource id
+
+
 def _rva_to_offset(sections, rva):
     for va, vsize, raw_ptr, raw_size in sections:
         if va <= rva < va + max(vsize, raw_size):
@@ -217,8 +221,22 @@ def _rva_to_offset(sections, rva):
     return None
 
 
-def read_string_table(path):
-    """Pull RT_STRING (type 6) out of a PE and return {string id: text}."""
+def read_string_table(path, rtype=RT_STRING):
+    """Pull one resource type out of a PE and return {id: text}.
+
+    Two types are in use and they are indexed differently, which is the whole
+    reason this takes a parameter rather than being copied:
+
+      RT_STRING (6)  names, and 16 strings share one resource id, so the id is
+                     `(block - 1) * 16 + slot`.
+      RT_HTML   (23) infocards, one per resource id, and the payload is UTF-16
+                     RDL markup rather than a bare string. `infocards.py`
+                     unwraps it.
+
+    Bar rumors are RT_HTML and nothing else in this project reads them, so the
+    alternative was a second copy of the PE resource walk below. One walk, one
+    constant told apart.
+    """
     blob = open(path, "rb").read()
     pe = struct.unpack_from("<I", blob, 0x3C)[0]
     if blob[pe:pe + 4] != b"PE\0\0":
@@ -248,13 +266,17 @@ def read_string_table(path):
 
     strings = {}
     for name, child in entries(base):
-        if name != 6:  # RT_STRING
+        if name != rtype:
             continue
         for block_id, block_child in entries(base + (child & 0x7FFFFFFF)):
             for _, leaf in entries(base + (block_child & 0x7FFFFFFF)):
                 data_rva, size = struct.unpack_from("<II", blob, base + leaf)
                 pos = _rva_to_offset(sections, data_rva)
                 if pos is None:
+                    continue
+                if rtype != RT_STRING:
+                    # One resource, one id, and the bytes are the payload.
+                    strings[block_id] = blob[pos:pos + size]
                     continue
                 end = pos + size
                 for i in range(16):
@@ -269,8 +291,15 @@ def read_string_table(path):
     return strings
 
 
-def load_names(game_dir):
-    """ids_name -> text, across every resource DLL, indexed the way FL does it."""
+def resource_dlls(game_dir):
+    """The resource DLLs, in the order that decides an ids block.
+
+    `resources.dll` is index 0 and implicit; the rest come from `[Resources]`
+    in `freelancer.ini`, and an id is `index * 65536 + local id`. Pulled out of
+    `load_names` on 2026-09-07 because `infocards.py` reads the same seven
+    files for a different resource type, and a second copy of this loop would
+    have been a second answer to "which dll is index 2".
+    """
     exe = ipath(game_dir, "EXE")
     dlls = ["resources.dll"]
     ini = ipath(exe, "freelancer.ini")
@@ -282,8 +311,14 @@ def load_names(game_dir):
                 in_res = line.lower() == "[resources]"
             elif in_res and line.lower().startswith("dll"):
                 dlls.append(line.split("=", 1)[1].strip())
+    return dlls
+
+
+def load_names(game_dir):
+    """ids_name -> text, across every resource DLL, indexed the way FL does it."""
+    exe = ipath(game_dir, "EXE")
     names = {}
-    for index, dll in enumerate(dlls):
+    for index, dll in enumerate(resource_dlls(game_dir)):
         path = ipath(exe, dll)
         if not os.path.exists(path):
             continue
