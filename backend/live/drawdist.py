@@ -24,6 +24,8 @@ of the 158 files, throughout a sphere of `fill_dist`. Geometry grows with the
 cube of the radius, so 2x the distance is about 8x the rocks: the median field
 goes from roughly 385 filled cubes to 3077. This is a single-threaded 2003
 renderer. Start at 1.5 and look at the frame rate before going further.
+The slider runs to 10 because the owner asked for whole steps to 10, not
+because 10 is playable: 10x the distance is about 1000x the rocks.
 
 **The multiplier always applies to the vanilla value, never to the current
 one.** Otherwise running 1.5 twice would silently give 2.25 and there would be
@@ -43,7 +45,7 @@ from .persist import WriteFailed, _backup, _save
 
 FIELD = "field"
 KEY = "fill_dist"
-SANE = (0.5, 4.0)  # below 0.5 fields vanish; above 4 the cube count is absurd
+SANE = (0.5, 10.0)  # below 0.5 fields vanish; 10 is the top of the slider
 
 
 def field_files(game_dir):

@@ -220,7 +220,7 @@ function engFiles() {
     rocks = '<div class="box file"><div class="top">' +
       '<span class="lbl">ASTEROID DRAW DISTANCE</span>' +
       `<span class="val" id="v-draw">${d.factor}×</span></div>` +
-      `<input type="range" min="1" max="3" step="0.25" value="${d.factor}" ` +
+      `<input type="range" min="1" max="10" step="1" value="${d.factor}" ` +
       'data-knob="draw" data-unit="×">' +
       `<div class="why">Scales <code>[Field] fill_dist</code> across ${d.fields} ` +
       `field files. Vanilla median is ${d.vanilla}, yours is ${d.median} — which ` +

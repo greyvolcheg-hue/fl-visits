@@ -31,7 +31,7 @@ TRADELANE_CHOICES = [2500, 5000, 7500, 10000]
 TAKEOVER_RANGE = [100, 1000, 50]
 # A multiple of each field's own vanilla value. Geometry grows with the cube of
 # the radius, so 2x is roughly 8x the rocks.
-DRAWDIST_CHOICES = [1, 1.25, 1.5, 2]
+DRAWDIST_CHOICES = [1, 2, 3, 4]
 
 
 def _speed(ctx):
