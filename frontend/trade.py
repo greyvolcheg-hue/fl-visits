@@ -13,11 +13,10 @@ always started over.
 ID, LABEL = "market", "Market"
 
 CSS = """
-  /* The first thing the tab asks. Same shape as the Neural Net's source
-     chips, because it is the same kind of choice: which of these am I
-     reading. */
-  .modebar { display: flex; gap: .6rem; margin: 0 0 .9rem; }
-  .modebar .mode { letter-spacing: .18em; }
+  /* Layout only. The look comes from the one button rule in `_theme.css`,
+     which `.modebar button` is now named in, so these read as the same
+     control as COLLAPSE ALL and the Neural Net's source chips. */
+  .modebar { display: flex; gap: .4rem; margin: 0 0 .9rem; }
 
 
   .goodtable { min-width: 42rem; }
@@ -356,7 +355,7 @@ function wireTrade() {
 
 function modeBar() {
   return '<div class="modebar">' +
-    ['good', 'By commodity', 'base', 'By base'].reduce((acc, _, i, a) =>
+    ['good', 'BY COMMODITY', 'base', 'BY BASE'].reduce((acc, _, i, a) =>
       i % 2 ? acc + `<button class="mode${tradeBy === a[i - 1] ? ' on' : ''}" ` +
         `data-by="${a[i - 1]}">${a[i]}</button>` : acc, '') +
     '</div>';

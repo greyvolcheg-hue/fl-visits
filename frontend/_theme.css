@@ -147,17 +147,17 @@
   .groupacts { display: flex; gap: .4rem; margin-left: auto; }
   /* One button look, everywhere. The HUD has exactly two states for a
      control, resting and chosen, and `.on` is the chosen one. */
-  .groupacts button, .logbar button, .holdbar button,
+  .groupacts button, .logbar button, .holdbar button, .modebar button,
   .addgun, .entry .acts button {
     background: rgba(111, 216, 255, .06); color: #8fd4f0; cursor: pointer;
     border: 1px solid var(--line); font-family: var(--mono); font-size: 10.5px;
     letter-spacing: .12em; padding: .35rem .8rem;
   }
   .groupacts button:hover, .logbar button:hover, .holdbar button:hover,
-  .addgun:hover, .entry .acts button:hover {
+  .modebar button:hover, .addgun:hover, .entry .acts button:hover {
     background: rgba(111, 216, 255, .16); color: var(--text);
   }
-  .logbar button.on, .entry .acts button.on {
+  .logbar button.on, .modebar button.on, .entry .acts button.on {
     background: rgba(111, 216, 255, .2); border-color: rgba(111, 216, 255, .5);
     color: var(--cyan-hi);
   }
