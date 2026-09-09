@@ -32,11 +32,26 @@ CSS = """
                   flex-wrap: wrap; }
   .pickbox input[type=search] { flex: 1 1 18rem; }
   .hits { display: grid; gap: .25rem; margin-top: .6rem;
+          max-height: 22rem; overflow-y: auto;
           grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); }
   .hits .hit { display: grid; align-items: baseline; gap: .5rem;
-               grid-template-columns: minmax(7rem, 1fr) minmax(4rem, .9fr)
-                                      3.2rem 4rem;
-               text-align: left; }
+               grid-template-columns: minmax(0, 1fr) minmax(0, .9fr)
+                                      3.4rem 4rem;
+               width: 100%; text-align: left; font: inherit; font-size: 12.5px;
+               background: none; border: none; color: var(--text);
+               cursor: pointer; padding: .3rem .85rem; }
+  .hits .hit:hover { background: rgba(111, 216, 255, .08); }
+  /* **Every cell has to be told its width is the track's.** `.cell` is shared
+     across the whole app and carries `width: 3.6rem`, and a grid item keeps
+     `min-width: auto`, its own min-content, so a fixed width or a long word
+     both push the cell wider than the column it sits in. Measured before this
+     line: 160px cells in 114px columns, rows overlapping, and the page
+     scrolling sideways. The ellipsis is what a long name does instead. */
+  .hits .hit > * { width: auto; min-width: 0;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hits .hit .nm + .nm { color: var(--faint); font-size: 11.5px; }
+  .hits .hit .num { text-align: right; color: var(--faint);
+                    font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .hits .hit .num.up { color: var(--ok); }
 
   /* What you picked, kept on screen: everything under it is read against it. */

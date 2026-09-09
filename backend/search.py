@@ -31,9 +31,12 @@ def _equipment(ctx):
         body["parameters"] = [
             {"key": k, "label": lab, "kind": knd, "unit": unit}
             for k, lab, knd, unit in eqp.PARAMETERS[kind]]
+        # `class` offers the same list as `pick`; the difference is that the
+        # page can also ask for below or above one of its values.
         body["choices"] = {
             k: eqp.choices(rows, k)
-            for k, _lab, knd, _u in eqp.PARAMETERS[kind] if knd == "pick"}
+            for k, _lab, knd, _u in eqp.PARAMETERS[kind]
+            if knd in ("pick", "class")}
         # Built from the whole catalogue for this kind, never from the rows
         # that survived the filters: a picker that shrank as you used it could
         # not be used to widen the search again.

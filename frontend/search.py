@@ -63,11 +63,21 @@ function renderGear() {
   out += '<div class="filters">';
   gearFilters.forEach((f, i) => {
     const p = param(f.key);
+    const list = () => `<select data-pick="${i}">` +
+      (d.choices[f.key] || []).map(c =>
+        `<option${String(c) === String(f.value) ? ' selected' : ''}>${esc(c)}</option>`
+      ).join('') + '</select>';
     out += `<div class="filter"><span class="nm">${esc(p.label)}</span>` +
-      (p.kind === 'pick'
-        ? `<select data-pick="${i}">` + (d.choices[f.key] || []).map(c =>
-            `<option${String(c) === String(f.value) ? ' selected' : ''}>${esc(c)}</option>`
-          ).join('') + '</select>'
+      (p.kind === 'class'
+        // A mount class is a number, so it takes a comparison. `<` and `>`
+        // stay inside the family: a shield's "fighter 6" and "elite 6" are
+        // different sockets on the ship, not two sizes of one.
+        ? `<select class="op" data-op="${i}">` +
+          [['pick', '='], ['lt', '<'], ['gt', '>']].map(([v, sym]) =>
+            `<option value="${v}"${f.op === v ? ' selected' : ''}>${sym}</option>`
+          ).join('') + '</select>' + list()
+        : p.kind === 'pick'
+        ? list()
         : `<span class="sys">at least</span>` +
           `<input type="number" data-min="${i}" value="${esc(String(f.value))}">` +
           (p.unit ? `<span class="sys">${esc(p.unit)}</span>` : '')) +
@@ -174,8 +184,9 @@ function wireGear() {
     const key = e.target.value;
     if (!key) return;
     const p = gearData.parameters.find(x => x.key === key);
-    gearFilters.push({ key, kind: p.kind,
-                       value: p.kind === 'pick' ? (gearData.choices[key] || [''])[0] : 0 });
+    const listed = p.kind === 'pick' || p.kind === 'class';
+    gearFilters.push({ key, kind: p.kind, op: 'pick',
+                       value: listed ? (gearData.choices[key] || [''])[0] : 0 });
     loadGear();
   });
   document.querySelectorAll('.filter .kill').forEach(b =>
@@ -186,6 +197,11 @@ function wireGear() {
   document.querySelectorAll('.filter [data-pick]').forEach(s =>
     s.addEventListener('change', e => {
       gearFilters[Number(s.dataset.pick)].value = e.target.value;
+      loadGear();
+    }));
+  document.querySelectorAll('.filter [data-op]').forEach(s =>
+    s.addEventListener('change', e => {
+      gearFilters[Number(s.dataset.op)].op = e.target.value;
       loadGear();
     }));
   document.querySelectorAll('.filter [data-min]').forEach(box => {
@@ -212,8 +228,10 @@ function wireGear() {
 
 async function loadGear() {
   const q = ['kind=' + encodeURIComponent(gearKind)];
+  // A `class` filter travels as its operator, so the server has one place
+  // that decides what a row means rather than a kind plus a modifier.
   gearFilters.forEach(f => q.push('f=' + encodeURIComponent(
-    `${f.key}:${f.kind}:${f.value}`)));
+    `${f.key}:${f.kind === 'class' ? f.op : f.kind}:${f.value}`)));
   // Down the same road as every other filter, so one function decides what is
   // kept and what is dropped.
   if (gearName) q.push('f=' + encodeURIComponent(`name:text:${gearName}`));

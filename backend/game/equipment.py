@@ -62,7 +62,7 @@ PARAMETERS = {
         # both labelled "6" until 2026-09-04, which merged 32 guns with 19
         # turrets under one filter value.
         ("kind", "gun or turret", "pick", ""),
-        ("mount", "mount class", "pick", ""),
+        ("mount", "mount class", "class", ""),
         ("price", "price", "num", "cr"),
         ("rank", "rank needed", "num", ""),
     ],
@@ -72,7 +72,7 @@ PARAMETERS = {
         ("drain", "constant drain", "num", ""),
         ("rebuild", "rebuild time", "num", "s"),
         ("shield_type", "type", "pick", ""),
-        ("mount", "mount class", "pick", ""),
+        ("mount", "mount class", "class", ""),
         ("price", "price", "num", "cr"),
         ("rank", "rank needed", "num", ""),
     ],
@@ -309,6 +309,24 @@ def choices(rows, key):
     return sorted(seen, key=order)
 
 
+def mount_class(value):
+    """A mount label as `(family, class number)`. `("", 0)` if it says neither.
+
+    A gun's mount is a bare class, `"6"`. A shield's carries the socket it fits,
+    `"fighter 6"`, and **the socket is not decoration**: fighter, freighter and
+    elite are three different mounts on the ship, so a class number only means
+    something next to another number from the same family. That is why `<` and
+    `>` compare within a family and never across one.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return "", 0
+    head, _, tail = text.rpartition(" ")
+    if tail.isdigit():
+        return head, int(tail)
+    return text, 0
+
+
 def systems(rows):
     """Every system with a dealer for one of these rows: nickname and label.
 
@@ -340,6 +358,7 @@ def search(rows, filters, order, descending=True):
         pick    an exact match
         text    a case-insensitive substring of the item's name
         system  sold at a base in that system, by system nickname
+        lt, gt  a mount class below or above the one named, within its family
 
     **Sorting is separate from filtering** and stays that way: adding a
     threshold narrows the list without reshuffling what you were reading, and
@@ -368,6 +387,18 @@ def search(rows, filters, order, descending=True):
                     break
             elif kind == "system":
                 if not any(b.get("sys") == value for b in row.get("bases") or ()):
+                    keep = False
+                    break
+            elif kind in ("lt", "gt"):
+                # Same family or nothing: "under fighter 6" has no opinion about
+                # an elite mount, and answering as though it did would offer
+                # shields the ship cannot take.
+                family, want = mount_class(value)
+                mine, have = mount_class(got)
+                if mine != family or not want or not have:
+                    keep = False
+                    break
+                if not (have < want if kind == "lt" else have > want):
                     keep = False
                     break
             elif str(got or "") != str(value):

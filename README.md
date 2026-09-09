@@ -215,6 +215,13 @@ there. On the command line the same question is
 There was a DPS sub-tab that added weapons up into a loadout. It is gone at the
 owner's call.
 
+**Mount class takes `=`, `<` and `>`**, because it is the one categorical
+parameter that is really a number: your ship has a class 6 hardpoint and the
+question is what fits it. On a shield the label carries the socket too, and
+`<` and `>` stay inside it: `fighter 6` and `elite 6` are different mounts on
+the ship, not two sizes of one, so a comparison across them would offer gear
+the ship cannot take.
+
 A parameter with few enough values is an exact pick instead of a minimum,
 because some questions have no threshold in them. **Projectile speed is one:**
 there are 14 muzzle velocities in the whole game and the real question is
