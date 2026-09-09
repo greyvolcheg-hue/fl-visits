@@ -92,15 +92,21 @@ def _entries(pairs):
 HOUSE_CODE = {"li": "LI", "br": "BR", "ku": "KU", "rh": "RH"}
 
 
-def _disambiguate(labels, suffix):
+def _disambiguate(labels, suffix, only=None):
     """Suffix in place, but only the labels worn by more than one faction.
 
     Decorating everything would put a parenthesis on 45 names to fix 4. The
     ones that read cleanly are the ones that stay untouched.
+
+    `only` narrows what counts as a clash without narrowing what gets named. A
+    faction the player is never offered still owns bases and still needs a
+    badge, but it cannot make the name of one that *is* offered ambiguous,
+    because the two are never read side by side.
     """
     seen = {}
     for key, label in labels.items():
-        seen.setdefault(label, []).append(key)
+        if only is None or key in only:
+            seen.setdefault(label, []).append(key)
     for label, keys in seen.items():
         if len(keys) > 1:
             for key in keys:
@@ -158,6 +164,40 @@ def load_model(game_dir=None):
         if group:
             events[group], empathy[group] = ev, rates
 
+    bribes, present = load_bar(data_dir)
+
+    # **A faction with nobody in any bar is nobody you can deal with**, so it
+    # is not offered and is not counted as collateral.
+    #
+    # **Named, though.** `names` and `shorts` stay complete for all 55, because
+    # two of the cut factions, `fc_kn_grp` and `fc_uk_grp`, own bases that the
+    # Systems and Overview tabs put an owner badge on. Cutting them out of the
+    # naming table blanked those badges. Being nobody you can deal with is not
+    # the same as being nobody.
+    #
+    # The rule is taken from the data rather than from a hand-written list. Of
+    # the 55 groups in `empathy.ini`, exactly eight have no `[GF_NPC]` anywhere
+    # in `mbases.ini`: the Nomads, `fc_f_grp` (Fugitive), Kress's Men,
+    # Quintaine's Men, `fc_uk_grp`, which has no display name at all, and the
+    # three story doubles `fc_kn_grp`, `fc_ln_grp` and `fc_rn_grp`. The next
+    # faction up has seven NPCs, so the boundary is nowhere near close.
+    #
+    # Cut from `events` and `empathy` both, not merely hidden by the page. A
+    # faction left in `events` would still be offered as a doer, and the tab
+    # would suggest flying a mission for Kress's Men, who exist for one
+    # cutscene. One left in `empathy` would still turn up in the collateral
+    # list of every plan.
+    #
+    # The cut has to be known before the names are disambiguated. The three
+    # story doubles are one half each of a duplicated display name, and
+    # `_disambiguate` decorates a label only while two factions wear it. Leave
+    # them in the clash and the survivor keeps a `(li_n_grp)` suffix that no
+    # longer disambiguates anything, which is why the pass below is told which
+    # keys can actually collide.
+    events = {k: v for k, v in events.items() if k in present}
+    empathy = {k: {t: r for t, r in v.items() if t in present}
+               for k, v in empathy.items() if k in present}
+
     # initialworld.ini is plain text, not BINI. read_multi sniffs the magic.
     names, shorts = {}, {}
     for section, pairs in wr.read_multi(fl.ipath(data_dir, "initialworld.ini")):
@@ -185,14 +225,15 @@ def load_model(game_dir=None):
         # than `fc_fa_grp`. Only `fc_uk_grp` reaches the last step.
         shorts[key] = text("ids_short_name") or names[key]
 
-    # Three display names are worn by two factions each: li_n_grp and fc_ln_grp
-    # are both "Liberty Navy", and the same for Kusari Naval Forces and
-    # Rheinland Military. The `fc_` ones are the encounter factions and sit far
-    # lower than the house navy the player actually deals with, so an
-    # undecorated list sorted by standing puts the wrong "Liberty Navy" on top
-    # and the reading is nonsense against what the game shows. Tag the
-    # nickname on, but only where the name is genuinely ambiguous.
-    _disambiguate(names, lambda key: key)
+    # Three display names used to be worn by two factions each: li_n_grp and
+    # fc_ln_grp were both "Liberty Navy", and the same for Kusari Naval Forces
+    # and Rheinland Military. **All three clashes are gone**, because the `fc_`
+    # half of each pair is an encounter faction with nobody in any bar and the
+    # cut above drops it. So this now finds nothing to do.
+    #
+    # It stays, and must: it is a general guard, the clash was real, and a mod
+    # that gives one of those factions a bartender brings it straight back.
+    _disambiguate(names, lambda key: key, only=events)
     # Short names collide harder: all four house police forces are called
     # "Police" by the game itself. A nickname suffix would be unreadable on a
     # badge, so they take the house code instead, `Police (LI)`. Anything whose
@@ -210,26 +251,40 @@ def load_model(game_dir=None):
         if aff and legal:
             legality[str(aff[0][0]).lower()] = str(legal[0][0]).lower()
 
-    return Model(events, empathy, names, shorts, legality, load_bribes(data_dir))
+    return Model(events, empathy, names, shorts, legality, bribes)
 
 
-def load_bribes(data_dir):
-    """faction (lower) -> how many bartenders will take a bribe for it.
+def load_bar(data_dir):
+    """One walk of `mbases.ini`, answering two questions about its bar NPCs.
 
-    41 of the 55 factions can be bribed at all, across 610 of the game's
-    bar NPCs. The count is worth carrying because "nobody will take your money
-    for this faction" is a real answer and an empty row is not.
+    `bribes` is faction -> how many bartenders will take a bribe for it. 41 of
+    the 55 factions can be bribed at all, across 610 NPCs. The count is worth
+    carrying because "nobody will take your money for this faction" is a real
+    answer and an empty row is not.
+
+    `present` is every faction with at least one NPC standing in a bar
+    anywhere. That is the rule for whether a faction is somebody you can have a
+    relationship with at all, and it is why `MET` below exists.
+
+    Both come out of one pass because both read `[GF_NPC]`, and this file is
+    7803 rumor lines and 2386 bribes: reading it twice to answer two questions
+    about the same sections is a second thing to keep in step for nothing.
     """
-    out = {}
+    bribes, present = {}, set()
     path = fl.ipath(fl.ipath(data_dir, "MISSIONS"), "mbases.ini")
     for section, pairs in wr.read_multi(path):
         if section.lower() != "gf_npc":
             continue
         for key, values in pairs:
-            if key.lower() == "bribe" and values:
+            if not values:
+                continue
+            name = key.lower()
+            if name == "bribe":
                 faction = str(values[0]).lower()
-                out[faction] = out.get(faction, 0) + 1
-    return out
+                bribes[faction] = bribes.get(faction, 0) + 1
+            elif name == "affiliation":
+                present.add(str(values[0]).lower())
+    return bribes, present
 
 
 def player_reps(save_text):
