@@ -138,8 +138,14 @@
   .engine .box .val.on { color: var(--ok); }
   /* The thrusters carry a name and a number and nothing else, so they pack
      tighter than a box that has a paragraph under it. Their shared paragraph
-     is on the block's banner. */
-  .engine .grid.thr { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+     is on the block's banner.
+
+     Three columns, not `auto-fit`: there are exactly six thrusters and the
+     owner wants them in two rows of three. `auto-fit` would give one row on a
+     wide monitor and a different count on every other width. `minmax(0, 1fr)`
+     rather than plain `1fr` so a long name cannot push a column wider than its
+     share. */
+  .engine .grid.thr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .engine .box .why { font-size: 11px; line-height: 1.4; color: var(--dim); }
   .engine .box .from { font-family: var(--mono); font-size: 9.5px;
                        letter-spacing: .12em; color: var(--faint); }
