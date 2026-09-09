@@ -132,30 +132,36 @@ function engFlipBox(label, on, text, offText, act, why, from) {
     `<div class="why">${why}</div><div class="from">${from}</div></div>`;
 }
 
-function engMemory() {
-  const l = eng.lane || {}, t = eng.thrusters;
-  // One box for all six thrusters. They differ by a number and a name and
-  // share every word of explanation, so six copies of the same paragraph is
-  // what the repetition would actually buy.
-  let boxes = '';
-  if (t && t.error) {
-    boxes += `<div class="box"><div class="why">${esc(t.error)}</div></div>`;
-  } else if (t) {
-    boxes += '<div class="box many"><div class="top">' +
-      '<span class="lbl">THRUSTERS (BONUS)</span></div>' +
-      t.items.map(it =>
-        `<div class="top"><span class="lbl">${esc(it.name).toUpperCase()}</span>` +
+// The six thrusters, across rather than down, in a block of their own.
+//
+// They used to be one tall box inside LIVE MEMORY, stacked, because they share
+// every word of explanation and six copies of one paragraph is what splitting
+// them would have bought. The banner is what pays for the split: the paragraph
+// belongs to the block now, so each thruster is left with the two things that
+// actually differ, a name and a number.
+function engThrusters() {
+  const t = eng.thrusters;
+  if (!t) return '';
+  const body = t.error
+    ? `<div class="box"><div class="why">${esc(t.error)}</div></div>`
+    : t.items.map(it =>
+        '<div class="box"><div class="top">' +
+        `<span class="lbl">${esc(it.name).toUpperCase()}</span>` +
         `<span class="val" id="v-th${it.ids}">${money(it.speed)}</span></div>` +
         `<input type="range" min="120" max="420" step="10" value="${it.speed}" ` +
         `data-knob="th${it.ids}" data-unit=""` +
-        (eng.running ? '' : ' disabled') + '>').join('') +
-      '<div class="why">A <b>bonus</b> added to your normal speed, not the ' +
-      'speed itself. Vanilla is 120 on all six. Only the one you have fitted ' +
-      'matters; the rest are here so swapping does not need a code change.</div>' +
-      '<div class="from">st_equip.ini values, patched in memory</div></div>';
-  }
+        (eng.running ? '' : ' disabled') + '></div>').join('');
+  return '<div class="banner"><span class="kind">THRUSTERS</span>' +
+    '<span class="say">A <b>bonus</b> added to your normal speed, not the ' +
+    'speed itself. Vanilla is 120 on all six. Only the one you have fitted ' +
+    'matters; the rest are here so swapping does not need a code change. ' +
+    'st_equip.ini values, patched in memory.</span></div>' +
+    `<div class="grid thr wrapgrid">${body}</div>`;
+}
 
-  boxes += engFlipBox('LANE WIND-UP', !!l.instant, 'NEAR-INSTANT', 'STOCK RAMP',
+function engMemory() {
+  const l = eng.lane || {};
+  let boxes = engFlipBox('LANE WIND-UP', !!l.instant, 'NEAR-INSTANT', 'STOCK RAMP',
     'instant',
     'At the stock rate a ship spends most of a short lane still accelerating, ' +
     'so a higher speed alone is barely felt. Deceleration is left alone: that ' +
@@ -248,7 +254,8 @@ function renderEngine() {
     ? `<div class="banner"><span class="said${engSaidBad ? ' bad' : ''}">` +
       `${esc(engSaid)}</span></div>` : '';
   return '<div class="engine">' + engStrip() + said +
-    `<div class="drawer">${engMemory()}${engFiles()}</div></div>`;
+    '<div class="drawer">' + engMemory() + engThrusters() + engFiles() +
+    '</div></div>';
 }
 
 // One POST shape for every control here. Three copies of this drifted apart

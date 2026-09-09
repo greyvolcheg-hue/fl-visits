@@ -121,8 +121,8 @@
                           background: rgba(255, 179, 71, .04); }
   .engine .banner.files .kind { color: var(--revealed); }
   .engine .banner.files .say { color: var(--amber-dim); }
-  /* `start`, not the default stretch: the thruster box is six sliders tall
-     and every neighbour was being padded out to match it. */
+  /* `start`, not the default stretch: these boxes carry paragraphs of very
+     different lengths, and stretch pads every one of them out to the tallest. */
   .engine .grid { padding: 14px 16px;
                   display: grid; gap: 14px; align-items: start;
                   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
@@ -136,9 +136,10 @@
                       color: var(--cyan-hi); }
   .engine .box .val.off { color: var(--faint); }
   .engine .box .val.on { color: var(--ok); }
-  /* The six thrusters share one explanation, so they share one box. */
-  .engine .box.many { gap: 4px; }
-  .engine .box.many .top { padding-top: 4px; }
+  /* The thrusters carry a name and a number and nothing else, so they pack
+     tighter than a box that has a paragraph under it. Their shared paragraph
+     is on the block's banner. */
+  .engine .grid.thr { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
   .engine .box .why { font-size: 11px; line-height: 1.4; color: var(--dim); }
   .engine .box .from { font-family: var(--mono); font-size: 9.5px;
                        letter-spacing: .12em; color: var(--faint); }
