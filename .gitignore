@@ -11,3 +11,6 @@ freelancer-map.jpg
 # check_views.py output.
 views-check.png
 m01a-backup-*.tar
+
+# The reader's own star and read marks. Personal state, not the tool.
+data/marks.json

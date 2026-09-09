@@ -61,20 +61,70 @@ let logNewestFirst = true, logPersonalOnly = true, logLiveOnly = false;
 let logBase = '';
 
 // Which entries are starred and which are read. One person's marks on their own
-// machine, so localStorage owns them and the server never hears about it.
+// machine, and **the server keeps them now**, not `localStorage`.
 //
 // A save key starts with a digit (netlog counts duplicates up from the oldest
 // end, so `3:log = 22505,...`), which is why news and rumor keys carry a word
 // prefix and cannot collide with one, and why marks made before the two other
 // sources existed still find their entries.
+//
+// `localStorage` lost them, and not by corrupting anything: it is scoped to a
+// browsing context, so a container tab, a second profile and a second browser
+// each hold their own invisible copy. See `backend/common.py` for the full
+// account. This is a cache of what the server said, never the owner of it.
 let marks = { star: {}, read: {} };
-try {
-  const held = JSON.parse(localStorage.getItem('fl.netlog') || '{}');
-  marks = { star: held.star || {}, read: held.read || {} };
-} catch (e) {}
 
-function saveMarks() {
-  try { localStorage.setItem('fl.netlog', JSON.stringify(marks)); } catch (e) {}
+// A toggle in flight beats the poll. `loadLog` runs every five seconds, so a
+// payload prepared before the POST landed would hand back the old value and the
+// mark would visibly flip itself back. Same guard, and the same reason, as the
+// slider under a thumb in `frontend/engine.py`.
+let marksHeld = 0;
+const MARKS_HOLD = 3000;
+const marksBusy = () => Date.now() - marksHeld < MARKS_HOLD;
+
+// The one-time carry-over. Whatever this browsing context still holds is folded
+// into the server's set, once, and the flag stops it happening again. It is a
+// union, so every context that ever held marks can contribute its own, and the
+// `localStorage` copy is deliberately left where it is: it costs nothing and it
+// is the only fallback if the file is ever lost.
+async function importOldMarks() {
+  let held = null;
+  try {
+    if (localStorage.getItem('fl.netlog.pushed')) return false;
+    held = JSON.parse(localStorage.getItem('fl.netlog') || 'null');
+  } catch (e) { return false; }
+  if (!held || (!held.star && !held.read)) return false;
+  try {
+    const r = await fetch('api/marks', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ import: held }),
+    });
+    if (!r.ok) return false;
+    const got = await r.json();
+    if (got.marks) marks = got.marks;
+  } catch (e) { return false; }
+  try { localStorage.setItem('fl.netlog.pushed', '1'); } catch (e) {}
+  return true;
+}
+
+async function postMark(kind, key, on) {
+  marksHeld = Date.now();
+  try {
+    const r = await fetch('api/marks', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: kind, key: key, on: on }),
+    });
+    if (r.ok) {
+      const got = await r.json();
+      if (got.marks) marks = got.marks;
+    }
+  } catch (e) {
+    // The mark stays where the click put it. The next payload corrects it.
+  }
+  marksHeld = 0;
+  render();
 }
 
 function logActs(key) {
@@ -186,7 +236,7 @@ function renderLog() {
     `<button class="src ${id === logSource ? 'on' : ''}" data-src="${id}">` +
     `${label} ${n}</button>`).join('');
   return '<div class="logbar">' + chips + '<span class="sep"></span>' + bar +
-    `<span class="count">${count} · marks live in your browser</span></div>` + body;
+    `<span class="count">${count} · marks are kept by the server</span></div>` + body;
 }
 
 function wireLog() {
@@ -198,11 +248,15 @@ function wireLog() {
   on('loglive', () => { logLiveOnly = !logLiveOnly; render(); });
   const place = $('#logplace');
   if (place) place.addEventListener('change', e => { logBase = e.target.value; render(); });
+  // Optimistic: the mark moves under the cursor and the server hears about it
+  // afterwards, because a round trip to localhost is still a round trip.
   const flip = (which, key) => {
-    if (marks[which][key]) delete marks[which][key];
-    else marks[which][key] = true;
-    saveMarks();
+    const on = !marks[which][key];
+    if (on) marks[which][key] = true;
+    else delete marks[which][key];
+    marksHeld = Date.now();
     render();
+    postMark(which, key, on);
   };
   document.querySelectorAll('[data-star]').forEach(b =>
     b.addEventListener('click', () => flip('star', b.dataset.star)));
@@ -213,15 +267,25 @@ function wireLog() {
 async function loadLog() {
   try {
     const r = await fetch('api/log', { cache: 'no-store' });
-    if (r.ok) { logData = await r.json(); render(); }
+    if (!r.ok) return;
+    const got = await r.json();
+    logData = got;
+    // Not while a toggle is travelling: this payload predates it.
+    if (got.marks && !marksBusy()) marks = got.marks;
+    render();
   } catch (e) { /* the tab keeps its loading line */ }
+}
+
+async function openLog() {
+  if (await importOldMarks()) render();
+  await loadLog();
 }
 
 VIEW.log = {
   bare: true,
   sub: 'the log, the wire, and what the bars are saying',
   draw: renderLog, wire: wireLog,
-  open: loadLog,
+  open: openLog,
   // The save grows while you fly, so this one is worth re-reading on the tick.
   poll: loadLog,
 };

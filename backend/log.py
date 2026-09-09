@@ -20,6 +20,7 @@ against the string tables was being done on every five-second poll, for every
 tab, whether or not anyone was reading the log.
 """
 
+from . import common as cm
 from .game import netlog as nl
 from .game import news as nw
 from .game import rumors as ru
@@ -69,7 +70,7 @@ def _rumors(ctx, docked):
 def _log(ctx):
     """The three sources, and the story state the news was filtered at."""
     body = {"state": None, "save": [], "news": [], "rumors": [],
-            "bases": 0, "error": None}
+            "bases": 0, "marks": cm.load_marks(), "error": None}
     try:
         text = ctx.saved()
         docked = ctx.docked()
@@ -84,4 +85,26 @@ def _log(ctx):
     return body
 
 
-API = {"log": _log}
+def _marks(_ctx):
+    """Every mark, for a page that has just opened."""
+    return {"marks": cm.load_marks()}
+
+
+def _set_marks(_ctx, sent):
+    """One toggle, or a browser's whole store folded in.
+
+    Two shapes down one endpoint because they are one question, "what is
+    marked", asked with one key or with a hundred. The import is what carries a
+    browser's existing marks over the first time it is seen; see the comment on
+    the store in `common.py` for why there is more than one of them.
+    """
+    if isinstance(sent.get("import"), dict):
+        marks = cm.merge_marks(sent["import"])
+        counted = sum(len(marks[k]) for k in cm.KINDS)
+        return f"{counted} marks now held"
+    cm.set_mark(sent.get("kind"), sent.get("key"), bool(sent.get("on")))
+    return None  # a toggle is its own feedback; a banner would be noise
+
+
+API = {"log": _log, "marks": _marks}
+POST = {"marks": _set_marks}

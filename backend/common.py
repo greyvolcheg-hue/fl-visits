@@ -10,7 +10,10 @@ holds what is served.
 """
 
 import functools
+import json
 import os
+import tempfile
+import threading
 
 from .game import bases as bs
 from .game import equipment as eqp
@@ -236,6 +239,114 @@ def read_state(game, save_path, saved):
         "docked_bases": sorted(k for k, v in game.bases.items()
                                if flags.get(k) in fl.DOCKED),
     }
+
+
+# --- the reader's own marks ----------------------------------------------
+#
+# Which log entries are starred and which are read. One person's marks on their
+# own machine, which is why they never leave it.
+#
+# **They used to live in `localStorage` and that lost them.** The reasoning was
+# right about who owns the marks and wrong about where the machine keeps them:
+# `localStorage` is scoped to a *browsing context*, so a container tab, a second
+# profile and a second browser each get their own copy of it, invisible to the
+# others. On 2026-09-08 the marks were made in a Zen workspace, which is a
+# container; `run.sh` ends in `xdg-open`, which always opens a plain tab; and
+# the next day's tab could not see any of them. Nothing was corrupted and no key
+# had changed. Two stores existed and the page was reading the empty one.
+#
+# The server is just as local as the browser and is the same for every tab, so
+# this is where they live now.
+
+MARKS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "data", "marks.json")
+KINDS = ("star", "read")
+_marks_lock = threading.Lock()
+
+
+def _blank_marks():
+    return {kind: {} for kind in KINDS}
+
+
+def load_marks(path=MARKS):
+    """Every mark on disk. A missing file is no marks, never an error."""
+    with _marks_lock:
+        return _read_marks(path)
+
+
+def _read_marks(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            held = json.load(fh)
+    except (OSError, ValueError):
+        # Unreadable reads the same as absent, on purpose. A corrupt file
+        # should cost the marks, not the whole Neural Net tab.
+        return _blank_marks()
+    out = _blank_marks()
+    for kind in KINDS:
+        got = held.get(kind)
+        if isinstance(got, dict):
+            out[kind] = {str(k): True for k, v in got.items() if v}
+    return out
+
+
+def _write_marks(marks, path):
+    """Replace the file in one step, so a crash cannot truncate it.
+
+    `tempfile` in the same directory rather than anywhere else: `os.replace` is
+    only atomic within a filesystem, and `/tmp` is not guaranteed to be on this
+    one.
+    """
+    folder = os.path.dirname(path)
+    os.makedirs(folder, exist_ok=True)
+    handle, temp = tempfile.mkstemp(dir=folder, prefix=".marks-", suffix=".json")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+            json.dump(marks, fh, ensure_ascii=False, sort_keys=True)
+        os.replace(temp, path)
+    except BaseException:
+        # Leaving a stray temp file beside the real one would be read as a
+        # second, older set of marks by anyone looking in the folder.
+        try:
+            os.unlink(temp)
+        except OSError:
+            pass
+        raise
+    return marks
+
+
+def set_mark(kind, key, on, path=MARKS):
+    """Turn one mark on or off, and hand back everything."""
+    if kind not in KINDS:
+        raise ValueError(f"no such mark as {kind!r}")
+    key = str(key)
+    with _marks_lock:
+        marks = _read_marks(path)
+        if on:
+            marks[kind][key] = True
+        else:
+            marks[kind].pop(key, None)
+        return _write_marks(marks, path)
+
+
+def merge_marks(sent, path=MARKS):
+    """Fold a browser's own marks in, and hand back everything.
+
+    A union rather than a replacement, because the marks that went missing are
+    spread across more than one browsing context and each of them is entitled to
+    contribute. Nothing here can delete a mark: that is what makes it safe to
+    run on first sight of a store nobody has seen before.
+    """
+    with _marks_lock:
+        marks = _read_marks(path)
+        for kind in KINDS:
+            got = (sent or {}).get(kind)
+            if not isinstance(got, dict):
+                continue
+            for key, value in got.items():
+                if value:
+                    marks[kind][str(key)] = True
+        return _write_marks(marks, path)
 
 
 class Ctx:
