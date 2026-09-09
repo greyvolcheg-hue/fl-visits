@@ -645,6 +645,26 @@ memory and needs no file change at all. The only thing this file would still
 affect is how quickly the ring itself spins up, which is a separate complaint
 and has `spin_accel` and `secs_before_enter` beside it if it ever comes up.
 
+**`DATA/MISSIONS/M13/m13.ini` has the end-of-campaign reputation reset zeroed,
+and this is the second time it has been applied.** The `[Trigger]` named
+`enter_bar` fires on walking into the bar at the end of M13 and hard-sets 47
+reputations: Liberty 0.91, a band of factions 0.65, pirates -0.3 and -0.65, and
+17 already at 0. That is the game overwriting every relationship you spent the
+campaign building. All 47 now read 0.0, so the story ends on neutral.
+
+**It was applied once before and vanished without trace.** On 2026-09-02 the
+file was written back to vanilla content, mtime 21:31, later than the `.vanilla`
+copy taken on 09-01, and nothing in this repo records what did it. There is no
+module for this edit: it was a one-off then and a one-off again on 2026-09-09 at
+the owner's call, which is why it gets a paragraph here instead. **If the
+reputations come back at the end of a campaign, check this file first** rather
+than looking for a bug in the reputation model.
+
+Re-applying it is a decode, zero every numeric third field of `Act_SetRep` in
+that one trigger, re-encode through `persist._save`, which refuses to write
+unless the round trip is identical. Leave the `Act_SetRep` entries in the other
+triggers alone: theirs are symbols like `REP_FRIEND_THRESHOLD`, not numbers.
+
 Also worth knowing when reading these files: `CRUISING_SPEED` in
 `constants.ini` currently says 5000.0, written by the Engine tab's persist
 button, and 153 asteroid field files carry a scaled `fill_dist` from
