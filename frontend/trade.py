@@ -1,41 +1,63 @@
-"""Trade: who buys and sells what, asked from either end.
+"""Trade → Market: one question, asked from whichever end you know.
 
-One tab, two modes, because they are one question from opposite ends: by
-commodity is "who trades gold", by base is "what does this base sell and where
-is it worth more". They were two sub-tabs until 2026-09-09.
+The endpoint is in `backend/trade.py`, and it says why these are one thing.
 
-The two modes keep their own state and their own endpoint. Nothing is shared
-between them but the mode switch, which is deliberate: switching back has to
-land where you left off, and a merged selection would mean one of the two
-always started over.
+**One picker and one table, not two screens behind a switch.** The first merge
+of Data and Deltas kept both renderers and put a mode button over them, which
+is the same two pages with an extra click. This is the pipeline instead:
+
+    axis  ->  pick a commodity            ->  every base that trades it
+    axis  ->  pick a base -> its shelf    ->  every base that trades it,
+                                              measured against what you pay
+
+The last stage is one function on both paths, and so is the widget you choose
+with. `pickList` draws commodities and bases from the same row shape, because
+the two lists differ in what a row says and never in how you search it. Two
+search widgets for one job was the actual duplication, and it outlived the two
+tabs it came from.
 """
 
 ID, LABEL = "market", "Market"
 
 CSS = """
-  /* Layout only. The look comes from the one button rule in `_theme.css`,
-     which `.modebar button` is now named in, so these read as the same
-     control as COLLAPSE ALL and the Neural Net's source chips. */
+  /* The axis switch. Layout only: the look comes from the one button rule in
+     `_theme.css`, which `.modebar button` is named in, so these read as the
+     same control as COLLAPSE ALL. */
   .modebar { display: flex; gap: .4rem; margin: 0 0 .9rem; }
 
+  /* One picker, for commodities and for bases alike. */
+  .pickbox { background: var(--panel); border: 1px solid var(--line);
+             clip-path: var(--notch); padding: .7rem 1rem; margin-bottom: .7rem; }
+  .pickbox .row { display: flex; align-items: center; gap: .6rem;
+                  flex-wrap: wrap; }
+  .pickbox input[type=search] { flex: 1 1 18rem; }
+  .hits { display: grid; gap: .25rem; margin-top: .6rem;
+          grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); }
+  .hits .hit { display: grid; align-items: baseline; gap: .5rem;
+               grid-template-columns: minmax(7rem, 1fr) minmax(4rem, .9fr)
+                                      3.2rem 4rem;
+               text-align: left; }
+  .hits .hit .num.up { color: var(--ok); }
 
-  .goodtable { min-width: 42rem; }
-  .goodtable .gun, .goodtable .gunhead {
-    grid-template-columns: minmax(11rem, 1fr) 4.5rem 4.5rem 5rem minmax(12rem, 1.4fr); }
-  .desttable { min-width: 40rem; }
-  .desttable .gun, .desttable .gunhead {
-    grid-template-columns: 5rem 5rem minmax(12rem, 1fr) minmax(8rem, 1fr) 5rem; }
-  /* A good is a button in all but name: clicking one opens its destinations. */
-  .good { cursor: pointer; }
-  .good.on { border-color: var(--docked); }
+  /* What you picked, kept on screen: everything under it is read against it. */
+  .pick { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap;
+          background: var(--panel); border: 1px solid var(--line);
+          border-left: 2px solid var(--docked);
+          padding: .55rem 1rem; margin-bottom: .7rem; }
+  .pick .sys { color: var(--faint); font-family: var(--mono); font-size: 11px; }
+  .pick .addgun { margin-left: auto; }
 
-  /* --- by commodity --- */
+  /* The destinations table. One vocabulary whichever way you got here; the
+     gain column is simply absent when there is no base to measure from. */
   .tradetable { min-width: 40rem; }
   .tradetable .gun, .tradetable .gunhead {
-    grid-template-columns: 5rem 3.5rem minmax(12rem, 1fr) minmax(8rem, 1fr) 5rem; }
+    grid-template-columns: 5rem 4.5rem minmax(12rem, 1fr) minmax(8rem, 1fr) 5rem; }
+  .tradetable.plain .gun, .tradetable.plain .gunhead {
+    grid-template-columns: 5rem minmax(12rem, 1fr) minmax(8rem, 1fr) 5rem; }
   .tradetable .gunhead span:first-child { text-align: right; }
   /* Green edge means the shelf has it: the only rows you can buy at. */
   .traderow.sells { border-color: rgba(95, 224, 160, .45); }
+
   .holdbar { display: flex; align-items: baseline; flex-wrap: wrap; gap: .6rem;
              background: var(--panel); border: 1px solid var(--line);
              clip-path: var(--notch); padding: .6rem 1rem; margin: 0 0 .8rem; }
@@ -55,156 +77,17 @@ CSS = """
 """
 
 JS = r"""
-let tradeData = null, tradeGood = '', tradeVisitedOnly = false, holdSys = '';
-// 'good' or 'base'. The first thing the tab asks, because everything under it
-// is read against the answer.
+// The axis: 'good' or 'base'. Which end of the question you happen to know.
 let tradeBy = 'good';
-let deltaData = null, deltaBase = '', deltaGood = '',
-    deltaVisitedOnly = false, deltaQuery = null;
-
-function renderDeltas() {
-  const d = deltaData;
-  if (!d) return '<p class="empty">reading the markets…</p>';
-  if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
-
-  let out = '<div class="reppick">' +
-    '<label class="toggle"><input type="checkbox" id="deltaseen"' +
-    (deltaVisitedOnly ? ' checked' : '') +
-    '> <span>only bases I have docked at</span></label></div>';
-
-  // Step one. Closed once a base is picked, because the pick is the context
-  // everything below it is read against and it has to stay on screen.
-  if (!d.base || deltaQuery !== null) {
-    const q = (deltaQuery || '').trim().toLowerCase();
-    const hits = d.bases
-      .filter(b => !q || b.name.toLowerCase().includes(q)
-                      || b.system.toLowerCase().includes(q))
-      .slice(0, 40);
-    out += `<p><input id="basesearch" placeholder="type a base or system name" ` +
-      `value="${esc(deltaQuery || '')}" autocomplete="off"></p><div class="hits">` +
-      (hits.length ? hits.map(b =>
-        `<button class="hit" data-base="${esc(b.id)}">` +
-        `<span class="nm">${esc(b.name)}</span>` +
-        `<span class="nm">${esc(b.system)}</span>` +
-        `<span class="cell">${esc(b.at)}</span>` +
-        `<span class="num">${b.goods}</span></button>`).join('')
-        : '<p class="empty">Nothing by that name.</p>') + '</div>' +
-      `<p class="note">${d.bases.length} bases sell something` +
-      (deltaVisitedOnly ? ' and are ones you have docked at' : '') +
-      '. The number on the right is how many kinds of cargo it has in stock.</p>';
-    return out;
-  }
-
-  out += '<div class="pick">' +
-    `<span class="nm">${esc(d.base.name)}</span>` +
-    `<span class="sys">${esc(d.base.system)} · ${esc(d.base.at)}</span>` +
-    '<button class="addgun" id="rebase">change base</button></div>';
-
-  if (!d.goods.length)
-    return out + '<p class="empty">This base has nothing in stock.</p>';
-
-  const money = v => v.toLocaleString();
-  out += `<p class="note">${d.goods.length} on the shelf here, dearest first.
-    <b>best</b> is the most anyone will pay for it and <b>gain</b> is what that
-    leaves you a unit. Click a row for every base that trades it.</p>`;
-
-  out += '<div class="guns"><div class="goodtable">' +
-    '<div class="gunhead"><span class="nm">commodity</span><span>buy</span>' +
-    '<span>best</span><span>gain</span><span class="nm">where</span></div>' +
-    d.goods.map(g =>
-      `<div class="gun good${g.nickname === d.good ? ' on' : ''}" ` +
-      `data-good="${esc(g.nickname)}">` +
-      `<span class="nm">${esc(g.name)}</span>` +
-      `<span class="num raw">${money(g.price)}</span>` +
-      (g.best
-        ? `<span class="num">${money(g.best.price)}</span>` +
-          `<span class="num up">+${money(g.best.delta)}</span>` +
-          `<span class="nm">${esc(g.best.base.name)}, ${esc(g.best.base.system)}</span>`
-        : '<span class="num raw">-</span><span class="num raw">-</span>' +
-          '<span class="nm">nowhere else trades it</span>') +
-      '</div>').join('') + '</div></div>';
-
-  if (!d.good) return out;
-
-  const good = d.goods.find(g => g.nickname === d.good);
-  out += `<p class="note" style="margin-top:1.25rem">${esc(good ? good.name : d.good)}
-    bought here at ${money(good ? good.price : 0)}, and every base that trades
-    it, by what it leaves you.
-    <b class="ok">Green still means the base has it on the shelf</b>, the same
-    as on Data: those will sell it to you as well as buy it.</p>`;
-
-  out += '<div class="guns"><div class="desttable">' +
-    '<div class="gunhead"><span>price</span><span>gain</span>' +
-    '<span class="nm">base</span><span class="nm">system</span>' +
-    '<span class="cell">at</span></div>' +
-    d.rows.map(r =>
-      `<div class="gun traderow${r.buy ? ' sells' : ''}">` +
-      `<span class="num h">${money(r.price)}</span>` +
-      `<span class="num${r.delta > 0 ? ' up' : ' raw'}">` +
-      `${r.delta > 0 ? '+' : ''}${money(r.delta)}</span>` +
-      `<span class="nm">${esc(r.base.name)}</span>` +
-      `<span class="nm">${esc(r.base.system)}</span>` +
-      `<span class="cell">${esc(r.base.at)}</span></div>`).join('') +
-    '</div></div>';
-  return out;
-}
-
-function wireDeltas() {
-  const v = $('#deltaseen');
-  if (v) v.addEventListener('change', e => {
-    deltaVisitedOnly = e.target.checked;
-    loadDeltas();
-  });
-  const again = $('#rebase');
-  if (again) again.addEventListener('click', () => { deltaQuery = ''; render(); });
-  document.querySelectorAll('.hit[data-base]').forEach(b =>
-    b.addEventListener('click', () => {
-      deltaBase = b.dataset.base;
-      deltaGood = '';
-      deltaQuery = null;
-      loadDeltas();
-    }));
-  document.querySelectorAll('.good').forEach(b =>
-    b.addEventListener('click', () => {
-      // Clicking the open row shuts it, so the table can be read on its own.
-      deltaGood = b.dataset.good === deltaGood ? '' : b.dataset.good;
-      loadDeltas();
-    }));
-  const box = $('#basesearch');
-  if (box) {
-    // Same as the weapon picker: re-rendering replaces the input, so the caret
-    // has to be put back or the second character types itself at the front.
-    box.focus();
-    box.setSelectionRange(box.value.length, box.value.length);
-    box.addEventListener('input', e => { deltaQuery = e.target.value; render(); });
-    box.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && deltaBase) { deltaQuery = null; render(); }
-    });
-  }
-}
-
-async function loadDeltas() {
-  const q = [];
-  if (deltaBase) q.push('base=' + encodeURIComponent(deltaBase));
-  if (deltaGood) q.push('good=' + encodeURIComponent(deltaGood));
-  if (deltaVisitedOnly) q.push('visited=1');
-  try {
-    const r = await fetch('api/deltas' + (q.length ? '?' + q.join('&') : ''),
-                          { cache: 'no-store' });
-    if (r.ok) { deltaData = await r.json(); render(); }
-  } catch (e) { /* the tab keeps its loading line */ }
-}
-
-// Deltas sub-tab. `deltaQuery` is the base picker's search box, null when it is
-// closed, exactly like `gunQuery` on the DPS tab and for the same reason: 160
-// bases is well past what a dropdown is for.
-
-function ago(t) {
-  const s = Date.now() / 1000 - t;
-  if (s < 90) return 'just now';
-  if (s < 5400) return Math.round(s / 60) + ' min ago';
-  return Math.round(s / 3600) + ' h ago';
-}
+// One selection, whichever axis found it. `tradeBase` stays set across a
+// switch back, so returning to the base you were standing on costs no typing.
+let tradeGood = '', tradeBase = '';
+// Just the search text. **It used to decide what was on screen as well**, and
+// that made "change" after picking a commodity reopen the base picker instead
+// of the shelf, because one flag cannot say which of two pickers to reopen.
+// Clearing the value is what reopens its own picker now.
+let tradeQuery = '';
+let tradeData = null, tradeVisitedOnly = false, holdSys = '';
 
 // One system's breakdown: which base takes which part of the load, and what
 // staying on a single dock would cost.
@@ -265,87 +148,197 @@ function renderHold(h) {
   return out;
 }
 
+// --- the one picker -------------------------------------------------------
+//
+// `rows` is [{key, name, sub, at, num, tone}], which is all either list needs:
+// a commodity says "43 bases", a base says "12 kinds in stock", and neither
+// difference reaches the widget.
+function pickList(rows, placeholder, note) {
+  const q = (tradeQuery || '').trim().toLowerCase();
+  const found = rows.filter(r => !q ||
+      r.name.toLowerCase().includes(q) ||
+      (r.sub || '').toLowerCase().includes(q));
+  // Capped, because 160 bases is a wall rather than a list. The cap has to be
+  // said out loud: a note claiming 160 over a list of 60 is the page lying
+  // about what you are looking at, and the missing ones are exactly the ones
+  // late in the alphabet.
+  const hits = found.slice(0, 60);
+  const clipped = found.length - hits.length;
+  return '<div class="pickbox"><div class="row">' +
+    `<input type="search" id="pickbox" placeholder="${esc(placeholder)}" ` +
+    `value="${esc(tradeQuery || '')}" autocomplete="off">` +
+    '<label class="toggle"><input type="checkbox" id="tradeseen"' +
+    (tradeVisitedOnly ? ' checked' : '') +
+    '> <span>only bases I have docked at</span></label></div>' +
+    // `wrapgrid`: this flows and wraps by design, so `check_views.py` must not
+    // read its cell count as a table row that has drifted from its columns.
+    '<div class="hits wrapgrid">' +
+    (hits.length ? hits.map(r =>
+      `<button class="hit" data-pick="${esc(r.key)}">` +
+      `<span class="nm">${esc(r.name)}</span>` +
+      `<span class="nm">${esc(r.sub || '')}</span>` +
+      `<span class="cell">${esc(r.at || '')}</span>` +
+      `<span class="num${r.tone ? ' ' + r.tone : ''}">${esc(r.num || '')}</span>` +
+      '</button>').join('')
+      : '<p class="empty">Nothing by that name.</p>') +
+    '</div><p class="note">' + note(found.length, rows.length) +
+    (clipped ? ` Showing the first ${hits.length}; ${clipped} more match, so
+                 type to narrow it.` : '') + '</p></div>';
+}
+
+function pickedBar(name, sub) {
+  return '<div class="pick">' +
+    `<span class="nm">${esc(name)}</span>` +
+    (sub ? `<span class="sys">${esc(sub)}</span>` : '') +
+    '<button class="addgun" id="repick">change</button></div>';
+}
+
+// --- the one destinations table -------------------------------------------
+//
+// With a source base each row carries `delta`, the profit a unit, and the
+// column appears. Without one there is nothing to measure against and the
+// column is absent rather than empty: a dash in every cell of a column reads
+// as missing data, and this is not missing, it is not asked.
+function destTable(d) {
+  const rows = tradeVisitedOnly ? d.rows.filter(r => r.visited) : d.rows;
+  const gain = !!d.source;
+  if (!rows.length)
+    return '<p class="empty">Nowhere you have docked trades it.</p>';
+  return `<div class="guns"><div class="tradetable${gain ? '' : ' plain'}">` +
+    '<div class="gunhead"><span>price</span>' + (gain ? '<span>gain</span>' : '') +
+    '<span class="nm">base</span><span class="nm">system</span>' +
+    '<span class="cell">at</span></div>' +
+    rows.map(r =>
+      `<div class="gun traderow${r.buy ? ' sells' : ''}">` +
+      `<span class="num h">${money(r.price)}</span>` +
+      (gain ? `<span class="num${r.delta > 0 ? ' up' : ' raw'}">` +
+              `${r.delta > 0 ? '+' : ''}${money(r.delta)}</span>` : '') +
+      `<span class="nm">${esc(r.base.name)}</span>` +
+      `<span class="nm">${esc(r.base.system)}</span>` +
+      `<span class="cell">${esc(r.base.at)}</span></div>`).join('') +
+    '</div></div>';
+}
+
+function axisBar() {
+  return '<div class="modebar">' +
+    [['good', 'BY COMMODITY'], ['base', 'BY BASE']].map(([k, label]) =>
+      `<button class="mode${tradeBy === k ? ' on' : ''}" data-by="${k}">` +
+      `${label}</button>`).join('') + '</div>';
+}
+
 function renderTrade() {
   const d = tradeData;
   if (!d) return '<p class="empty">reading the markets…</p>';
   if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
 
-  const opts = d.goods.map(g =>
-    `<option value="${esc(g.nickname)}"${g.nickname === tradeGood ? ' selected' : ''}>` +
-    `${esc(g.name)} (${g.bases})</option>`).join('');
-  let out = renderHold(d.hold) + '<div class="reppick">' +
-    `<select id="tradegood"><option value="">pick a commodity…</option>${opts}</select>` +
-    '<label class="toggle"><input type="checkbox" id="tradeseen"' +
-    (tradeVisitedOnly ? ' checked' : '') + '> <span>only bases I have docked at</span>' +
-    '</label></div>';
+  let out = renderHold(d.hold) + axisBar();
 
-  if (!d.good) return out + '<p class="empty">Pick a commodity.</p>';
+  // Stage one, by base only: which base am I standing on.
+  if (tradeBy === 'base') {
+    if (!d.base)
+      return out + pickList(
+        d.bases.map(b => ({ key: b.id, name: b.name, sub: b.system,
+                            at: b.at, num: b.goods })),
+        'type a base or system name',
+        (found, all) => `${found} of ${all} bases sell something` +
+          (tradeVisitedOnly ? ' and are ones you have docked at' : '') +
+          '. The number on the right is how many kinds of cargo it stocks.');
+    out += pickedBar(d.base.name, `${d.base.system} · ${d.base.at}`);
+  }
 
-  const rows = tradeVisitedOnly ? d.rows.filter(r => r.visited) : d.rows;
-  if (!rows.length)
-    return out + '<p class="empty">' + (tradeVisitedOnly
-      ? 'None of the bases trading this are ones you have docked at.'
-      : 'Nothing trades this.') + '</p>';
+  // Stage two: which commodity. The list is every commodity, or this base's
+  // shelf, and it is the same widget either way.
+  if (!d.good) {
+    if (!d.goods.length)
+      return out + '<p class="empty">This base has nothing in stock.</p>';
+    return out + pickList(
+      d.goods.map(g => ({
+        key: g.nickname, name: g.name,
+        sub: g.best ? `best: ${g.best.base.name}` : (g.price === null ? '' : 'nowhere else'),
+        at: g.price === null ? '' : money(g.price),
+        num: g.best ? '+' + money(g.best.delta) : (g.price === null ? g.bases : ''),
+        tone: g.best ? 'up' : '' })),
+      tradeBy === 'base' ? 'type a commodity on this shelf'
+                         : 'type a commodity name',
+      (found, all) => tradeBy === 'base'
+        ? `${found} of ${all} on the shelf here. <b>at</b> is what it costs
+           you, and the figure on the right is what the best run in the game
+           leaves you a unit.`
+        : `${found} of ${all} commodities are traded somewhere. The number on
+           the right is how many bases trade each one.`);
+  }
 
-  const name = (d.goods.find(g => g.nickname === d.good) || {}).name || d.good;
-  // The cheapest row is not always one you can buy at: gold's four cheapest
-  // bases hold none of it. So the run is the cheapest *green* row to the
-  // dearest row of any colour, which is not something the sort alone shows.
-  const stock = rows.filter(r => r.buy);
-  const low = stock[stock.length - 1], high = rows[0];
-  let run = '';
-  if (low && high && high.price > low.price)
-    run = ` Best run here: buy at ${esc(low.base.name)} for
-      ${low.price.toLocaleString()}, sell at ${esc(high.base.name)} for
-      ${high.price.toLocaleString()},
-      <b class="ok">${(high.price - low.price).toLocaleString()} a unit</b>.`;
-
-  out += `<p class="note">${esc(name)} at ${rows.length} bases, dearest first.
-    <b class="ok">Green means the base has it on the shelf</b>, so that is where
-    you can load up; the rest hold none and only want to be sold it.${run}
-    Bases you cannot dock at are not listed at all.</p>`;
-
-  out += '<div class="guns"><div class="tradetable">' +
-    '<div class="gunhead"><span>price</span><span>way</span>' +
-    '<span class="nm">base</span><span class="nm">system</span>' +
-    '<span class="cell">at</span></div>' +
-    rows.map(r =>
-      `<div class="gun traderow${r.buy ? ' sells' : ''}">` +
-      `<span class="num h">${r.price.toLocaleString()}</span>` +
-      `<span class="num raw">${r.buy ? 'buy' : 'sell'}</span>` +
-      `<span class="nm">${esc(r.base.name)}</span>` +
-      `<span class="nm">${esc(r.base.system)}</span>` +
-      `<span class="cell">${esc(r.base.at)}</span></div>`).join('') +
-    '</div></div>';
-  return out;
-}
-
-async function loadTrade() {
-  const q = [];
-  if (tradeGood) q.push('good=' + encodeURIComponent(tradeGood));
-  if (tradeVisitedOnly) q.push('visited=1');
-  try {
-    const r = await fetch('api/trade' + (q.length ? '?' + q.join('&') : ''),
-                          { cache: 'no-store' });
-    if (r.ok) { tradeData = await r.json(); render(); }
-  } catch (e) { /* the tab keeps its loading line */ }
+  const chosen = d.goods.find(g => g.nickname === d.good);
+  out += pickedBar(chosen ? chosen.name : d.good,
+    d.source ? `bought here at ${money(d.source.price)}` : 'every base trading it');
+  out += `<p class="note">` + (d.source
+    ? `Every base that trades it, by what it leaves you a unit over the
+       ${money(d.source.price)} you pay here.`
+    : `Every base that trades it, dearest first: the best place to sell is at
+       the top and the cheapest place to buy is at the bottom.`) +
+    ` <b class="ok">Green means the base has it on the shelf</b>, so it will
+      sell it to you as well as buy it. Prices are per unit.</p>`;
+  return out + destTable(d);
 }
 
 function wireTrade() {
-  const g = $('#tradegood');
-  if (g) g.addEventListener('change', e => { tradeGood = e.target.value; loadTrade(); });
-  const v = $('#tradeseen');
-  if (v) v.addEventListener('change', e => {
-    // A refetch, not a redraw. The table below can hide its own rows, but the
-    // hold advice above names a system chosen out of bases this page never
-    // received, so only the server can choose it again.
+  document.querySelectorAll('.modebar .mode').forEach(b =>
+    b.addEventListener('click', () => {
+      if (tradeBy === b.dataset.by) return;
+      tradeBy = b.dataset.by;
+      // The commodity does not survive the switch: by base it has to be one
+      // this base stocks, and by base it was chosen off a shelf. The base
+      // does survive, so switching back is free.
+      tradeGood = '';
+      tradeQuery = '';
+      loadTrade();
+    }));
+
+  document.querySelectorAll('.hit[data-pick]').forEach(b =>
+    b.addEventListener('click', () => {
+      const key = b.dataset.pick;
+      if (tradeBy === 'base' && !tradeData.base) tradeBase = key;
+      else tradeGood = key;
+      tradeQuery = '';
+      loadTrade();
+    }));
+
+  const again = $('#repick');
+  if (again) again.addEventListener('click', () => {
+    // "change" undoes the last choice: the commodity if one is picked, else
+    // the base. Clearing the value is what reopens that picker, so going back
+    // one step from a commodity lands on the shelf and not on the base list.
+    if (tradeGood) tradeGood = '';
+    else tradeBase = '';
+    tradeQuery = '';
+    loadTrade();
+  });
+
+  const seen = $('#tradeseen');
+  if (seen) seen.addEventListener('change', e => {
+    // A refetch, not a redraw. The table can hide its own rows, but the hold
+    // advice names a system chosen out of bases this page never received, so
+    // only the server can choose it again.
     tradeVisitedOnly = e.target.checked;
     loadTrade();
   });
+
+  const box = $('#pickbox');
+  if (box) {
+    // Re-rendering replaces the input, so the caret has to be put back or the
+    // second character types itself at the front.
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+    box.addEventListener('input', e => { tradeQuery = e.target.value; render(); });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { tradeQuery = ''; render(); }
+    });
+  }
+
   // The save is only written when the game writes it, so the hold goes stale
   // while you fly. This tab is not polled; the button is the refresh.
-  const again = $('#holdagain');
-  if (again) again.addEventListener('click', loadTrade);
+  const refresh = $('#holdagain');
+  if (refresh) refresh.addEventListener('click', loadTrade);
   document.querySelectorAll('.holdrow').forEach(b =>
     b.addEventListener('click', () => {
       holdSys = b.dataset.hold === holdSys ? '' : b.dataset.hold;
@@ -353,35 +346,21 @@ function wireTrade() {
     }));
 }
 
-function modeBar() {
-  return '<div class="modebar">' +
-    ['good', 'BY COMMODITY', 'base', 'BY BASE'].reduce((acc, _, i, a) =>
-      i % 2 ? acc + `<button class="mode${tradeBy === a[i - 1] ? ' on' : ''}" ` +
-        `data-by="${a[i - 1]}">${a[i]}</button>` : acc, '') +
-    '</div>';
-}
-
-function renderMarket() {
-  return modeBar() + (tradeBy === 'base' ? renderDeltas() : renderTrade());
-}
-
-function wireMarket() {
-  document.querySelectorAll('.modebar .mode').forEach(b =>
-    b.addEventListener('click', () => {
-      tradeBy = b.dataset.by;
-      // Each mode fetches its own the first time it is opened, and keeps what
-      // it had after that, so switching back lands where you left off.
-      if (tradeBy === 'base' && !deltaData) loadDeltas();
-      if (tradeBy === 'good' && !tradeData) loadTrade();
-      render();
-    }));
-  if (tradeBy === 'base') wireDeltas(); else wireTrade();
+async function loadTrade() {
+  const q = ['by=' + tradeBy];
+  if (tradeBy === 'base' && tradeBase) q.push('base=' + encodeURIComponent(tradeBase));
+  if (tradeGood) q.push('good=' + encodeURIComponent(tradeGood));
+  if (tradeVisitedOnly) q.push('visited=1');
+  try {
+    const r = await fetch('api/market?' + q.join('&'), { cache: 'no-store' });
+    if (r.ok) { tradeData = await r.json(); render(); }
+  } catch (e) { /* the tab keeps its loading line */ }
 }
 
 VIEW.market = {
   bare: true,
   sub: 'who buys and sells what, from either end',
-  draw: renderMarket, wire: wireMarket,
+  draw: renderTrade, wire: wireTrade,
   open: () => { if (!tradeData) loadTrade(); },
 };
 """

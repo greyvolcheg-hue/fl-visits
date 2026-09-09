@@ -1,24 +1,30 @@
-"""Trade: who buys and sells what, asked from either end.
+"""Trade → Market: one question, asked from whichever end you know.
 
-The page half is in `frontend/trade.py`, and it is one tab with two modes:
+The page half is in `frontend/trade.py`.
 
-    by commodity   pick a good, see every base that trades it (`_trade`)
-    by base        pick a base, see its shelf and where each item is worth
-                   more (`_deltas`)
+**This is one pipeline, not two pages behind a switch.** It was two, `Data` and
+`Deltas`, and merging them by putting a mode button over two separate renderers
+was the wrong merge: same two screens, one more click. What actually unifies
+them is in the data.
 
-They were two tabs and two pairs of files until 2026-09-09. The merge is the
-owner's call, and it is a move rather than a rewrite: neither endpoint's logic
-changed. Both live here because `tabs.py` only imports `backend/<leaf>.py` for
-leaves named in `LAYOUT`, so a file dropped from the layout takes its endpoint
-off the server with it.
+    by commodity   which commodity  ->  every base that trades it
+    by base        which base -> what is on its shelf -> every base that
+                   trades that, measured against what you pay here
+
+The last step is the same list both times. `market.trades` proves it: with a
+source row it gains a `delta` column and drops the source base, and the order
+does not change, because `delta` is `price` minus a constant. So the axis picks
+where the pipeline starts, never what it computes.
+
+Every stage answers with the same two shapes, `goods` and `rows`, so the page
+draws one picker and one table however the question was asked.
 """
 
 import os
 
 from .game import market as mk
 
-
-# One spelling of the empty hold. `_trade` seeds the payload with it and
+# One spelling of the empty hold. `_market` seeds the payload with it and
 # `_hold` returns it, so writing it out twice makes the payload's shape depend
 # on which of the two ran.
 NO_HOLD = {"items": [], "systems": [], "whole": 0, "saved": None}
@@ -50,7 +56,6 @@ def _hold(ctx, names, rows, only):
     commodity picker and all 1786 market rows below it are static game data
     that never needed the save, and taking the whole tab down for a file the
     game has not written yet throws away the part that still works.
-    `ships.player_ship` returns None on the same grounds.
     """
     out = dict(NO_HOLD)
     try:
@@ -74,86 +79,94 @@ def _hold(ctx, names, rows, only):
     return out
 
 
-def _trade(ctx):
-    """The commodity list, or every base trading one of them."""
-    names, rows = ctx.game.market
-    body = {"goods": [], "good": None, "rows": [],
-            "hold": dict(NO_HOLD), "error": None}
-    try:
-        want = (ctx.query.get("good") or [None])[0]
-        want = want.lower() if want else None
-        seen_only = bool((ctx.query.get("visited") or [""])[0])
-        visited = _docked(ctx, seen_only or want in names)
-        # The checkbox has to be answered here, not in the page. A row the
-        # page hides is still a row, but the system the hold advice names was
-        # chosen out of bases the page never received, so only this side can
-        # choose it again. `_deltas` and `_routes` read the flag the same way.
-        body["hold"] = _hold(ctx, names, rows, visited if seen_only else None)
-        counts = {}
-        for row in rows:
-            counts[row["good"]] = counts.get(row["good"], 0) + 1
-        body["goods"] = sorted(
-            ({"nickname": k, "name": names[k], "bases": counts.get(k, 0)}
-             for k in names),
-            key=lambda g: g["name"])
-        if want in names:
-            body["good"] = want
-            # Every row carries its own visited flag whatever the checkbox
-            # says, so the table can re-filter itself without another request.
-            body["rows"] = mk.find(rows, want, visited)
-    except (OSError, ValueError, KeyError) as exc:
-        body["error"] = str(exc)
-    return body
+def _every_good(names, rows):
+    """The commodity picker when no base has been chosen: all of them."""
+    counts = {}
+    for row in rows:
+        counts[row["good"]] = counts.get(row["good"], 0) + 1
+    return sorted(
+        ({"nickname": k, "name": names[k], "bases": counts.get(k, 0),
+          "price": None, "best": None} for k in names),
+        key=lambda g: g["name"])
 
 
-def _deltas(ctx):
-    """The base list, what one of them sells, and where that is worth more."""
-    _names, rows = ctx.game.market
-    body = {"bases": [], "base": None,
-            "goods": [], "good": None, "rows": [], "error": None}
-    try:
-        only = None
-        if (ctx.query.get("visited") or [""])[0]:
-            state = ctx.state()
-            only = set(state["docked_bases"])
+def _shelf(rows, base, only):
+    """The commodity picker when a base has been chosen: what it stocks.
 
-        # Every base that has anything on the shelf. The filter applies
-        # here as well as to the destinations: offering a base the next
-        # step would then refuse to plan a run from is worse than not
-        # offering it.
-        stock = {}
-        for row in rows:
-            if not row["buy"]:
-                continue
-            if only is not None and row["base"]["id"] not in only:
-                continue
-            seen = stock.setdefault(row["base"]["id"], dict(row, goods=0))
-            seen["goods"] += 1
-        body["bases"] = sorted(
-            (dict(r["base"], goods=r["goods"]) for r in stock.values()),
-            key=lambda b: (b["name"], b["system"]))
-
-        base = (ctx.query.get("base") or [None])[0]
-        if not base or base.lower() not in stock:
-            return body  # just the picker; nothing chosen yet
-        base = base.lower()
-        body["base"] = stock[base]["base"]
-        body["goods"] = [
-            {"nickname": r["good"], "name": r["good_name"],
-             "price": r["price"], "best": r["best"]}
+    Deliberately the same row shape as `_every_good`, filled in rather than
+    replaced. The page has one picker, so a shelf that answered in its own
+    shape would need a second one, which is the split this tab just came out
+    of. `price` is what this base charges and `best` is where it is worth
+    most, both of which are simply unknown before a base is named.
+    """
+    return [{"nickname": r["good"], "name": r["good_name"],
+             "bases": 0, "price": r["price"], "best": r["best"]}
             for r in mk.best_runs(rows, base, only)]
 
-        good = (ctx.query.get("good") or [None])[0]
-        if good:
-            good = good.lower()
-            source = next((r for r in rows if r["base"]["id"] == base
-                           and r["good"] == good and r["buy"]), None)
-            if source:
-                body["good"] = good
-                body["rows"] = mk.deltas(rows, good, source, only)
+
+def _stock(rows, only):
+    """Every base with something on the shelf, for the base picker."""
+    seen = {}
+    for row in rows:
+        if not row["buy"]:
+            continue
+        if only is not None and row["base"]["id"] not in only:
+            continue
+        # The docked filter applies to where you start as well as to where you
+        # go: offering a base the next step would then refuse to plan from is
+        # worse than not offering it.
+        entry = seen.setdefault(row["base"]["id"], dict(row["base"], goods=0))
+        entry["goods"] += 1
+    return sorted(seen.values(), key=lambda b: (b["name"], b["system"]))
+
+
+def _market(ctx):
+    """The picker, the shelf and the destinations, whichever end you start at."""
+    names, rows = ctx.game.market
+    body = {"by": "good", "goods": [], "bases": [], "base": None, "good": None,
+            "source": None, "rows": [], "hold": dict(NO_HOLD), "error": None}
+    try:
+        by = "base" if ctx.one("by") == "base" else "good"
+        good = (ctx.one("good") or "").lower() or None
+        want_base = (ctx.one("base") or "").lower() or None
+        seen_only = bool(ctx.one("visited"))
+        body["by"] = by
+
+        visited = _docked(ctx, seen_only or by == "base" or good in names)
+        only = visited if seen_only else None
+        # The checkbox has to be answered here, not in the page. A row the page
+        # hides is still a row, but the system the hold advice names was chosen
+        # out of bases the page never received, so only this side can choose it
+        # again. `_routes` reads the flag the same way.
+        body["hold"] = _hold(ctx, names, rows, only)
+
+        source = None
+        if by == "base":
+            body["bases"] = _stock(rows, only)
+            here = next((b for b in body["bases"] if b["id"] == want_base), None)
+            if not here:
+                return body  # the base picker, and nothing chosen yet
+            body["base"] = here
+            body["goods"] = _shelf(rows, here["id"], only)
+            if good:
+                # The row you would buy at. Without one there is no margin to
+                # measure, so the good is treated as unchosen rather than
+                # answered against a price from somewhere else.
+                source = next((r for r in rows if r["base"]["id"] == here["id"]
+                               and r["good"] == good and r["buy"]), None)
+        else:
+            body["goods"] = _every_good(names, rows)
+
+        if good in names and (by == "good" or source):
+            body["good"] = good
+            body["source"] = source
+            # Every row carries its own visited flag whatever the checkbox
+            # says, so the table can re-filter itself without another request.
+            body["rows"] = mk.trades(rows, good, source, visited=visited,
+                                     only=only)
     except (OSError, ValueError, KeyError) as exc:
         body["error"] = str(exc)
     return body
 
 
-API = {"trade": _trade, "deltas": _deltas}
+API = {"market": _market}

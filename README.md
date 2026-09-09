@@ -320,53 +320,38 @@ actions, and the abort rows are not filler: aborting a mission for an enemy of
 your target raises your standing with the target, since abortion is negative to
 the faction offering it and the empathy rate between enemies is negative too.
 
-**Trade → Market, by commodity** looks a commodity up and lists every base that trades it,
-dearest first. **Green marks the bases holding stock**, the only ones you can
-buy at; the rest hold none and will only be sold to. A toggle narrows the list
-to bases you have actually docked at, taken from the save.
+**Trade → Market** is one pipeline, and the axis picks which end of it you
+start from, not which page you get.
 
-Green marks stock because the sort alone does not answer the question the tab
-is for. The cheapest row is not always one
-you can buy at: gold's four cheapest bases, all in New London at 255, hold none
-of it. So the run printed above the table is the cheapest *green* row to the dearest
-row of any colour, and being docked somewhere is what the filter is for.
+    by commodity   pick a commodity  →  every base that trades it
+    by base        pick a base  →  its shelf  →  every base that trades that,
+                                                 measured against what you pay
 
-Price is the commodity's own price from `goods.ini` times the base's multiplier
-in `market_commodities.ini`: gold is 425 a unit and the multipliers run from
-0.001 to 100, which is how the same cargo fetches 255 at one base and 1530 at
-another. Which way the trade runs comes from a flag the data is unanimous
-about: of the 1994 rows, 844 read flag 0 with real stock and 1150 read flag 1
-with a stock of exactly zero, and nothing breaks the pattern.
+**The last stage is the same list both ways, and that is a fact about the game
+data rather than a design preference.** `market.trades` answers "every base
+trading this commodity"; hand it the row you would buy at and each result gains
+a `delta` column and the source base drops out. The order does not change and
+cannot, because `delta` is `price` minus a constant, so sorting by margin and
+sorting by price are the same sort. That is why one table serves both, and the
+gain column is simply absent when there is nothing to measure from: a dash in
+every cell of a column reads as missing data, and this is not missing, it is
+not asked.
 
-18 of the 178 markets are dropped because you cannot dock at them: the 15
-mining platforms, and three `[Base]` entries that no object in space points at,
-one of which is the cutscene-only Ithaca Research Station. A price you can never
-reach is not information.
+Choosing is one widget too. A commodity row says how many bases trade it, a
+base row says how many kinds it stocks, and neither difference reaches the
+search box. Two search widgets for one job was the real duplication, and it
+outlived the two tabs it came from by a full rewrite.
 
-**Trade → Market, by base** starts from the other end: from where the ship is
-standing. Pick a base by name or by system, and it lists
-only what that base actually has on the shelf, each line carrying the buy price,
-the most anyone in the game will pay, the difference, and where that is. Click a
-line for every base trading it, ordered by what it leaves you a unit.
+**Green marks the bases holding stock**, the only ones you can buy at; the rest
+hold none and will only be sold to. A toggle narrows everything to bases you
+have actually docked at, and it applies to where you start as well as where you
+go: offering a base the next step would then refuse to plan from is worse than
+not offering it.
 
-The best price is on the goods list, one click closer, because the pick
-is otherwise blind: a base with 20 kinds of cargo would need 20 clicks to find
-out which one is worth carrying.
+The picker shows the first 60 matches and says how many more there are. 160
+bases in one list is a wall, not a list.
 
-All 160 bases with a market sell at least one thing, so the picker is every one
-of them. They hold between 1 and 20 kinds of cargo, 4 being usual. The docked
-filter applies to both lists at once: with it on you get the bases you have been
-to, and destinations are drawn from those same bases, so the figure on the goods
-list is one you can actually collect. Anything else would promise a run the next
-click then refuses to show.
-
-Two runs to check it against, both straight out of the shipped data: Planet
-Pittsburgh in New York sells exactly one thing, Boron at 120, worth 960 at LD-14
-in Leeds, +840. Ruiz Base in Omicron Beta sells Alien Organisms at 100 against
-2000 at three separate research stations, **+1900, the largest margin in the
-game**.
-
-**Trade → Routes** answers the question you have in flight, which neither mode
+**Trade → Routes** answers the question you have in flight, which neither end
 of Market does. By commodity starts from a commodity; by base starts from the
 base under your feet and will happily send you across the map. Routes takes a departure
 system and a destination system and says what to put in the hold for a run you

@@ -176,18 +176,41 @@ def load_market(game_dir=None):
     return names, rows
 
 
-def find(rows, good, visited=None, only_visited=False):
+def trades(rows, good, source=None, visited=None, only=None, only_visited=False):
     """Every base trading `good`, dearest first.
 
     Descending price puts the best place to sell at the top and the cheapest
     place to buy at the bottom, which is the same list read from either end.
+
+    **`source` is the only difference between the two questions this tab used
+    to ask from two separate pages.** Given a row you would buy at, each result
+    gains `delta`, the profit a unit, and the source base itself drops out
+    because you cannot run a cargo to where it already is.
+
+    The order does not change and cannot: `delta` is `price` minus a constant,
+    so sorting by margin and sorting by price are the same sort. That is why
+    these were one function all along and were written as two.
+
+    Bases holding stock are not dropped. Freelancer lets you sell a commodity
+    at any base whose market lists it, and one that also stocks it is a real
+    destination, just usually a cheap one. Which end is which stays readable
+    from the colour rule the page keeps.
     """
-    out = [r for r in rows if r["good"] == good]
-    if only_visited and visited is not None:
-        out = [r for r in out if r["base"]["id"] in visited]
-    if visited is not None:
-        for row in out:
-            row["visited"] = row["base"]["id"] in visited
+    out = []
+    for row in rows:
+        if row["good"] != good:
+            continue
+        if source is not None and row["base"]["id"] == source["base"]["id"]:
+            continue
+        if only is not None and row["base"]["id"] not in only:
+            continue
+        if only_visited and visited is not None and row["base"]["id"] not in visited:
+            continue
+        if source is not None:
+            row = dict(row, delta=row["price"] - source["price"])
+        if visited is not None:
+            row = dict(row, visited=row["base"]["id"] in visited)
+        out.append(row)
     out.sort(key=lambda r: (-r["price"], r["base"]["name"]))
     return out
 
@@ -203,29 +226,6 @@ def sells(rows, base):
     return out
 
 
-def deltas(rows, good, source, only=None):
-    """Every other base trading `good`, by margin over `source`, biggest first.
-
-    `source` is the row you would buy at, so `delta` is profit a unit. `only`
-    narrows the destinations to a set of base nicknames when the player wants
-    to stay on bases already docked at.
-
-    Bases holding stock are not dropped. Freelancer lets you sell a commodity
-    at any base whose market lists it, and one that also stocks it is a real
-    destination, just usually a cheap one. Which end is which stays readable
-    because the caller keeps the same colour rule as the Data view.
-    """
-    out = []
-    for row in rows:
-        if row["good"] != good or row["base"]["id"] == source["base"]["id"]:
-            continue
-        if only is not None and row["base"]["id"] not in only:
-            continue
-        out.append(dict(row, delta=row["price"] - source["price"]))
-    out.sort(key=lambda r: (-r["delta"], r["base"]["name"]))
-    return out
-
-
 def best_runs(rows, base, only=None):
     """Everything `base` sells, each with where it is worth most.
 
@@ -238,7 +238,7 @@ def best_runs(rows, base, only=None):
         by_good.setdefault(row["good"], []).append(row)
     out = []
     for src in sells(rows, base):
-        found = deltas(by_good[src["good"]], src["good"], src, only)
+        found = trades(by_good[src["good"]], src["good"], src, only=only)
         out.append({**src, "best": found[0] if found else None})
     return out
 
@@ -412,7 +412,7 @@ def main():
     if not hits:
         sys.exit(f"no commodity matching {args.find!r}")
     for key in sorted(hits, key=lambda k: names[k]):
-        found = find(rows, key)
+        found = trades(rows, key)
         print(f"\n{names[key]} ({len(found)} bases)")
         for row in found:
             way = "buy " if row["buy"] else "sell"

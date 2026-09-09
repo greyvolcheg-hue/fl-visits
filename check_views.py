@@ -51,10 +51,14 @@ PASSES = ("empty", "full")
 FEEDS = {
     "latest": ["state"], "logData": ["log"], "ovData": ["overview"],
     "eng": ["engine?all=1"],
-    "tradeData": ["trade", "trade?good=commodity_gold"],
-    "deltaData": ["deltas", "deltas?base=li01_01_base&good=commodity_water"],
+    "tradeData": ["market", "market?good=commodity_gold"],
     "routeData": ["routes", "routes?from=li01&to=rh01"],
     "gearData": ["equipment"], "repData": ["reputation"],
+    # Trade is a pipeline, and one payload can only be at one stage of it. The
+    # stage is what decides the markup, so the two stages the default feed does
+    # not reach are seeded separately: the picker, and the by-base end.
+    "pickSeed": ["market?by=good"],
+    "deltaSeed": ["market?by=base&base=li01_01_base&good=commodity_water"],
 }
 
 # What the populated pass must actually have drawn, by view id.
@@ -73,7 +77,8 @@ DREW = {
     "overview": ".ovpanel",
     "search": ".geartable .gun",
     "market": ".tradetable .gun",
-    "market:base": ".desttable .gun",
+    "market:pick": ".hits .hit",
+    "market:base": ".tradetable .gun",
     "routes": ".routetable .gun",
 }
 
@@ -165,12 +170,22 @@ function sweep(pass, drew) {
     logSource = src;
     draw(pass, 'log:' + src, drew['log:' + src]);
   });
-  // Same reason for Trade: the loop above only reaches whichever mode is the
-  // default, and the other one builds a different table from a different
-  // payload. Left on 'good' afterwards so a rerun starts where it started.
-  tradeBy = 'base';
-  draw(pass, 'market:base', drew['market:base']);
-  tradeBy = 'good';
+  // Trade is one pipeline with three stages, and the loop above reaches only
+  // whichever one the seeded payload happens to be at. Each stage builds
+  // different markup, so each is drawn: the picker, and the destinations
+  // reached from a base rather than from a commodity.
+  const held = tradeData;
+  if (typeof pickSeed !== 'undefined' && pickSeed) {
+    // A payload with nothing chosen is what puts the picker on screen. Poking
+    // the page's own state instead would only test the poke.
+    tradeData = pickSeed; tradeBy = 'good';
+    draw(pass, 'market:pick', drew['market:pick']);
+  }
+  if (typeof deltaSeed !== 'undefined' && deltaSeed) {
+    tradeData = deltaSeed; tradeBy = 'base';
+    draw(pass, 'market:base', drew['market:base']);
+  }
+  tradeData = held; tradeBy = 'good';
 }
 
 // **The report has to survive the page script being dead.** A SyntaxError in

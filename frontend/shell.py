@@ -67,7 +67,13 @@ const money = v => v.toLocaleString();
 // where it was until the top bar wanted the same sentence.
 function ago(t) {
   const s = Date.now() / 1000 - t;
-  if (s < 90) return Math.max(0, Math.round(s)) + 's ago';
+  // **One definition, and it took a while to be one.** `trade.py` carried a
+  // second copy of this function, differing only in this line, and a function
+  // declaration silently replaces an earlier one: the copy was answering for
+  // the top bar too, so the header read "polled just now" while the code that
+  // claims to own it said "3s ago". Kept the wording that was actually on
+  // screen; the point is that there is now one place to change it.
+  if (s < 90) return 'just now';
   if (s < 5400) return Math.round(s / 60) + ' min ago';
   return Math.round(s / 3600) + ' h ago';
 }
