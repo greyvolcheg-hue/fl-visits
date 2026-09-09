@@ -35,8 +35,8 @@ The web page has seven tabs, three of which carry sub-tabs:
 | **Overview** | none |
 | **Engine** | none |
 | **Map** | Systems, Chart |
-| **Equipment** | DPS, Search |
-| **Trade** | Data, Deltas, Routes |
+| **Equipment** | Search |
+| **Trade** | Market, Routes |
 | Reputation, Neural Net | none |
 
 Two levels because the pairs group naturally, and because eight or nine buttons
@@ -193,16 +193,27 @@ a single-threaded 2003 renderer. And the billboards are deliberately left alone:
 `[Cube]` grid that places the real rocks, which is why a sprite winks out and a
 rock appears somewhere else. More sprites makes that worse.
 
-**Equipment → DPS** adds up as many weapons as you like and shows what they do
-per second, hull and shield side by side. `+ Add weapon` opens a search box over
-the 247 guns a ship can carry; the picks survive a reload. It needs neither a
-save nor a running game, since it is reading the game's own equipment files.
+**Equipment** answers *which* gun should I be after. Pick guns or shields, then
+add the parameters you care about. A parameter is a filter **and** a column.
+Filters stack, and **filtering never reorders**: that is what the column
+headings are for, and clicking one twice turns it round. The default is hull DPS
+for guns and capacity for shields.
 
-**Equipment → Search** answers the question DPS cannot: *which* gun should I be
-after. Pick guns or shields, then add the parameters you care about. A parameter
-is a filter **and** a column. Filters stack, and **filtering never reorders**:
-that is what the column headings are for, and clicking one twice turns it round.
-The default is hull DPS for guns and capacity for shields.
+Two filters sit outside that list, in the top row, because they are the two you
+reach for first. **Name** is a plain substring. **System** is the one filter
+that drops a row rather than emptying it: picking Colorado means "what does
+Colorado sell", which has no answer for a gun Colorado does not sell, so a
+wreck-only gun like ARCHANGEL disappears from it. That is the opposite of the
+docked-only checkbox beside it, which keeps the row and empties its dealer list
+so the page can say "nowhere you have docked sells it". The two look alike and
+mean different things.
+
+Picking a system on a list already sorted by hull DPS is the top guns sold
+there. On the command line the same question is
+`fl.py equipment --kind guns --system li01 --top 10`, and the two must agree.
+
+There was a DPS sub-tab that added weapons up into a loadout. It is gone at the
+owner's call.
 
 A parameter with few enough values is an exact pick instead of a minimum,
 because some questions have no threshold in them. **Projectile speed is one:**
@@ -309,7 +320,7 @@ actions, and the abort rows are not filler: aborting a mission for an enemy of
 your target raises your standing with the target, since abortion is negative to
 the faction offering it and the empathy rate between enemies is negative too.
 
-**Trade → Data** looks a commodity up and lists every base that trades it,
+**Trade → Market, by commodity** looks a commodity up and lists every base that trades it,
 dearest first. **Green marks the bases holding stock**, the only ones you can
 buy at; the rest hold none and will only be sold to. A toggle narrows the list
 to bases you have actually docked at, taken from the save.
@@ -332,7 +343,8 @@ mining platforms, and three `[Base]` entries that no object in space points at,
 one of which is the cutscene-only Ithaca Research Station. A price you can never
 reach is not information.
 
-**Trade → Deltas** starts from the other end: from where the ship is standing. Pick a base by name or by system, and it lists
+**Trade → Market, by base** starts from the other end: from where the ship is
+standing. Pick a base by name or by system, and it lists
 only what that base actually has on the shelf, each line carrying the buy price,
 the most anyone in the game will pay, the difference, and where that is. Click a
 line for every base trading it, ordered by what it leaves you a unit.
@@ -354,9 +366,9 @@ in Leeds, +840. Ruiz Base in Omicron Beta sells Alien Organisms at 100 against
 2000 at three separate research stations, **+1900, the largest margin in the
 game**.
 
-**Trade → Routes** answers the question you have in flight, which neither of the
-other two does. Data starts from a commodity; Deltas starts from the base under
-your feet and will happily send you across the map. Routes takes a departure
+**Trade → Routes** answers the question you have in flight, which neither mode
+of Market does. By commodity starts from a commodity; by base starts from the
+base under your feet and will happily send you across the map. Routes takes a departure
 system and a destination system and says what to put in the hold for a run you
 are making anyway.
 
@@ -387,7 +399,7 @@ Three runs to check it against: New York → Leeds gives 14 of the 22 commoditie
 traded in both, led by Boron at 120 from Planet Pittsburgh against 960 at LD-14.
 New York → New London gives 17 of 25, led by Optronics +644. Omicron Beta →
 Cambridge gives 4 of 8, led by Alien Organisms +1900, and **that number has to
-match what Deltas says for Ruiz Base**, because it is the same figure reached
+match what Market says for Ruiz Base**, because it is the same figure reached
 from the other direction.
 
 Two ways for a pair to come back empty, and they read differently because a
