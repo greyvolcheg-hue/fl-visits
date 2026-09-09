@@ -9,7 +9,7 @@ from .game import equipment as eqp
 def _equipment(ctx):
     """One kind of gear, narrowed by whatever thresholds were asked for."""
     body = {"kinds": [], "kind": None, "parameters": [], "choices": {},
-            "order": None, "default": None, "dir": "down",
+            "systems": [], "order": None, "default": None, "dir": "down",
             "rows": [], "total": 0, "error": None}
     try:
         cat = ctx.game.gear
@@ -34,6 +34,10 @@ def _equipment(ctx):
         body["choices"] = {
             k: eqp.choices(rows, k)
             for k, _lab, knd, _u in eqp.PARAMETERS[kind] if knd == "pick"}
+        # Built from the whole catalogue for this kind, never from the rows
+        # that survived the filters: a picker that shrank as you used it could
+        # not be used to widen the search again.
+        body["systems"] = eqp.systems(rows)
 
         filters = []
         for raw in ctx.query.get("f", []):
@@ -52,6 +56,13 @@ def _equipment(ctx):
         # dealer. So it rewrites `bases` and leaves the row in place,
         # and the page says "nowhere you have docked" rather than
         # quietly dropping it.
+        #
+        # **The system filter is the opposite and runs earlier**, inside
+        # `eqp.search`: "what does Colorado sell" has no answer for a gun
+        # Colorado does not sell, so that one drops the row. The two read
+        # alike and are not the same question. Applied in this order a row
+        # can survive the system and then show no dealer, which is exactly
+        # right: sold there, and you have not been.
         if (ctx.query.get("visited") or [""])[0]:
             state = ctx.state()
             seen = set(state["docked_bases"])

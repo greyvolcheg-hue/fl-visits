@@ -71,6 +71,7 @@ DREW = {
     "log:news": ".entry .head",
     "log:rumors": ".entry .said",
     "overview": ".ovpanel",
+    "search": ".geartable .gun",
     "data": ".tradetable .gun",
     "deltas": ".desttable .gun",
     "routes": ".routetable .gun",

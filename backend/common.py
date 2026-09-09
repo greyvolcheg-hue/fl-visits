@@ -24,7 +24,6 @@ from .game import news as nw
 from .game import reputation as rep
 from .game import rumors as ru
 from .game import ships as sh
-from .game import weapons as wp
 from .game import wrecks as wr
 
 REVEALED = 1  # story put it on the nav map; the player has never docked there
@@ -90,9 +89,6 @@ class GameData:
         # request, and the names it resolves against come from the reputation
         # model below, which reads initialworld.ini for the Reputation tab.
         self.owners = bs.base_owners(data_dir, fl.system_files)
-        # Static: no save and no running game needed, so the DPS tab works with
-        # Freelancer closed.
-        self.weapons = wp.load_weapons(game_dir)
         # The empathy table never changes; only the player's own
         # standings come from the save, and those are read per request.
         self.repmodel = rep.load_model(game_dir)

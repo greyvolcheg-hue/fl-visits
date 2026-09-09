@@ -309,13 +309,49 @@ def choices(rows, key):
     return sorted(seen, key=order)
 
 
+def systems(rows):
+    """Every system with a dealer for one of these rows: nickname and label.
+
+    **Keyed on the nickname, and the label is only printed.** Five display
+    names in this game are worn by more than one system, so a selector keyed on
+    what it shows would quietly pick the wrong one. `bases.ref` supplies both
+    halves already, which is why nothing here has to look a system up.
+    """
+    seen = {}
+    for row in rows:
+        for base in row.get("bases") or ():
+            # One base resolves to nothing at all: `st01_01_base`, in a story
+            # system, with no display name and no system name. It carries 15
+            # items, so skipping it here costs a blank entry in the picker and
+            # nothing else. It is left in each row's own "where" list, which is
+            # the place that can say the base exists but has no name.
+            if base.get("sys") and base.get("system"):
+                seen.setdefault(base["sys"], base["system"])
+    return [{"key": nick, "label": label}
+            for nick, label in sorted(seen.items(), key=lambda kv: (kv[1], kv[0]))]
+
+
 def search(rows, filters, order, descending=True):
     """Rows passing every filter, in the order asked for.
 
-    `filters` is [(key, kind, value)]. A "num" filter is a minimum, a "pick" is
-    an exact match. **Sorting is separate from filtering** and stays that way:
-    adding a threshold narrows the list without reshuffling what you were
-    reading, and the column headers are what change the order.
+    `filters` is [(key, kind, value)] and the kind says how to read it:
+
+        num     a minimum
+        pick    an exact match
+        text    a case-insensitive substring of the item's name
+        system  sold at a base in that system, by system nickname
+
+    **Sorting is separate from filtering** and stays that way: adding a
+    threshold narrows the list without reshuffling what you were reading, and
+    the column headers are what change the order.
+
+    `system` is the one filter that reaches into `bases` rather than reading a
+    column, and it is also the one that **drops** a row rather than emptying
+    it. That is the opposite of the docked-only rule in `backend/search.py`,
+    which keeps the row so the page can say "nowhere you have docked sells it".
+    The two look alike and mean different things: "show me what this system
+    sells" has no answer for a gun this system does not sell, whereas "where
+    can I buy it" still has the gun in it. Do not merge them.
     """
     out = []
     for row in rows:
@@ -324,6 +360,14 @@ def search(rows, filters, order, descending=True):
             got = row.get(key)
             if kind == "num":
                 if got is None or got < value:
+                    keep = False
+                    break
+            elif kind == "text":
+                if str(value).lower() not in str(got or "").lower():
+                    keep = False
+                    break
+            elif kind == "system":
+                if not any(b.get("sys") == value for b in row.get("bases") or ()):
                     keep = False
                     break
             elif str(got or "") != str(value):
@@ -362,6 +406,9 @@ def main():
     ap.add_argument("--kind", default="guns", choices=sorted(PARAMETERS))
     ap.add_argument("--top", type=int, default=10)
     ap.add_argument("--where", help="say where one item by name is sold")
+    ap.add_argument("--system", help="only what is sold in this system, "
+                                     "by nickname (li01) or by name (New York)")
+    ap.add_argument("--name", help="only items whose name contains this")
     args = ap.parse_args()
 
     cat = load_catalogue(args.game)
@@ -385,8 +432,31 @@ def main():
     rows = cat[args.kind]
     order = ORDER[args.kind]
     sold = sum(1 for r in rows if r["bases"])
-    print(f"{len(rows)} {args.kind}, {sold} sold somewhere\n")
-    for row in search(rows, [], order)[:args.top]:
+
+    # The same filters the page sends, so this is a second opinion on the same
+    # rule rather than a second implementation of it.
+    picks = []
+    if args.name:
+        picks.append(("name", "text", args.name))
+    if args.system:
+        known = {s["key"]: s["label"] for s in systems(rows)}
+        want = args.system.lower()
+        if want not in known:
+            # A name is what a person has to hand; the nickname is what the
+            # filter needs. Ambiguous names are refused rather than guessed:
+            # five labels in this game belong to more than one system.
+            hits = [k for k, label in known.items() if label.lower() == want]
+            if len(hits) != 1:
+                found = ", ".join(sorted(known)) if not hits else ", ".join(hits)
+                raise SystemExit(
+                    f"no single system called {args.system!r}. Try one of: {found}")
+            want = hits[0]
+        picks.append(("system", "system", want))
+        print(f"sold in {known[want]} ({want})")
+
+    found = search(rows, picks, order)
+    print(f"{len(found)} of {len(rows)} {args.kind}, {sold} sold somewhere\n")
+    for row in found[:args.top]:
         price = f"{int(row['price']):>7}" if row["price"] else "      ?"
         print(f"{row['name'][:32]:<33}{row[order] or 0:>9.1f}{price} cr"
               f"   {len(row['bases'])} bases")

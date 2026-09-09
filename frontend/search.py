@@ -13,8 +13,16 @@ CSS = """
 JS = r"""
 let gearData = null, gearKind = 'guns', gearFilters = [],
     gearOpen = '', gearVisitedOnly = false, gearSort = '', gearDir = 'down';
-// Routes sub-tab. Two systems by nickname, never by display name: several
-// systems share a label and only the nickname tells them apart.
+// Name and system are not in the removable filter list with the rest. They are
+// the two you reach for first, so they sit in the top row and are always there.
+//
+// `gearSystem` holds a system **nickname**, never a display name: five labels
+// in this game are worn by more than one system, so the label cannot be the
+// key. The option's text is the label and its value is the nickname.
+let gearName = '', gearSystem = '';
+
+const sysLabel = (d, key) =>
+  ((d.systems || []).find(s => s.key === key) || { label: key }).label;
 
 function renderGear() {
   const d = gearData;
@@ -37,6 +45,13 @@ function renderGear() {
     d.kinds.map(k => `<option value="${esc(k.key)}"` +
       (k.key === gearKind ? ' selected' : '') +
       `>${esc(k.label)} (${k.count})</option>`).join('') +
+    '</select>' +
+    `<input type="search" id="gearname" placeholder="name contains…" ` +
+    `value="${esc(gearName)}">` +
+    '<select id="gearsys"><option value="">sold in any system</option>' +
+    (d.systems || []).map(sy =>
+      `<option value="${esc(sy.key)}"${sy.key === gearSystem ? ' selected' : ''}>` +
+      `${esc(sy.label)}</option>`).join('') +
     '</select>' +
     '<label class="toggle"><input type="checkbox" id="gearseen"' +
     (gearVisitedOnly ? ' checked' : '') +
@@ -82,7 +97,11 @@ function renderGear() {
     by ${esc(param(d.order).label)}${d.dir === 'down' ? ', biggest first' : ', smallest first'}.
     Click any heading to sort by it; filtering never changes the order on its
     own. Prices are the same at every dealer in the game, so the list under a
-    row is where, not where cheapest.</p>`;
+    row is where, not where cheapest.` +
+    (gearSystem
+      ? ` Only what <b>${esc(sysLabel(d, gearSystem))}</b> sells: a gun found
+          in a wreck but sold nowhere there is not in this list.`
+      : '') + '</p>';
 
   out += '<div class="guns"><div class="geartable" ' +
     `style="grid-template-columns: minmax(12rem,1fr) ${'6rem '.repeat(cols.length)}6rem 5rem">` +
@@ -130,8 +149,21 @@ function wireGear() {
     // either; the server would fall back silently and the arrow would lie.
     gearSort = '';
     gearDir = 'down';
+    // The name survives the switch, because it means the same thing for both
+    // kinds. The system does not: the two catalogues are sold in different
+    // places, and a nickname absent from the new list would filter to nothing
+    // with no way to see why.
+    if (!(gearData.systems || []).some(x => x.key === gearSystem)) gearSystem = '';
     loadGear();
   });
+  const nm = $('#gearname');
+  if (nm) {
+    // `change`, not `input`: every keystroke would be a request, and the box
+    // would lose focus to the repaint that followed.
+    nm.addEventListener('change', e => { gearName = e.target.value.trim(); loadGear(); });
+  }
+  const sy = $('#gearsys');
+  if (sy) sy.addEventListener('change', e => { gearSystem = e.target.value; loadGear(); });
   const v = $('#gearseen');
   if (v) v.addEventListener('change', e => {
     gearVisitedOnly = e.target.checked;
@@ -182,6 +214,10 @@ async function loadGear() {
   const q = ['kind=' + encodeURIComponent(gearKind)];
   gearFilters.forEach(f => q.push('f=' + encodeURIComponent(
     `${f.key}:${f.kind}:${f.value}`)));
+  // Down the same road as every other filter, so one function decides what is
+  // kept and what is dropped.
+  if (gearName) q.push('f=' + encodeURIComponent(`name:text:${gearName}`));
+  if (gearSystem) q.push('f=' + encodeURIComponent(`system:system:${gearSystem}`));
   if (gearSort) q.push('sort=' + encodeURIComponent(gearSort) + '&dir=' + gearDir);
   if (gearVisitedOnly) q.push('visited=1');
   try {
@@ -190,7 +226,6 @@ async function loadGear() {
   } catch (e) { /* the tab keeps its loading line */ }
 }
 
-// Routes. Two systems in, one hold's worth of advice out.
 VIEW.search = {
   bare: true,
   sub: 'what to look for, and where it is sold',
