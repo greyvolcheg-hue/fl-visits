@@ -72,8 +72,8 @@ DREW = {
     "log:rumors": ".entry .said",
     "overview": ".ovpanel",
     "search": ".geartable .gun",
-    "data": ".tradetable .gun",
-    "deltas": ".desttable .gun",
+    "market": ".tradetable .gun",
+    "market:base": ".desttable .gun",
     "routes": ".routetable .gun",
 }
 
@@ -144,6 +144,12 @@ function sweep(pass, drew) {
     logSource = src;
     draw(pass, 'log:' + src, drew['log:' + src]);
   });
+  // Same reason for Trade: the loop above only reaches whichever mode is the
+  // default, and the other one builds a different table from a different
+  // payload. Left on 'good' afterwards so a rerun starts where it started.
+  tradeBy = 'base';
+  draw(pass, 'market:base', drew['market:base']);
+  tradeBy = 'good';
 }
 
 // **The report has to survive the page script being dead.** A SyntaxError in

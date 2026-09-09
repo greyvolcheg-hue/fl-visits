@@ -25,7 +25,7 @@ LAYOUT = [
     ("engine", "Engine", ["engine"]),
     ("map", "Map", ["systems", "chart"]),
     ("gear", "Equipment", ["search"]),
-    ("trade", "Trade", ["trade", "deltas", "routes"]),
+    ("trade", "Trade", ["trade", "routes"]),
     ("rep", "Reputation", ["rep"]),
     ("log", "Neural Net", ["log"]),
 ]
