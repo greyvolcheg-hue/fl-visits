@@ -165,9 +165,15 @@ function logSave(d) {
 // --- the news wire --------------------------------------------------------
 
 function logNews(d) {
-  const all = logLiveOnly ? d.news.filter(e => e.live) : d.news;
+  const open = logLiveOnly ? d.news.filter(e => e.live) : d.news;
+  // The payload arrives newest debut first, so oldest first is that reversed.
+  // `debut` is the story state the item opens at, which is the only date news
+  // has: the wire carries no clock.
+  const all = logNewestFirst ? open : open.slice().reverse();
   const live = d.news.filter(e => e.live).length;
-  const bar = `<button id="loglive" class="${logLiveOnly ? 'on' : ''}">` +
+  const bar =
+    `<button id="logsort">${logNewestFirst ? 'Newest first' : 'Oldest first'}</button>` +
+    `<button id="loglive" class="${logLiveOnly ? 'on' : ''}">` +
     `${logLiveOnly ? '✓ ' : ''}On the wire now (${live})</button>` +
     `<span class="note" style="margin:0">${esc(d.state.label)} · newest first. ` +
     'Items above your state have not happened yet.</span>';
@@ -192,17 +198,25 @@ function logNews(d) {
 
 function logRumors(d) {
   const places = [...new Set(d.rumors.map(r => r.system + ' · ' + r.base))].sort();
-  const rows = logBase ? d.rumors.filter(r => r.system + ' · ' + r.base === logBase)
-                       : d.rumors;
-  const bar = '<select id="logplace">' +
+  const picked = logBase ? d.rumors.filter(r => r.system + ' · ' + r.base === logBase)
+                         : d.rumors;
+  // **Rumors carry no date, so this cannot sort by one.** They are ungated:
+  // all 7803 lines are on from the first minute, and nothing about them ever
+  // moves with the story. What they do have is a place, so that is what the
+  // button flips, and the panel says so rather than offering a control that
+  // silently sorts by nothing.
+  const rows = logNewestFirst ? picked : picked.slice().reverse();
+  const bar =
+    `<button id="logsort">${logNewestFirst ? 'A to Z' : 'Z to A'}</button>` +
+    '<select id="logplace">' +
     '<option value="">every base I have docked at</option>' +
     places.map(p =>
       `<option value="${esc(p)}"${p === logBase ? ' selected' : ''}>` +
       `${esc(p)}</option>`).join('') +
     '</select>' +
     '<span class="note" style="margin:0">These never change with the story: ' +
-    'all 7803 lines are on from the first minute. What changes is where you ' +
-    'have been.</span>';
+    'all 7803 lines are on from the first minute, and none of them carries a ' +
+    'date, so they sort by place. What changes is where you have been.</span>';
   const count = `${rows.length} lines at ${d.bases} bases`;
   if (!rows.length) return [bar, count,
     '<p class="empty">Dock somewhere and the people there start talking.</p>'];
