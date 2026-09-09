@@ -133,8 +133,29 @@ function draw(pass, id, want) {
   grids(id);
 }
 
+// Every name the tab strip can select must be a view that exists.
+//
+// **The rest of this file could not have caught this.** It walks
+// `Object.keys(VIEW)` and draws each one directly, so it never asks what the
+// strip would hand it. On 2026-09-09 renaming two tabs left `gear` and `data`
+// selectable with nothing registered under either; `render` fell through to an
+// empty view, drew nothing, and left the previous tab's panel on screen. Every
+// view drew fine. Two of them were simply unreachable.
+function reachable() {
+  for (const t of TABS) {
+    const want = [t.leaf].concat((t.kids || []).map(k => k[0]));
+    for (const id of want) {
+      if (!id) REPORT.push('FAIL  tab ' + t.label + ' names no leaf at all');
+      else if (!VIEW[id])
+        REPORT.push('FAIL  tab ' + t.label + ' selects ' + id +
+                    ', which no frontend module registers');
+    }
+  }
+}
+
 function sweep(pass, drew) {
   if (!alive()) return;
+  reachable();
   try { expand(); } catch (err) { REPORT.push('FAIL  ' + pass + ' expand: ' + err); }
   for (const id of Object.keys(VIEW)) draw(pass, id, drew[id]);
   // The Neural Net's three sources are three separate branches with three

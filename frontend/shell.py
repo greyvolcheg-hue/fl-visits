@@ -33,7 +33,14 @@ CSS = (open(os.path.join(HERE, "_theme.css")).read()
 JS = r"""
 // Where you were inside each parent, so coming back to Map does not always
 // dump you on Systems.
-const leaf = { map: 'systems', gear: 'dps', trade: 'data' };
+// Which child of each parent you were last on, so coming back lands where you
+// left. **Seeded empty on purpose.** It used to be written out as
+// `{ map: 'systems', gear: 'dps', trade: 'data' }`, which was a second copy of
+// the site map living outside `tabs.py`: every one of those values was simply
+// the parent's first child, so the literal bought nothing and went stale the
+// moment a tab was renamed. It did, twice in one commit, and both tabs then
+// opened the panel that was there before.
+const leaf = {};
 // `topTab`, not `top`: `window.top` is non-configurable, so a global `let top`
 // is a SyntaxError that kills the whole script before a line of it runs.
 let topTab = 'overview', tab = 'overview', latest = null, polledAt = null;
@@ -137,9 +144,10 @@ function drawTabs() {
 function go(parent, child) {
   topTab = parent;
   const entry = TABS.find(t => t.id === topTab) || {};
-  // A parent with no children is its own leaf, so the plain tabs need no case.
-  tab = entry.kids ? (child || leaf[topTab] || entry.kids[0][0]) : topTab;
-  if (entry.kids) leaf[topTab] = tab;
+  // `entry.leaf` is what `tabs.py` says this parent opens on, and every parent
+  // has one, so there is no case here for a parent with no second row.
+  tab = child || leaf[topTab] || entry.leaf;
+  leaf[topTab] = tab;
   drawTabs();
   $('#ext').checked = !!extended[tab];
   $('#hidedone').checked = !!hideDone[tab];
@@ -162,7 +170,21 @@ function drawStatus() {
 }
 
 function render() {
-  const v = VIEW[tab] || {};
+  const v = VIEW[tab];
+  // **A tab with no view must say so.** Falling through to `{}` here draws
+  // nothing, and drawing nothing leaves the previous tab's panel on screen: the
+  // page then looks like it ignored the click rather than like it broke. That
+  // is how a stale leaf id hid for a whole commit.
+  if (!v) {
+    $('#totals').hidden = true;
+    $('#togglewrap').hidden = true;
+    drawStatus();
+    paint($('#list'),
+      `<p class="note warn">No view is registered as <code>${esc(tab)}</code>. ` +
+      'That is a name in <code>tabs.py</code> that no <code>frontend</code> ' +
+      'module answers to.</p>');
+    return;
+  }
   $('#totals').hidden = !!v.bare;
   $('#togglewrap').hidden = !!v.bare;
   $('#wrap').classList.toggle('chart', tab === 'chart');

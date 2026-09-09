@@ -46,10 +46,18 @@ ENDS = {name: _half("backend", name) for name in LEAVES}
 
 
 def tabs():
-    """The tab strip, as the JS wants it."""
+    """The tab strip, as the JS wants it.
+
+    `leaf` is the view a parent opens on, and **every parent has one**, whether
+    or not it shows a second row. Without it the shell had to assume that a
+    single-leaf parent's id doubled as its view id, which held only by
+    coincidence: `overview`, `engine`, `rep` and `log` happen to be spelled the
+    same on both sides and `gear`/`search` never was. Dropping the DPS sub-tab
+    turned that coincidence into a tab that opened the previous panel.
+    """
     out = []
     for tid, label, kids in LAYOUT:
-        entry = {"id": tid, "label": label}
+        entry = {"id": tid, "label": label, "leaf": PAGES[kids[0]].ID}
         if len(kids) > 1:
             entry["kids"] = [[PAGES[k].ID, PAGES[k].LABEL] for k in kids]
         out.append(entry)
