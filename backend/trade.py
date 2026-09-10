@@ -84,8 +84,10 @@ def _every_good(names, rows):
     counts = {}
     for row in rows:
         counts[row["good"]] = counts.get(row["good"], 0) + 1
+    spoils = {r["good"]: r["perishable"] for r in rows if r["perishable"]}
     return sorted(
         ({"nickname": k, "name": names[k], "bases": counts.get(k, 0),
+          "perishable": spoils.get(k, ""),
           "price": None, "best": None} for k in names),
         key=lambda g: g["name"])
 
@@ -100,6 +102,7 @@ def _shelf(rows, base, only):
     most, both of which are simply unknown before a base is named.
     """
     return [{"nickname": r["good"], "name": r["good_name"],
+             "perishable": r["perishable"],
              "bases": 0, "price": r["price"], "best": r["best"]}
             for r in mk.best_runs(rows, base, only)]
 

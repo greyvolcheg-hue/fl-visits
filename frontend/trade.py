@@ -201,9 +201,10 @@ function pickList(rows, placeholder, note) {
                  type to narrow it.` : '') + '</p></div>';
 }
 
-function pickedBar(name, sub) {
+function pickedBar(name, sub, spoils) {
   return '<div class="pick">' +
     `<span class="nm">${esc(name)}</span>` +
+    (spoils ? `<i class="spoil">${esc(spoils)}</i>` : '') +
     (sub ? `<span class="sys">${esc(sub)}</span>` : '') +
     '<button class="addgun" id="repick">change</button></div>';
 }
@@ -284,8 +285,12 @@ function renderTrade() {
   }
 
   const chosen = d.goods.find(g => g.nickname === d.good);
+  // The game marks three commodities as spoiling. It says so on the bar that
+  // stays on screen rather than in the picker, whose row is a fixed four-cell
+  // grid with every cell clipped to its track.
   out += pickedBar(chosen ? chosen.name : d.good,
-    d.source ? `bought here at ${money(d.source.price)}` : 'every base trading it');
+    d.source ? `bought here at ${money(d.source.price)}` : 'every base trading it',
+    chosen ? chosen.perishable : '');
   out += `<p class="note">` + (d.source
     ? `Every base that trades it, by what it leaves you a unit over the
        ${money(d.source.price)} you pay here.`

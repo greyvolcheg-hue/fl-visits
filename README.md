@@ -55,7 +55,9 @@ whoever likes you least. Every panel is a doorway into the tab that owns the
 full answer, and nothing on it is computed only there.
 
 **Systems** is one tree: house, then system, then the bases and the wrecks in
-it. Both levels start shut. Bases and wrecks used to be two tabs asking the same
+it. Both levels start shut, and from 1400px up a house lays its systems out two
+abreast rather than in one tall column. The numbers and the two checkboxes share
+one panel, not two stacked ones. Bases and wrecks used to be two tabs asking the same
 question about the same place, so you read them side by side to plan one trip.
 
 *Show all* ticked shows every system, the bases and wrecks still to find, and
@@ -375,6 +377,15 @@ off Buffalo Base into Planet Manhattan is +270 a unit, 18,900 in a Sabre's hold.
 Rows where the buy and the sell land on the same base are dropped, so a
 single-system pick returns real runs and nothing degenerate.
 
+**Three commodities spoil, and the table marks them.** Alien Organisms and
+Luxury Food carry `>>>HIGHLY PERISHABLE<<<` in the game's own infocard, MOX
+carries `>>>PERISHABLE<<<`, and all three are the only commodities in the game
+with a non-zero `decay_per_second`. The field and the banner pick out the same
+three, which is why the badge is derived from the data rather than typed in. The
+files do **not** say what spoiling costs you on a run, so nothing here pretends
+to: the `run` figure stays a plain multiplication and the note says as much.
+*Hide perishable* takes them out if you would rather not think about it.
+
 **`run` is the figure to read**: the margin times a full hold of the ship you
 are actually flying, read from the save. New York → Leeds pays 840 a unit on
 Boron, which in a Sabre's 70-unit hold is 58,800 credits a trip. The
@@ -415,9 +426,19 @@ to re-send 12 times a minute. The panel is drawn once for the same reason:
 rewriting its markup on every poll would throw away a decoded 2560px image and
 decode it again.
 
-**Neural Net** carries three sources behind three chips, labelled rather than
-merged because they do not behave alike. Mark anything interesting or read; the
-marks live in your browser and survive reloads.
+**Neural Net** is one list over three sources, and the three chips are filters
+on it rather than a switch between three pages. All three are on by default,
+which is the combined view; turning one off takes its stream out. *Unread only*
+applies across whatever is on, so the tab answers "what have I not read" without
+asking it three times. Mark anything interesting or read; **the marks are kept
+by the server**, in `data/marks.json`, not by the browser.
+
+**The three share no clock and the panel says so instead of inventing one.**
+Each stream is in its own true order and they sit one after another under a
+heading each. The save's log carries no date at all, only its place in the file.
+News is dated by the story state it broke at. Bar talk carries no date either,
+but the save records the order you first docked at every base, so it is ranked
+by which bar you walked into last: the most recent stop is at the top.
 
 **SAVE** is the in-game log, readable while you fly. Sorting is newest first
 with a button to flip it, and there is **no date column, because the save holds
@@ -437,6 +458,14 @@ empty and the placeholder is dropped.
 you play**. All 403 items in `news.ini` carry `rank = <from state>, <to state>`,
 a pair of story states, and the tab shows everything whose window has opened,
 newest debut first. 223 of them have broken by mission 3 and 385 by mission 13.
+
+**403 filed items are 364 distinct ones.** 17 carry no headline, no text, no
+category and no base at all, and every one of them debuts at `mission_end`:
+placeholders, and they used to draw as empty boxes. Another 22 are exact
+duplicates of an item already in the list, same headline and same text, filed
+again under a second window and sometimes a different icon. A duplicate is
+folded into the copy that broke first, taking the wider window and the union of
+the bases, and the row says *FILED 2x* rather than eating one silently.
 An item still inside its window says *ON THE WIRE*; one the story has moved past
 says what it ran until, because "gone now" and "not yet" are different answers.
 *On the wire now* narrows to the first kind.
@@ -445,10 +474,16 @@ A save's story state is `[StoryInfo] MissionNum`, an index into a table of 42
 names that lives in `content.dll` and nowhere else. `data/story-states.txt` is
 that table; `python3 fl.py story <save.fl>` prints where a save sits in it.
 
-**RUMORS** is what the people in the bars say, scoped to every base you have
+**BAR TALK** is what the people in the bars say, scoped to every base you have
 docked at, grouped by system and base and attributed to the speaker and their
 faction. It is real intelligence, not flavour: they name smuggling runs, where a
 faction collects, and which fields are worth patrolling.
+
+**Most recent stop first.** `base_visited` in the save is the docked bases in
+the order you first docked at them, so a rumor's place is also a rough date: the
+bar you were standing in last hour is at the top and Manhattan is at the bottom.
+That order was established by measurement, not assumed, and `backend/common.py`
+carries the two checks.
 
 **They never unlock.** All 7803 rumor lines in `mbases.ini` carry the same wide
 open window, so every one of them is available from the first minute of a new

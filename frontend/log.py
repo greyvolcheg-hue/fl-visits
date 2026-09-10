@@ -2,10 +2,18 @@
 
 The endpoint is in `backend/log.py`.
 
-Three sources behind three chips, labelled rather than merged, because they do
-not behave alike. The save's log is what you wrote. The news is gated on the
-story and genuinely grows as you play. The rumors never change at all, and the
-panel says so rather than letting you wait for one to unlock.
+**One list, three sources, and the chips narrow it.** They used to be three
+sub-views behind an exclusive switch, each with its own renderer and its own
+bar, which meant three places to add a filter and no way to ask "what have I
+not read". They are now filters on one list: all three on is the default, and
+a chip takes one away.
+
+The three do not share a clock and the panel says so rather than inventing
+one. The save's log has no date at all, only its position. News is dated by
+the story state it broke at. Bar talk carries no date either, but the save
+records the order you first docked at each base, so it is ranked by which bar
+you walked into last. Each stream is therefore in true receipt order, and the
+streams sit one after another because nothing joins them end to end.
 """
 
 ID, LABEL = "log", "Neural Net"
@@ -23,8 +31,10 @@ CSS = """
            margin-bottom: .3rem; }
   .entry.read { opacity: .45; }
   .entry.star { border-left-color: var(--revealed); }
+  /* No measure of its own. The border is the container, and a cap here left
+     the prose stopping some 800px short of its own frame on a wide window. */
   .entry .body { white-space: pre-wrap; overflow-wrap: anywhere;
-                 font-size: 12.5px; line-height: 1.5; max-width: 96ch; }
+                 font-size: 12.5px; line-height: 1.5; }
   .entry .subs { margin: .5rem 0 0; padding-left: 1rem; color: var(--faint);
                  font-size: 11.5px; }
   .entry .acts { display: flex; gap: .35rem; margin-top: .6rem; }
@@ -32,15 +42,23 @@ CSS = """
   .entry .acts button.on.done { background: rgba(95, 224, 160, .12);
                                 border-color: rgba(95, 224, 160, .4);
                                 color: var(--ok); }
-  /* A news row leads with when it broke, because that is the column the whole
-     source exists to show. */
+  /* Every row leads with the same line: which stream it came from, then
+     whatever that stream has to say about when. One structure for three
+     sources is what lets one function draw all of them. */
   .entry .when { display: flex; align-items: baseline; gap: .7rem;
+                 flex-wrap: wrap;
                  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em;
                  color: var(--fainter); margin-bottom: .35rem; }
   .entry .when .state { color: var(--docked); }
   .entry .when .live { color: var(--ok); }
   .entry .when .past { color: var(--faint); }
   .entry .when .crit { color: var(--revealed); }
+  .entry .when .again { color: var(--amber-dim); }
+  /* The stream badge. Dim by design: with the streams contiguous under their
+     own headings this is for the reader who has scrolled past one, not a
+     label anybody needs to read on every row. */
+  .srctag { flex: none; color: #4d7d96; border: 1px solid var(--line);
+            padding: 0 .35rem; }
   .entry .head { font-size: 14px; font-weight: 600; color: var(--text);
                  letter-spacing: .02em; margin-bottom: .3rem; }
   .entry.past { border-left-color: var(--line); }
@@ -51,13 +69,18 @@ CSS = """
   .entry .said .who { font-size: 13px; font-weight: 600; color: var(--text); }
   .entry .said .fac { border: 0; font-family: var(--mono); font-size: 10px;
                       letter-spacing: .12em; cursor: default; }
-  .entry .said .at { margin-left: auto; font-family: var(--mono);
-                     font-size: 10px; letter-spacing: .12em; color: var(--fainter); }
+  h2.house.stream { color: var(--docked); }
 """
 
 JS = r"""
-let logData = null, logSource = 'save';
+let logData = null;
+// Which streams are in the list. All three is the combined view, and a chip
+// takes one away rather than switching to it.
+const logOn = { save: true, news: true, rumors: true };
+const SOURCES = ['save', 'news', 'rumors'];
+const SRC_LABEL = { save: 'SAVE', news: 'NEWS', rumors: 'BAR TALK' };
 let logNewestFirst = true, logPersonalOnly = true, logLiveOnly = false;
+let logUnreadOnly = false;
 let logBase = '';
 
 // Which entries are starred and which are read. One person's marks on their own
@@ -123,154 +146,217 @@ async function postMark(kind, key, on) {
   } catch (e) {
     // The mark stays where the click put it. The next payload corrects it.
   }
-  marksHeld = 0;
-  render();
+  // **The hold is released by the caller, not here.** A row with two keys posts
+  // twice, and clearing it after the first would open a window for the poll to
+  // land holding the value the second write has not reached yet.
 }
 
-function logActs(key) {
-  const star = !!marks.star[key], done = !!marks.read[key];
+// **A row can answer to more than one key.** A news item filed twice under two
+// story windows has a mark key per filing, and `news.py` folds those copies
+// into one row. Reading the whole list is what stops the fold taking the mark
+// with it: nine of the marks on this machine sat on a key that would otherwise
+// have vanished.
+const marked = (which, keys) => keys.some(k => !!marks[which][k]);
+
+// Every drawn row's key list, by index. A button carries the index, so a key
+// never has to survive being written into an HTML attribute.
+let logKeys = [];
+
+function logActs(keys) {
+  const at = logKeys.push(keys) - 1;
+  const star = marked('star', keys), done = marked('read', keys);
   return '<div class="acts">' +
-    `<button data-star="${esc(key)}" class="${star ? 'on' : ''}">` +
+    `<button data-star="${at}" class="${star ? 'on' : ''}">` +
     `${star ? '★' : '☆'} interesting</button>` +
-    `<button data-read="${esc(key)}" class="${done ? 'on done' : ''}">` +
+    `<button data-read="${at}" class="${done ? 'on done' : ''}">` +
     `${done ? '✓ read' : 'mark read'}</button></div>`;
 }
 
-function logClass(key, extra) {
-  return ['entry', extra, marks.star[key] ? 'star' : '',
-          marks.read[key] ? 'read' : ''].filter(Boolean).join(' ');
+function logClass(keys, extra) {
+  return ['entry', extra, marked('star', keys) ? 'star' : '',
+          marked('read', keys) ? 'read' : ''].filter(Boolean).join(' ');
 }
 
-// --- the save's own log ---------------------------------------------------
+// --- three builders, one row shape ----------------------------------------
+//
+// Each source turns its own payload into the same object, and one renderer
+// draws it. That is the whole of the merge: `src` picks the badge, `keys` are
+// what the marks hang on, and `lead`, `title` and `body` are html the builder
+// has already escaped. `place` is the heading a row sits under, or nothing.
 
-function logSave(d) {
+function saveRows(d) {
   const all = logNewestFirst ? d.save : d.save.slice().reverse();
   const rows = logPersonalOnly ? all.filter(e => e.personal) : all;
-  const personal = all.filter(e => e.personal).length;
-  const bar =
-    `<button id="logsort">${logNewestFirst ? 'Newest first' : 'Oldest first'}</button>` +
-    `<button id="logpersonal" class="${logPersonalOnly ? 'on' : ''}">` +
-    `${logPersonalOnly ? '✓ ' : ''}Personal only (${personal})</button>`;
-  const count = `${rows.length}` + (logPersonalOnly ? ` of ${all.length}` : '') +
-    ' entries';
-  if (!all.length) return [bar, count, '<p class="empty">The log is empty.</p>'];
-  return [bar, count, rows.length ? rows.map(e => {
-    const subs = e.subs.length
-      ? `<ul class="subs">${e.subs.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : '';
-    return `<div class="${logClass(e.key)}"><div class="body">${esc(e.text)}</div>` +
-           subs + logActs(e.key) + '</div>';
-  }).join('') : '<p class="empty">No personal entries yet.</p>'];
+  return rows.map(e => ({
+    src: 'save', keys: [e.key], cls: '', place: '', lead: '', title: '',
+    body: `<div class="body">${esc(e.text)}</div>` + (e.subs.length
+      ? `<ul class="subs">${e.subs.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : ''),
+  }));
 }
 
-// --- the news wire --------------------------------------------------------
-
-function logNews(d) {
+function newsRows(d) {
   const open = logLiveOnly ? d.news.filter(e => e.live) : d.news;
   // The payload arrives newest debut first, so oldest first is that reversed.
   // `debut` is the story state the item opens at, which is the only date news
   // has: the wire carries no clock.
   const all = logNewestFirst ? open : open.slice().reverse();
-  const live = d.news.filter(e => e.live).length;
-  const bar =
-    `<button id="logsort">${logNewestFirst ? 'Newest first' : 'Oldest first'}</button>` +
-    `<button id="loglive" class="${logLiveOnly ? 'on' : ''}">` +
-    `${logLiveOnly ? '✓ ' : ''}On the wire now (${live})</button>` +
-    `<span class="note" style="margin:0">${esc(d.state.label)} · newest first. ` +
-    'Items above your state have not happened yet.</span>';
-  const count = `${all.length} of ${d.news.length} opened`;
-  if (!all.length) return [bar, count,
-    '<p class="empty">Nothing has broken yet at this point in the story.</p>'];
-  return [bar, count, all.map(e => {
-    const key = 'news:' + e.debut + ':' + e.headline;
-    return `<div class="${logClass(key, e.live ? '' : 'past')}">` +
-      '<div class="when">' +
-      `<span class="state">${esc(e.debut_label)}</span>` +
+  return all.map(e => ({
+    src: 'news',
+    keys: e.debuts.map(n => 'news:' + n + ':' + e.headline),
+    cls: e.live ? '' : 'past',
+    place: '',
+    lead: `<span class="state">${esc(e.debut_label)}</span>` +
       `<span class="${e.live ? 'live' : 'past'}">` +
       `${e.live ? 'ON THE WIRE' : 'RAN UNTIL ' + esc(e.expires_label)}</span>` +
       (e.icon === 'critical' ? '<span class="crit">CRITICAL</span>' : '') +
-      `<span>${e.carried} of your bases carry it</span></div>` +
-      `<div class="head">${esc(e.headline)}</div>` +
-      `<div class="body">${esc(e.text)}</div>` + logActs(key) + '</div>';
-  }).join('')];
+      (e.runs > 1 ? `<span class="again">FILED ${e.runs}x</span>` : '') +
+      `<span>${e.carried} of your bases carry it</span>`,
+    title: `<div class="head">${esc(e.headline)}</div>`,
+    body: `<div class="body">${esc(e.text)}</div>`,
+  }));
 }
 
-// --- what the bars are saying ---------------------------------------------
-
-function logRumors(d) {
-  const places = [...new Set(d.rumors.map(r => r.system + ' · ' + r.base))].sort();
-  const picked = logBase ? d.rumors.filter(r => r.system + ' · ' + r.base === logBase)
-                         : d.rumors;
-  // **Rumors carry no date, so this cannot sort by one.** They are ungated:
-  // all 7803 lines are on from the first minute, and nothing about them ever
-  // moves with the story. What they do have is a place, so that is what the
-  // button flips, and the panel says so rather than offering a control that
-  // silently sorts by nothing.
-  const rows = logNewestFirst ? picked : picked.slice().reverse();
-  const bar =
-    `<button id="logsort">${logNewestFirst ? 'A to Z' : 'Z to A'}</button>` +
-    '<select id="logplace">' +
-    '<option value="">every base I have docked at</option>' +
-    places.map(p =>
-      `<option value="${esc(p)}"${p === logBase ? ' selected' : ''}>` +
-      `${esc(p)}</option>`).join('') +
-    '</select>' +
-    '<span class="note" style="margin:0">These never change with the story: ' +
-    'all 7803 lines are on from the first minute, and none of them carries a ' +
-    'date, so they sort by place. What changes is where you have been.</span>';
-  const count = `${rows.length} lines at ${d.bases} bases`;
-  if (!rows.length) return [bar, count,
-    '<p class="empty">Dock somewhere and the people there start talking.</p>'];
-  let out = '', place = null;
-  rows.forEach(r => {
-    const here = r.system + ' · ' + r.base;
-    if (here !== place) {
-      place = here;
-      out += `<h2 class="house">${esc(here)}</h2>`;
-    }
-    const key = 'rumor:' + r.ids;
-    out += `<div class="${logClass(key)}"><div class="said">` +
+function rumorRows(d) {
+  const picked = logBase
+    ? d.rumors.filter(r => r.system + ' · ' + r.base === logBase) : d.rumors;
+  // The payload arrives most recently docked first: `seen` is the base's rank
+  // in the save's own `base_visited`, which is the order the bars were walked
+  // into. See `backend/log.py`.
+  const all = logNewestFirst ? picked : picked.slice().reverse();
+  return all.map(r => ({
+    src: 'rumors', keys: ['rumor:' + r.ids], cls: '',
+    place: r.system + ' · ' + r.base,
+    lead: r.room ? `<span>${esc(r.room)}</span>` : '',
+    title: '<div class="said">' +
       `<span class="who">${esc(r.who || 'someone at the bar')}</span>` +
-      `<span class="fac">${esc(r.faction)}</span>` +
-      (r.room ? `<span class="at">${esc(r.room)}</span>` : '') + '</div>' +
-      `<div class="body">${esc(r.text)}</div>` + logActs(key) + '</div>';
-  });
-  return [bar, count, out];
+      `<span class="fac">${esc(r.faction)}</span></div>`,
+    body: `<div class="body">${esc(r.text)}</div>`,
+  }));
 }
 
-const LOG_SOURCE = { save: logSave, news: logNews, rumors: logRumors };
+const BUILD = { save: saveRows, news: newsRows, rumors: rumorRows };
+
+function logRows(d) {
+  let out = [];
+  SOURCES.forEach(s => { if (logOn[s]) out = out.concat(BUILD[s](d)); });
+  return out;
+}
+
+// --- the one renderer ------------------------------------------------------
+
+function logDraw(rows, streams) {
+  logKeys = [];
+  let out = '', stream = null, place = null;
+  rows.forEach(r => {
+    if (r.src !== stream) {
+      stream = r.src;
+      place = null;
+      if (streams > 1) out += `<h2 class="house stream">${SRC_LABEL[r.src]}</h2>`;
+    }
+    if (r.place && r.place !== place) {
+      place = r.place;
+      out += `<h2 class="house">${esc(r.place)}</h2>`;
+    }
+    out += `<div class="${logClass(r.keys, r.cls)}">` +
+      `<div class="when"><span class="srctag">${SRC_LABEL[r.src]}</span>` +
+      r.lead + '</div>' + r.title + r.body + logActs(r.keys) + '</div>';
+  });
+  return out;
+}
+
+// What the panel says about the order it is in. Only for the streams actually
+// on: a sentence about news is noise while news is switched off.
+function logWhy(streams) {
+  const bits = [];
+  if (logOn.save) bits.push('the save log carries no date at all, only its place in the file');
+  if (logOn.news) bits.push('news is dated by the story state it broke at');
+  if (logOn.rumors) bits.push('bar talk is ranked by the order you first docked there');
+  if (streams < 2) return bits[0] ? bits[0][0].toUpperCase() + bits[0].slice(1) + '.' : '';
+  return 'Each stream is in true order and the three are not interleaved, ' +
+    'because they share no clock: ' + bits.join(', ') + '.';
+}
 
 function renderLog() {
   const d = logData;
   if (!d) return '<p class="empty">reading the save…</p>';
   if (d.error) return `<p class="note warn">${esc(d.error)}</p>`;
-  const [bar, count, body] = LOG_SOURCE[logSource](d);
-  const chips = [['save', 'SAVE', d.save.length],
-                 ['news', 'NEWS', d.news.length],
-                 ['rumors', 'RUMORS', d.rumors.length]].map(([id, label, n]) =>
-    `<button class="src ${id === logSource ? 'on' : ''}" data-src="${id}">` +
-    `${label} ${n}</button>`).join('');
-  return '<div class="logbar">' + chips + '<span class="sep"></span>' + bar +
-    `<span class="count">${count} · marks are kept by the server</span></div>` + body;
+
+  const streams = SOURCES.filter(s => logOn[s]).length;
+  const all = logRows(d);
+  const unread = all.filter(r => !marked('read', r.keys)).length;
+  const rows = logUnreadOnly ? all.filter(r => !marked('read', r.keys)) : all;
+
+  const chips = SOURCES.map(id =>
+    `<button class="src ${logOn[id] ? 'on' : ''}" data-src="${id}">` +
+    `${SRC_LABEL[id]} ${d[id].length}</button>`).join('');
+
+  let bar =
+    `<button id="logsort">${logNewestFirst ? 'Newest first' : 'Oldest first'}</button>` +
+    `<button id="logunread" class="${logUnreadOnly ? 'on' : ''}">` +
+    `${logUnreadOnly ? '✓ ' : ''}Unread only (${unread})</button>`;
+  if (logOn.save) {
+    const personal = d.save.filter(e => e.personal).length;
+    bar += `<button id="logpersonal" class="${logPersonalOnly ? 'on' : ''}">` +
+      `${logPersonalOnly ? '✓ ' : ''}Personal only (${personal})</button>`;
+  }
+  if (logOn.news) {
+    const live = d.news.filter(e => e.live).length;
+    bar += `<button id="loglive" class="${logLiveOnly ? 'on' : ''}">` +
+      `${logLiveOnly ? '✓ ' : ''}On the wire now (${live})</button>`;
+  }
+  if (logOn.rumors) {
+    const places = [...new Set(d.rumors.map(r => r.system + ' · ' + r.base))];
+    bar += '<select id="logplace">' +
+      '<option value="">every base I have docked at</option>' +
+      places.map(p =>
+        `<option value="${esc(p)}"${p === logBase ? ' selected' : ''}>` +
+        `${esc(p)}</option>`).join('') + '</select>';
+  }
+
+  const count = `${rows.length} of ${all.length} · ${unread} unread`;
+  const head = '<div class="logbar">' + chips + '<span class="sep"></span>' + bar +
+    `<span class="count">${count} · marks are kept by the server</span></div>`;
+  const why = logWhy(streams);
+  const note = why ? `<p class="note">${why}</p>` : '';
+  if (!streams) return head + '<p class="empty">Every source is switched off.</p>';
+  if (!rows.length) return head + note + '<p class="empty">' +
+    (logUnreadOnly ? 'Nothing left unread here.' : 'Nothing to show.') + '</p>';
+  return head + note + logDraw(rows, streams);
 }
 
 function wireLog() {
   document.querySelectorAll('.logbar .src').forEach(b =>
-    b.addEventListener('click', () => { logSource = b.dataset.src; render(); }));
+    b.addEventListener('click', () => {
+      logOn[b.dataset.src] = !logOn[b.dataset.src];
+      render();
+    }));
   const on = (id, fn) => { const b = $('#' + id); if (b) b.onclick = fn; };
   on('logsort', () => { logNewestFirst = !logNewestFirst; render(); });
+  on('logunread', () => { logUnreadOnly = !logUnreadOnly; render(); });
   on('logpersonal', () => { logPersonalOnly = !logPersonalOnly; render(); });
   on('loglive', () => { logLiveOnly = !logLiveOnly; render(); });
   const place = $('#logplace');
   if (place) place.addEventListener('change', e => { logBase = e.target.value; render(); });
   // Optimistic: the mark moves under the cursor and the server hears about it
   // afterwards, because a round trip to localhost is still a round trip.
-  const flip = (which, key) => {
-    const on = !marks[which][key];
-    if (on) marks[which][key] = true;
-    else delete marks[which][key];
+  //
+  // Turning a mark **off** clears every key the row answers to, turning it on
+  // writes only the primary. Otherwise a mark left on a folded news copy could
+  // never be cleared from the page that shows it.
+  const flip = async (which, at) => {
+    const keys = logKeys[Number(at)] || [];
+    if (!keys.length) return;
+    const want = !marked(which, keys);
+    const touched = want ? [keys[0]] : keys.filter(k => marks[which][k]);
+    touched.forEach(k => {
+      if (want) marks[which][k] = true; else delete marks[which][k];
+    });
     marksHeld = Date.now();
     render();
-    postMark(which, key, on);
+    for (const k of touched) await postMark(which, k, want);
+    // Every write is home, so the next payload is the authority again.
+    marksHeld = 0;
+    render();
   };
   document.querySelectorAll('[data-star]').forEach(b =>
     b.addEventListener('click', () => flip('star', b.dataset.star)));

@@ -12,6 +12,7 @@ holds what is served.
 import functools
 import json
 import os
+import re
 import tempfile
 import threading
 
@@ -145,6 +146,42 @@ def _tally(done, total):
     """
     return {"done": done, "total": total,
             "percent": round(100 * done / total) if total else 0}
+
+
+VISITED = re.compile(r"^\s*base_visited\s*=\s*(\d+)", re.M | re.I)
+
+
+def dock_order(saved, game):
+    """base -> how many bases you had docked at before this one. First is 0.
+
+    **`base_visited` is the docked bases in the order you first docked at
+    them**, which is the only receipt time anything in the Neural Net has.
+    Settled 2026-09-10 by measurement, twice, because an order that looks right
+    on one save is worth nothing:
+
+      * across the 162 saves on this disk an older save's `base_visited` is a
+        prefix of a newer one's, 137 times against 14, and every one of the 14
+        sits where two saves at the same `total_time_played` belong to
+        different playthroughs. A branch is not a counter-example;
+      * on the live save all 24 values resolve to base nicknames, the resolved
+        set is **exactly** the docked set the visit flags give, neither way
+        round, and the order opens Planet Manhattan, Planet Pittsburgh,
+        Baltimore Shipyard, which is the campaign order.
+
+    The values are `FLHash` of the base nickname, the same one-way hash the
+    visit flags and the cargo lines use.
+
+    **This says order and nothing else.** `Ctx.docked` stays the authority on
+    which bases have been docked at, and a save that carries no `base_visited`
+    at all leaves every rumor unranked rather than dropping it.
+    """
+    by_hash = {fl.fl_hash(key): key for key in game.bases}
+    out = {}
+    for token in VISITED.findall(saved):
+        key = by_hash.get(int(token))
+        if key is not None:
+            out.setdefault(key, len(out))
+    return out
 
 
 def read_state(game, save_path, saved):
@@ -351,7 +388,7 @@ class Ctx:
     def __init__(self, game, save, lock, query=None):
         self.game, self.save, self.lock = game, save, lock
         self.query = query or {}
-        self._saved = self._state = None
+        self._saved = self._state = self._order = None
 
     def one(self, key, default=None):
         return (self.query.get(key) or [default])[0]
@@ -376,3 +413,9 @@ class Ctx:
 
     def docked(self):
         return set(self.state()["docked_bases"])
+
+    def dock_order(self):
+        """Which base you reached first, second, third. See `dock_order`."""
+        if self._order is None:
+            self._order = dock_order(self.saved(), self.game)
+        return self._order

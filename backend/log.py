@@ -37,6 +37,11 @@ def _news(ctx, index, docked):
     out = []
     for row in nw.since(ctx.game.news, index):
         out.append({
+            # Every debut this item was filed under, not just the surviving
+            # one. `news.py::_collapse` says why: a mark's key is built from
+            # the debut, so a folded copy takes its marks with it unless the
+            # page can still see the keys it used to have.
+            "debuts": row["debuts"], "runs": row["runs"],
             "debut": row["debut"], "debut_state": row["debut_state"],
             "debut_label": st.label(row["debut_state"]),
             "expires_state": row["expires_state"],
@@ -49,8 +54,18 @@ def _news(ctx, index, docked):
 
 
 def _rumors(ctx, docked):
-    """What is said at every base you have docked at, grouped by where."""
+    """What is said at every base you have docked at, most recent stop first.
+
+    **A rumor carries no date of its own** and never will: all 7803 lines are
+    on from the first minute of a new game and none of them ever moves. What
+    it has is a place, and the save records the order you first docked at
+    those places, so "when you heard it" is the rank of the bar it is said in.
+    See `common.dock_order` for how that order was established.
+
+    A base the save has no rank for sorts last rather than dropping out.
+    """
     game = ctx.game
+    order = ctx.dock_order()
     out = []
     for row in ru.for_bases(ctx.game.rumors, docked):
         system, ids = game.bases.get(row["base"], (None, 0))
@@ -62,8 +77,10 @@ def _rumors(ctx, docked):
             "room": row["room"],
             "text": row["text"],
             "ids": row["ids"],
+            "seen": order.get(row["base"], -1),
         })
-    out.sort(key=lambda r: (r["system"], r["base"], r["faction"], r["ids"]))
+    out.sort(key=lambda r: (-r["seen"], r["system"], r["base"],
+                            r["faction"], r["ids"]))
     return out
 
 

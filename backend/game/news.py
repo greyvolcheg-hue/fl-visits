@@ -3,8 +3,9 @@
     fl.py news <save.fl>          what is live at that save's story state
     fl.py news --all              every item, with the window it runs in
 
-`DATA/MISSIONS/news.ini` holds 403 `[NewsItem]` entries and **every one is
-gated on the story**:
+`DATA/MISSIONS/news.ini` files 403 `[NewsItem]` entries, of which **364 are
+distinct items**: see `_collapse` for the 17 blanks and the 22 duplicates it
+folds. Every one is gated on the story:
 
     [NewsItem]
     rank = freetime_02_03, mission_03_loaded
@@ -76,6 +77,53 @@ def load_news(game_dir, names=None, states=None):
             "bases": sorted({str(b[0]).lower() for b in entry.get("base", [])}),
         })
     out.sort(key=lambda r: r["debut"])
+    return _collapse(out)
+
+
+def _collapse(rows):
+    """The 403 filed items as the 364 distinct ones, blanks dropped.
+
+    Two kinds of noise, both counted on a stock install rather than estimated:
+
+        17  carry no headline, no text, no category and no base at all, and
+            every one of them debuts at `mission_end`. They are placeholders
+            and they draw as empty boxes.
+        22  are exact duplicates: same headline, same text, already in the
+            list. They differ only in the window they run in and in their
+            icon. "Arrival of Freeport 7 Survivors" is filed once at
+            `mission_01a_loaded` as `critical` and again at
+            `mission_01a_accepted` as `world`.
+
+    A duplicate is folded into the copy that broke first, taking the widest
+    window of the two, the union of the bases, and `critical` if either was:
+    the story ran once and the file says so twice.
+
+    **`debuts` is not a detail.** A mark's key on the page is the debut plus
+    the headline, so every copy has its own key and folding them would strip
+    the mark off any copy that was not the survivor. Nine of the owner's 266
+    news marks sat on one, measured before this was written. The list travels
+    with the row and the page treats a row as marked if any of its keys is.
+    """
+    out, at = [], {}
+    for row in rows:
+        if not row["headline"].strip() and not row["text"].strip():
+            continue
+        key = (row["headline"], row["text"])
+        seen = at.get(key)
+        if seen is None:
+            at[key] = len(out)
+            out.append({**row, "debuts": [row["debut"]], "runs": 1})
+            continue
+        held = out[seen]
+        held["debuts"].append(row["debut"])
+        held["runs"] += 1
+        if row["expires"] > held["expires"]:
+            held["expires"] = row["expires"]
+            held["expires_state"] = row["expires_state"]
+        if row["icon"] == "critical":
+            held["icon"] = "critical"
+        held["bases"] = sorted(set(held["bases"]) | set(row["bases"]))
+        held["category"] = held["category"] or row["category"]
     return out
 
 

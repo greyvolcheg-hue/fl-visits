@@ -126,7 +126,11 @@ function byHouse(d, rows, renderRow, tally) {
     return `<h2 class="house" data-house="${esc(h)}">` +
            `<span class="caret">${off ? '▸' : '▾'}</span>${esc(h)}` +
            `<span class="hcount">${done} / ${total}</span></h2>` +
-           `<div class="housebody"${off ? ' hidden' : ''}>` +
+           // `wrapgrid`: on a wide screen this is a two-column layout grid
+           // holding however many systems the house has, not a table row whose
+           // cell count must match its columns. check_views.py says why the
+           // difference cannot be read off the computed style.
+           `<div class="housebody wrapgrid"${off ? ' hidden' : ''}>` +
            rs.map(renderRow).join('') + `</div>`;
   }).join('');
 }
@@ -182,8 +186,7 @@ function render() {
   // page then looks like it ignored the click rather than like it broke. That
   // is how a stale leaf id hid for a whole commit.
   if (!v) {
-    $('#totals').hidden = true;
-    $('#togglewrap').hidden = true;
+    $('#statusrow').hidden = true;
     drawStatus();
     paint($('#list'),
       `<p class="note warn">No view is registered as <code>${esc(tab)}</code>. ` +
@@ -191,8 +194,9 @@ function render() {
       'module answers to.</p>');
     return;
   }
-  $('#totals').hidden = !!v.bare;
-  $('#togglewrap').hidden = !!v.bare;
+  // The numbers and the controls are one panel now, so there is one thing to
+  // hide. They were only ever shown and hidden together.
+  $('#statusrow').hidden = !!v.bare;
   $('#wrap').classList.toggle('chart', tab === 'chart');
   $('#sub').textContent = v.sub || 'SIRIUS SECTOR / FL-VISITS';
   drawStatus();

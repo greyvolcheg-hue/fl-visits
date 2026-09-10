@@ -395,6 +395,100 @@ dropped rather than printed. Until this was understood the page printed a bare
 `%M` at the end of a sentence, which reads as corruption.
 
 
+## Settled: what in the Neural Net has a date, and what does not
+
+Closed 2026-09-10, when the three sources became one list and the owner asked
+for it sorted by when each entry arrived. The answer is different for each of
+the three and none of them shares a clock with another, so the tab says so
+rather than inventing one.
+
+**A save log entry has no date at all.** No timestamp, no seconds count. The
+whole save holds exactly one clock, `tstamp`, a Windows FILETIME of when the
+file was written, plus `total_time_played`. Position in the log is the entire
+chronology, and new entries are prepended, so index 0 is the newest.
+
+**`base_visited` is the docked bases in the order you first docked at them**,
+and that is a real receipt time for a bar rumor. Proved twice, because an order
+that looks right on one save is worth nothing:
+
+  * across the **162** saves on this disk an older save's `base_visited` is a
+    prefix of a newer one's, **137** times against **14**, and every one of the
+    14 sits where two saves at the same `total_time_played` belong to different
+    playthroughs. A branch is not a counter-example;
+  * on the live save all **24** values resolve to base nicknames, the resolved
+    set is **exactly** the docked set the visit flags give, neither way round,
+    and the order opens Planet Manhattan, Planet Pittsburgh, Baltimore
+    Shipyard, which is the campaign order.
+
+The values are `FLHash` of the base nickname, the same one-way hash the visit
+flags and the cargo lines use. `common.dock_order` reads it, and **it supplies
+order only**: `Ctx.docked` stays the authority on which bases have been docked
+at, so a save carrying no `base_visited` leaves rumors unranked rather than
+losing them.
+
+**Deliberately not done: dating a log entry from its mission file.** A save log
+entry can be placed on the story axis. 97 of the 299 distinct log ids across all
+162 saves appear as `Act_NNIds` in exactly one `DATA/MISSIONS/M*/` file, none in
+two, and a mission maps to a story state, which is the axis `news.debut` already
+uses. The other 202 are the random job generator's objective text and have no
+story position at all. So a true interleave of save and news is buildable: date
+the 97, interpolate the rest by position between two dated neighbours, since the
+log is monotonic. It is not built, because the owner picked streams-in-order
+over one interleaved timeline on 2026-09-10. This note exists so nobody
+re-derives the bridge from scratch to find that out.
+
+## Settled: three commodities spoil, and the data says so twice
+
+Closed 2026-09-10 for the Routes tab.
+
+| Commodity | `decay_per_second` | `hit_pts` | the game's own infocard |
+|---|---|---|---|
+| Alien Organisms | 1.0 | 100 | `>>>HIGHLY PERISHABLE <<<` |
+| Luxury Food | 1.0 | 100 | `>>>HIGHLY PERISHABLE <<<` |
+| MOX | 1.0 | 200 | `>>>PERISHABLE <<<` |
+
+Every other one of the 105 commodities reads `decay_per_second = 0`,
+`hit_pts = 250`, and carries no banner. All three are traded.
+
+**The two halves of the rule are independent and they agree.** *Which*
+commodities spoil is a number in `select_equip.ini`; *how badly* is text in the
+item's own infocard, which is RT_HTML and therefore a different resource type in
+a different table. The set the field picks out and the set the text picks out
+are the same three, which is why `market.perishable` derives it rather than
+holding three nicknames somebody typed.
+
+**What none of it says is what spoiling costs you on a run**, and the page must
+not print a number that implies it does. `decay_per_second` sits among
+`pod_appearance`, `loot_appearance` and `hit_pts`, every one of which is a
+property of the container once it is floating in space, so the files do not
+prove a hold loses cargo in flight. Routes shows the game's own label, keeps
+`run` as the plain multiplication it is, says so in the note, and offers a
+checkbox. Do not let a decay model in later without evidence for it.
+
+## Settled: 39 of the 403 news items are noise
+
+Closed 2026-09-10. `news.ini` files 403 `[NewsItem]` entries and holds **364**
+distinct ones.
+
+  * **17** carry no headline, no text, no category and no base, and every one
+    of them debuts at `mission_end`. They drew as empty boxes.
+  * **22** are exact duplicates, same headline and same text as an item already
+    in the list, differing only in the window they run in and sometimes the
+    icon. "Arrival of Freeport 7 Survivors" is filed at `mission_01a_loaded` as
+    `critical` and again at `mission_01a_accepted` as `world`.
+
+A duplicate folds into the copy that broke first, taking the wider window, the
+union of the bases and `critical` if either had it.
+
+**The fold would have eaten nine of the owner's marks, and that is the part
+worth remembering.** A mark's key on the page is `news:<debut>:<headline>`, so
+every filed copy has its own key and the survivor keeps only one of them. Nine
+of the 266 news marks on this machine sat on a copy that would have gone.
+`_collapse` therefore carries `debuts`, the full list, the payload passes it
+through, and the page treats a row as marked if **any** of its keys is and
+clears every one of them when the mark comes off. Measured after the change:
+zero held keys unreachable, 18 marks living on a folded row.
+
 ## Settled: the engine controls are a tab, not a strip
 
 Tried on 2026-09-07, following the design canvas, and reverted the same day at

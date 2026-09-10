@@ -74,6 +74,10 @@ DREW = {
     "log:save": ".entry",
     "log:news": ".entry .head",
     "log:rumors": ".entry .said",
+    # All three streams at once. The stream heading is the one piece of markup
+    # that exists only in the combined view, so it is what says the merge drew
+    # rather than one stream having quietly won.
+    "log:all": "h2.house.stream",
     "overview": ".ovpanel",
     "search": ".geartable .gun",
     "market": ".tradetable .gun",
@@ -88,12 +92,17 @@ DREW = {
 # 2026-09-06, when a nav map cell was added to four row templates and two of
 # the grids were left at their old column count.
 #
-# **A grid that is meant to wrap says so with `wrapgrid`.** The Overview's
-# panels flow into as many columns as fit and its label/value list runs two
-# abreast for as long as it needs to, and neither is a row with a fixed set of
-# cells. Marking them beats guessing from the computed style, which resolves
-# `repeat(auto-fit, ...)` to concrete tracks and so cannot be told apart from a
-# hand-written column list.
+# **A grid that is not a table row says so with `wrapgrid`.** The Overview's
+# panels flow into as many columns as fit, its label/value list runs two abreast
+# for as long as it needs to, and Systems lays its house out two cards wide on a
+# wide window: none of them is a row with a fixed set of cells. Marking them
+# beats guessing from the computed style, which resolves `repeat(auto-fit, ...)`
+# to concrete tracks and so cannot be told apart from a hand-written column list.
+#
+# **The window below is 1000px wide, so anything behind a wider media query is
+# not measured here.** `.housebody` goes two columns at 1400px and this run
+# never sees it. Its marker is right either way; the check simply is not the
+# thing that would catch it missing.
 DRIVER = r"""
 const REPORT = [], GRID = [];
 
@@ -163,13 +172,16 @@ function sweep(pass, drew) {
   reachable();
   try { expand(); } catch (err) { REPORT.push('FAIL  ' + pass + ' expand: ' + err); }
   for (const id of Object.keys(VIEW)) draw(pass, id, drew[id]);
-  // The Neural Net's three sources are three separate branches with three
-  // separate last-term concatenations, and only the default one is reached by
-  // the loop above. All three have to be drawn or two of them are unchecked.
-  ['news', 'rumors', 'save'].forEach(src => {
-    logSource = src;
-    draw(pass, 'log:' + src, drew['log:' + src]);
+  // The Neural Net is one list over three streams, each with its own builder.
+  // Drawing only the default, which has all three on, would let a broken
+  // builder hide behind the two that work: the list still fills. So each
+  // stream is drawn alone and then all three together.
+  SOURCES.forEach(only => {
+    SOURCES.forEach(s => { logOn[s] = s === only; });
+    draw(pass, 'log:' + only, drew['log:' + only]);
   });
+  SOURCES.forEach(s => { logOn[s] = true; });
+  draw(pass, 'log:all', drew['log:all']);
   // Trade is one pipeline with three stages, and the loop above reaches only
   // whichever one the seeded payload happens to be at. Each stage builds
   // different markup, so each is drawn: the picker, and the destinations

@@ -104,6 +104,14 @@
              background: rgba(111, 216, 255, .04);
              border: 1px solid var(--line-soft); }
   h2.house:first-child { margin-top: 0; }
+  /* Two systems abreast once the window can hold two. The gap is horizontal
+     only: `.sys` already carries its own bottom margin, and a row gap here
+     would double it. `align-items: start` so an opened system does not
+     stretch the shut card beside it to its own height. */
+  @media (min-width: 1400px) {
+    .housebody { display: grid; grid-template-columns: 1fr 1fr;
+                 gap: 0 .5rem; align-items: start; }
+  }
   h2.house[data-house] { cursor: pointer; user-select: none; }
   h2.house[data-house]:hover { color: var(--cyan-hi);
                                background: rgba(111, 216, 255, .1); }
@@ -122,11 +130,20 @@
   .atlist { display: flex; flex-direction: column; gap: .15rem; }
   .atrow { display: flex; gap: .5rem; align-items: baseline; }
 
-  /* --- the numbers row --------------------------------------------------- */
-  .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-            gap: 1.6rem; padding: 1.1rem 1.3rem; margin-bottom: .9rem;
-            background: var(--card-lift); border: 1px solid var(--line);
-            clip-path: var(--notch); }
+  /* --- the numbers and the controls, in one panel ------------------------- */
+  /* Two stacked panels until 2026-09-10. Only one view draws them at all:
+     every other frontend module is `bare`. The panel chrome lives here, on the
+     wrapper, and the two rows inside it carry none of their own. They wrap
+     back onto two lines on a narrow window, which is exactly what they used
+     to look like. */
+  .statusrow { display: flex; align-items: center; gap: 1.2rem 1.6rem;
+               flex-wrap: wrap; padding: 1rem 1.3rem; margin-bottom: .9rem;
+               background: var(--card-lift); border: 1px solid var(--line);
+               clip-path: var(--notch); }
+  .statusrow > .totals { flex: 1 1 20rem; }
+  .statusrow > .controls { flex: 1 1 26rem; }
+  .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1.2rem; }
   .totals div span { display: block; }
   .n { font-family: var(--mono); font-size: 32px; font-weight: 600;
        line-height: 1.05; color: var(--cyan-hi);
@@ -140,10 +157,7 @@
                  cursor: pointer; color: var(--faint); font-family: var(--mono);
                  font-size: 11px; letter-spacing: .06em; }
   label.toggle input { accent-color: var(--docked); }
-  .controls { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap;
-              padding: .7rem 1rem; margin-bottom: .7rem;
-              background: var(--panel); border: 1px solid var(--line);
-              clip-path: var(--notch); }
+  .controls { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
   .groupacts { display: flex; gap: .4rem; margin-left: auto; }
   /* One button look, everywhere. The HUD has exactly two states for a
      control, resting and chosen, and `.on` is the chosen one. */
@@ -204,6 +218,12 @@
   .gun:hover { border-color: var(--line); }
   .gun .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis;
              white-space: nowrap; }
+  /* Perishable cargo, in the game's own words. Two tabs draw it, so it lives
+     here rather than in either of them. Amber because amber is what this page
+     uses for anything you have to keep an eye on. */
+  .spoil { color: var(--revealed); font-family: var(--mono); font-size: 9px;
+           letter-spacing: .14em; font-style: normal; white-space: nowrap;
+           border: 1px solid rgba(255, 179, 71, .3); padding: 0 .3rem; }
   .gun .num { text-align: right; font-family: var(--mono);
               font-variant-numeric: tabular-nums; }
   .gun .num.h { color: var(--ok); }

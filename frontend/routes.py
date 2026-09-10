@@ -14,10 +14,19 @@ CSS = """
 
   /* The nav map cell, trailing the base it belongs to. */
   .at { color: var(--dim); font-style: normal; font-size: .85em; margin-left: .35rem; }
+
+  /* The commodity cell is the one that may run to two lines, so the badge
+     drops under the name instead of pushing it into an ellipsis. Every other
+     cell keeps `.gun .nm`'s clip. */
+  .routetable .gun .nm.good { white-space: normal; overflow: visible; }
 """
 
 JS = r"""
 let routeData = null, routeFrom = '', routeTo = '', routeVisitedOnly = false;
+// Three of the game's commodities spoil, and it says so itself. Filtered here
+// rather than by the endpoint: the rows are already on the page, the count
+// line is recomputed from what is shown, and a round trip buys nothing.
+let routeFresh = false;
 
 function renderRoutes() {
   const d = routeData;
@@ -40,7 +49,10 @@ function renderRoutes() {
     `${opts(routeTo)}</select>` +
     '<label class="toggle"><input type="checkbox" id="routeseen"' +
     (routeVisitedOnly ? ' checked' : '') +
-    '> <span>only bases I have docked at</span></label></div>';
+    '> <span>only bases I have docked at</span></label>' +
+    '<label class="toggle"><input type="checkbox" id="routefresh"' +
+    (routeFresh ? ' checked' : '') +
+    '> <span>hide perishable</span></label></div>';
 
   if (!d.from || !d.to) return out + '<p class="empty">Pick both ends.</p>';
 
@@ -66,14 +78,26 @@ function renderRoutes() {
          : `Nothing is bought in ${esc(name(d.from))} and traded in
             ${esc(name(d.to))} at all.`)) + '</p>';
 
+  const spoils = d.rows.filter(r => r.perishable).length;
+  const rows = routeFresh ? d.rows.filter(r => !r.perishable) : d.rows;
+  if (!rows.length)
+    return out + `<p class="empty">Every one of the ${spoils} worth carrying
+      ${ends} is cargo the game marks as perishable. Untick the box to see
+      them.</p>`;
+
   const losses = d.traded - d.rows.length;
-  out += `<p class="note">${d.rows.length} worth carrying ${ends}` +
-    (losses ? `, out of ${d.traded} traded in both` : '') + `.
+  out += `<p class="note">${rows.length} worth carrying ${ends}` +
+    (losses ? `, out of ${d.traded} traded in both` : '') +
+    (routeFresh && spoils ? `, with ${spoils} perishable hidden` : '') + `.
     One line per commodity: the cheapest place to buy it at this end against
     the dearest place to sell it at that one.` +
     (d.hold
       ? ` <b>run</b> is a full hold of your ${esc(d.ship)}, ${d.hold} units.`
       : ' No ship found in the save, so only the per-unit figure is shown.') +
+    (spoils && !routeFresh
+      ? ` <b>The game marks ${spoils} of these as perishable</b>, and the run
+         figure is a plain multiplication that knows nothing about it.`
+      : '') +
     '</p>';
 
   out += '<div class="guns"><div class="routetable' + (d.hold ? ' withrun' : '') +
@@ -81,9 +105,11 @@ function renderRoutes() {
     '<span>sell</span><span>gain</span>' +
     (d.hold ? '<span>run</span>' : '') +
     '<span class="nm">from</span><span class="nm">to</span></div>' +
-    d.rows.map(r =>
+    rows.map(r =>
       '<div class="gun">' +
-      `<span class="nm">${esc(r.name)}</span>` +
+      `<span class="nm good">${esc(r.name)}` +
+      (r.perishable ? ` <i class="spoil">${esc(r.perishable)}</i>` : '') +
+      '</span>' +
       `<span class="num raw">${money(r.buy)}</span>` +
       `<span class="num h">${money(r.sell)}</span>` +
       `<span class="num up">+${money(r.gain)}</span>` +
@@ -102,6 +128,10 @@ function wireRoutes() {
     routeVisitedOnly = e.target.checked;
     loadRoutes();
   });
+  // No reload: the rows it hides are already here.
+  const fresh = $('#routefresh');
+  if (fresh) fresh.addEventListener('change',
+    e => { routeFresh = e.target.checked; render(); });
 }
 
 async function loadRoutes() {

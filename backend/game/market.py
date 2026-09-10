@@ -32,6 +32,7 @@ import sys
 
 from . import bases as bs
 from . import flvisits as fl
+from . import infocards as ic
 from . import wrecks as wr
 
 SELLS_TO_YOU = 0  # the base has stock: this is where you buy
@@ -92,6 +93,71 @@ def base_index(game_dir, data_dir=None, strings=None):
     return dockable, ref, sysname
 
 
+# The banner the game writes into the item's own infocard. `plain` leaves the
+# angle brackets as entities, and a hand-edited card could carry them raw, so
+# both spellings are matched rather than one being assumed.
+PERISHABLE = re.compile(
+    r"(?:>|&gt;){2,}\s*(HIGHLY\s+PERISHABLE|PERISHABLE)\s*(?:<|&lt;){2,}", re.I)
+
+
+def perishable(game_dir, cards=None):
+    """Commodity -> the game's own word for how badly it spoils, or nothing.
+
+    Exactly three of the 105 commodities on a stock install:
+
+        Alien Organisms   decay_per_second 1.0   hit_pts 100   HIGHLY PERISHABLE
+        Luxury Food       decay_per_second 1.0   hit_pts 100   HIGHLY PERISHABLE
+        MOX               decay_per_second 1.0   hit_pts 200   PERISHABLE
+
+    Every other commodity reads `decay_per_second = 0` and `hit_pts = 250`, and
+    carries no banner in its card. All three are traded.
+
+    **The two halves of the rule are independent and they agree.** *Which*
+    commodities spoil is a number, `decay_per_second`; *how badly* is the
+    `>>>PERISHABLE<<<` banner the game prints at the top of the item's own
+    infocard. The set the field picks out and the set the text picks out are
+    the same three, which is why this is derived rather than kept as a list of
+    three nicknames somebody typed.
+
+    **What none of it says is what spoiling costs you on a run.**
+    `decay_per_second` sits among `pod_appearance`, `loot_appearance` and
+    `hit_pts`, which are all properties of the container once it is floating in
+    space, so the files do not prove that a hold loses cargo in flight. Show
+    the game's own label and leave the arithmetic alone: do not invent a decay
+    model here, and do not let one in later.
+    """
+    cards = cards if cards is not None else ic.load_cards(game_dir)
+    equip_dir = fl.ipath(fl.ipath(game_dir, "DATA"), "EQUIPMENT")
+    out = {}
+    for section, pairs in wr.read_multi(fl.ipath(equip_dir, "select_equip.ini")):
+        if section.lower() != "commodity":
+            continue
+        entry = {}
+        for key, values in pairs:
+            entry.setdefault(key.lower(), values)
+        nick = _first(entry, "nickname")
+        try:
+            decays = float(_first(entry, "decay_per_second") or 0)
+        except (TypeError, ValueError):
+            decays = 0
+        if not nick or not decays:
+            continue
+        found = PERISHABLE.search(cards.get(_int(_first(entry, "ids_info")), ""))
+        # The grade comes from the card; the field is what says there is one to
+        # look for. A card that has lost its banner still leaves a marked
+        # commodity rather than an unmarked one.
+        grade = " ".join(found.group(1).upper().split()) if found else "PERISHABLE"
+        out[str(nick).lower()] = grade
+    return out
+
+
+def _int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def load_market(game_dir=None):
     """(commodities, rows).
 
@@ -142,6 +208,11 @@ def load_market(game_dir=None):
     for key in price:
         names.setdefault(key, key)
 
+    # On the row rather than in a table the pages have to look things up in:
+    # `trades`, `sells`, `best_runs` and `routes` then all carry it without any
+    # of them learning what perishable means.
+    spoils = perishable(game_dir)
+
     dockable, ref, _sysname = base_index(game_dir, data_dir, strings)
 
     rows = []
@@ -172,6 +243,7 @@ def load_market(game_dir=None):
                 "good_name": names.get(good, good),
                 "price": round(price[good] * mult),
                 "buy": flag == SELLS_TO_YOU,
+                "perishable": spoils.get(good, ""),
             })
     return names, rows
 
@@ -383,6 +455,9 @@ def routes(rows, src, dst, only=None):
         out.append({
             "good": good,
             "name": source["good_name"],
+            # The commodity's, not the route's, so it rides along from the row
+            # the good was bought at rather than being looked up again.
+            "perishable": source.get("perishable", ""),
             "buy": source["price"],
             "sell": target["price"],
             "gain": target["price"] - source["price"],
