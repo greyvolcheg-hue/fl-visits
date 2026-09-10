@@ -55,9 +55,11 @@ whoever likes you least. Every panel is a doorway into the tab that owns the
 full answer, and nothing on it is computed only there.
 
 **Systems** is one tree: house, then system, then the bases and the wrecks in
-it. Both levels start shut, and from 1400px up a house lays its systems out two
-abreast rather than in one tall column. The numbers and the two checkboxes share
-one panel, not two stacked ones. Bases and wrecks used to be two tabs asking the same
+it. Both levels start shut, and a house lays its systems out two abreast as soon
+as there is room for two, which is about 1130px of page width. There is no
+breakpoint in it: it measures the panel, not the window, so a browser sidebar or
+a zoom level cannot leave it in one column by accident. The numbers and the two
+checkboxes share one panel, not two stacked ones. Bases and wrecks used to be two tabs asking the same
 question about the same place, so you read them side by side to plan one trip.
 
 *Show all* ticked shows every system, the bases and wrecks still to find, and
@@ -197,7 +199,11 @@ rock appears somewhere else. More sprites makes that worse.
 
 **Equipment** answers *which* gun should I be after. Pick guns or shields and
 **every parameter is a column**, all nine of them for guns and seven for
-shields. Add the ones you care about as filters on top. Filters stack, and
+shields. Hover a heading and a `×` appears to drop that column; once anything
+is off, a `+ add a column…` select turns up beside the filters to put it back.
+A column you are sorting or filtering on cannot be dropped and offers no `×`,
+because an arrow pointing at a column that is not on screen is the table lying
+about itself. Add the ones you care about as filters on top. Filters stack, and
 **filtering never reorders**: that is what the column headings are for, and
 clicking one twice turns it round. The default is hull DPS for guns and
 capacity for shields.
@@ -228,7 +234,12 @@ there. On the command line the same question is
 There was a DPS sub-tab that added weapons up into a loadout. It is gone at the
 owner's call.
 
-**Mount class takes `=`, `<` and `>`**, because it is the one categorical
+**Rank needed takes `=`, `<` and `>`** rather than a minimum, because "at least
+rank 16" is not a question about anything: what you want to know is what you can
+fly right now. Every other numeric parameter stays a minimum, which is how they
+are actually asked, and nobody wants a gun with *at most* 400 hull DPS.
+
+**Mount class takes `=`, `<` and `>`** too, because it is the one categorical
 parameter that is really a number: your ship has a class 6 hardpoint and the
 question is what fits it. On a shield the label carries the socket too, and
 `<` and `>` stay inside it: `fighter 6` and `elite 6` are different mounts on

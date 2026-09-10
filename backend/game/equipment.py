@@ -64,7 +64,11 @@ PARAMETERS = {
         ("kind", "gun or turret", "pick", ""),
         ("mount", "mount class", "class", ""),
         ("price", "price", "num", "cr"),
-        ("rank", "rank needed", "num", ""),
+        # A comparison, not a minimum. "rank at least 16" is not a question
+        # anybody has; "what can I fly at 16" is, and that needs `<` and `=`.
+        # The other numeric parameters stay minimums, which is what they are
+        # asked with: nobody wants a gun with *at most* 400 hull DPS.
+        ("rank", "rank needed", "cmp", ""),
     ],
     "shields": [
         ("capacity", "capacity", "num", ""),
@@ -74,7 +78,7 @@ PARAMETERS = {
         ("shield_type", "type", "pick", ""),
         ("mount", "mount class", "class", ""),
         ("price", "price", "num", "cr"),
-        ("rank", "rank needed", "num", ""),
+        ("rank", "rank needed", "cmp", ""),
     ],
 }
 ORDER = {"guns": "hull_dps", "shields": "capacity"}
@@ -360,6 +364,14 @@ def search(rows, filters, order, descending=True, keep=None):
         system  sold at a base in that system, by system nickname
         docked  sold at one of the bases in `value`, a set of base ids
         lt, gt  a mount class below or above the one named, within its family
+        under, over, exactly
+                a plain number compared the obvious way
+
+    **`under`/`over` and `lt`/`gt` are four spellings of two questions and are
+    deliberately not merged.** `lt` compares mount classes, which only mean
+    anything inside their own socket family, and refuses to answer across one.
+    `under` compares numbers. Giving them one name would put that family rule
+    on a price.
 
     **Sorting is separate from filtering** and stays that way: adding a
     threshold narrows the list without reshuffling what you were reading, and
@@ -401,6 +413,17 @@ def search(rows, filters, order, descending=True, keep=None):
                     break
             elif kind == "system":
                 if not any(b.get("sys") == value for b in row.get("bases") or ()):
+                    keep_row = False
+                    break
+            elif kind in ("under", "over", "exactly"):
+                try:
+                    mine = float(got)
+                except (TypeError, ValueError):
+                    keep_row = False
+                    break
+                if not (mine < value if kind == "under"
+                        else mine > value if kind == "over"
+                        else mine == value):
                     keep_row = False
                     break
             elif kind == "docked":

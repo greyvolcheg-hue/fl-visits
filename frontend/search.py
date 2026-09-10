@@ -8,6 +8,16 @@ CSS = """
   /* A row is a button in all but name: clicking one opens where to buy it. */
   .good { cursor: pointer; }
   .good.on { border-color: var(--docked); }
+  /* Dropping a column. Hidden until the heading is hovered, because a row of
+     nine crosses reads as clutter on a table nobody wants to change. The
+     heading itself still sorts; this stops the click before it gets there. */
+  .gunhead .sortby .dropcol { opacity: 0; background: none; border: 0;
+                              margin-left: .3rem; padding: 0; cursor: pointer;
+                              color: var(--faint); font-family: var(--mono);
+                              font-size: 11px; }
+  .gunhead .sortby:hover .dropcol { opacity: 1; }
+  .gunhead .sortby .dropcol:hover { color: var(--bad); }
+
   /* The favourite star. Its own hit target inside the name cell, because the
      row it sits on already answers a click by opening the dealer list. */
   .favstar { background: none; border: 0; padding: 0 .45rem 0 0; margin: 0;
@@ -25,6 +35,10 @@ let gearData = null, gearKind = 'guns', gearFilters = [],
 // owns them, in `data/marks.json` beside the Neural Net's read marks, and this
 // is a cache of what it last said. Seeded on every `loadGear`.
 let gearFavs = new Set();
+// Columns switched off by hand. **The exceptions, not the selection**: every
+// parameter is a column by default, so an empty set is the full table and a
+// parameter added to the game later shows up without being listed anywhere.
+let gearHidden = new Set();
 // Name and system are not in the removable filter list with the rest. They are
 // the two you reach for first, so they sit in the top row and are always there.
 //
@@ -79,15 +93,25 @@ function renderGear() {
       (d.choices[f.key] || []).map(c =>
         `<option${String(c) === String(f.value) ? ' selected' : ''}>${esc(c)}</option>`
       ).join('') + '</select>';
+    // The operator row, shared by the two parameters that take one. `class`
+    // picks its value off a list, `cmp` takes a typed number; the select in
+    // front of them is the same control and reads the same way.
+    const ops = list => `<select class="op" data-op="${i}">` +
+      [['pick', '='], ['lt', '<'], ['gt', '>']].map(([v, sym]) =>
+        `<option value="${v}"${f.op === v ? ' selected' : ''}>${sym}</option>`
+      ).join('') + '</select>' + list;
     out += `<div class="filter"><span class="nm">${esc(p.label)}</span>` +
       (p.kind === 'class'
         // A mount class is a number, so it takes a comparison. `<` and `>`
         // stay inside the family: a shield's "fighter 6" and "elite 6" are
         // different sockets on the ship, not two sizes of one.
-        ? `<select class="op" data-op="${i}">` +
-          [['pick', '='], ['lt', '<'], ['gt', '>']].map(([v, sym]) =>
-            `<option value="${v}"${f.op === v ? ' selected' : ''}>${sym}</option>`
-          ).join('') + '</select>' + list()
+        ? ops(list())
+        : p.kind === 'cmp'
+        // A plain number, compared the obvious way, with no family rule on it.
+        // Rank is the one parameter where "at least" is the wrong question:
+        // what you want to know is what you can fly now.
+        ? ops(`<input type="number" data-min="${i}" value="${esc(String(f.value))}">` +
+              (p.unit ? `<span class="sys">${esc(p.unit)}</span>` : ''))
         : p.kind === 'pick'
         ? list()
         : `<span class="sys">at least</span>` +
@@ -100,6 +124,13 @@ function renderGear() {
     out += '<div class="filter"><select id="gearadd">' +
       '<option value="">+ add a parameter…</option>' +
       spare.map(p => `<option value="${esc(p.key)}">${esc(p.label)}</option>`).join('') +
+      '</select></div>';
+  // Only once something is off. A control offering nothing is furniture.
+  const off = params.filter(p => p.key !== 'price' && gearHidden.has(p.key));
+  if (off.length)
+    out += '<div class="filter"><select id="gearcol">' +
+      `<option value="">+ add a column… (${off.length} off)</option>` +
+      off.map(p => `<option value="${esc(p.key)}">${esc(p.label)}</option>`).join('') +
       '</select></div>';
   out += '</div>';
 
@@ -115,7 +146,13 @@ function renderGear() {
   // box is for.
   // `price` is left out: it has a fixed column of its own further right, and
   // listing it twice is how a table starts lying about itself.
-  const cols = params.filter(p => p.key !== 'price').map(p => p.key);
+  // A column you are sorting or filtering on is never hidden, whatever the set
+  // says: an arrow pointing at a column that is not on screen, or a filter
+  // narrowing the list by a number you cannot see, is the table lying about
+  // itself. That is also why those two carry no × to click.
+  const pinned = k => k === d.order || gearFilters.some(f => f.key === k);
+  const cols = params.filter(p => p.key !== 'price')
+    .filter(p => pinned(p.key) || !gearHidden.has(p.key)).map(p => p.key);
   const arrow = k => k !== d.order ? '' : (d.dir === 'down' ? ' ↓' : ' ↑');
   out += `<p class="note">${d.rows.length} of ${d.total},
     by ${esc(param(d.order).label)}${d.dir === 'down' ? ', biggest first' : ', smallest first'}.
@@ -139,7 +176,11 @@ function renderGear() {
     `style="grid-template-columns: minmax(12rem,1fr) ${'6rem '.repeat(cols.length)}6rem 5rem">` +
     '<div class="gunhead"><span class="nm">item</span>' +
     cols.map(k => `<span class="sortby" data-sort="${esc(k)}">` +
-      `${esc(param(k).label)}${arrow(k)}</span>`).join('') +
+      `${esc(param(k).label)}${arrow(k)}` +
+      (pinned(k) ? ''
+                 : `<button class="dropcol" data-col="${esc(k)}" ` +
+                   'title="remove this column">&times;</button>') +
+      '</span>').join('') +
     `<span class="sortby" data-sort="price">price${arrow('price')}</span>` +
     '<span>where</span></div>' +
     d.rows.map(r => {
@@ -187,6 +228,10 @@ function wireGear() {
     // either; the server would fall back silently and the arrow would lie.
     gearSort = '';
     gearDir = 'down';
+    // Hidden columns are parameter keys as well, and the other kind's are not
+    // the same keys. Carried over they would be a set of names nothing in the
+    // table answers to, with no way to see why a column is missing.
+    gearHidden = new Set();
     // The name survives the switch, because it means the same thing for both
     // kinds. The system does not: the two catalogues are sold in different
     // places, and a nickname absent from the new list would filter to nothing
@@ -253,6 +298,20 @@ function wireGear() {
       render();
       favourite(key, on);
     }));
+  // Columns are presentation and nothing else: the numbers are already on the
+  // page, so neither of these asks the server for anything.
+  document.querySelectorAll('.dropcol').forEach(b =>
+    b.addEventListener('click', e => {
+      e.stopPropagation();   // the heading under it sorts, and this is not that
+      gearHidden.add(b.dataset.col);
+      render();
+    }));
+  const col = $('#gearcol');
+  if (col) col.addEventListener('change', e => {
+    if (!e.target.value) return;
+    gearHidden.delete(e.target.value);
+    render();
+  });
   document.querySelectorAll('.sortby').forEach(h =>
     h.addEventListener('click', () => {
       // Clicking the column already sorted on turns it round; a new column
@@ -289,10 +348,14 @@ async function favourite(key, on) {
 
 async function loadGear() {
   const q = ['kind=' + encodeURIComponent(gearKind)];
-  // A `class` filter travels as its operator, so the server has one place
-  // that decides what a row means rather than a kind plus a modifier.
+  // A parameter with an operator travels as that operator, so the server has
+  // one place that decides what a row means rather than a kind plus a
+  // modifier. `class` and `cmp` are the two, and they mean different things by
+  // the same symbols: see `equipment.py::search`.
+  const OPS = { class: { pick: 'pick', lt: 'lt', gt: 'gt' },
+                cmp: { pick: 'exactly', lt: 'under', gt: 'over' } };
   gearFilters.forEach(f => q.push('f=' + encodeURIComponent(
-    `${f.key}:${f.kind === 'class' ? f.op : f.kind}:${f.value}`)));
+    `${f.key}:${(OPS[f.kind] || {})[f.op] || f.kind}:${f.value}`)));
   // Down the same road as every other filter, so one function decides what is
   // kept and what is dropped.
   if (gearName) q.push('f=' + encodeURIComponent(`name:text:${gearName}`));

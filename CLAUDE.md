@@ -785,6 +785,35 @@ which are the hardest hitting in the game and are wreck loot, and drops the 12
 mission weapons that are in neither place. Same shape as `bases.py`'s rule and
 the Trade tab's undockable markets.
 
+## Settled: a media query asks the viewport, and the layout is not in it
+
+Closed 2026-09-10, one day after it was introduced. Systems lays a house out
+two cards abreast, and it was written as `@media (min-width: 1400px)`. The
+owner never saw it fire, at any zoom.
+
+**1400 was a number picked out of the air, and his page is not the viewport.**
+His browser carries a sidebar that takes some 600px off the window, so the page
+sat at roughly 1396 CSS px: a hair under the guess. Zooming out widens the CSS
+viewport and should have crossed it, which is why it read as "the feature does
+not work" rather than "the window is too narrow".
+
+It is now a container rule with no breakpoint in it:
+
+    grid-template-columns: repeat(auto-fit, minmax(max(34rem, 48%), 1fr));
+
+`48%` is what caps it at two, because three tracks of 48% cannot fit however
+wide the screen gets. `34rem` is the floor, so it drops back to one column
+rather than squeezing a system's base list into something unreadable. Measured:
+one column at 900 and 1100, two from about 1130px of page width, two at 1256,
+1396, 1500 and 1920, never three.
+
+**The general rule: a media query measures the window, and almost nothing on
+this page lives in the window.** `.wrap` caps at 1680, a sidebar takes what it
+likes, and the panel is inside both. Where a layout should change because *this
+box* got wider, size it from the box: `auto-fit` with a percentage floor says
+that directly and cannot be wrong about somebody else's chrome. `.totals` and
+`.hits` were already written this way; Systems was the odd one out.
+
 ## Settled: docked-only filters, and a favourite outranks every filter
 
 Closed 2026-09-10, and the first half **reverses a decision this file used to
@@ -822,19 +851,53 @@ and the reload that follows it. The Neural Net's guard sits next door because
 that tab re-reads its log every five seconds. Said out loud in the code, or the
 absence reads as an oversight.
 
-## Settled: the Equipment table shows every column
+## Settled: the Equipment table shows every column, and you can drop one
 
-Closed 2026-09-10. It used to show the sorted column plus whatever was being
-filtered on, two or three of nine, which is what *"в таблице мало данных"*
-meant. The tracker asked for a `+`/`-` control **if** all of them were too many.
-Measured with all of them on: guns need 1335px and shields 1244px, no header is
-clipped at any width, and the page never scrolls sideways. Below about 1350px
-the table scrolls inside its own `.guns` box, which is what `overflow-x: auto`
-is there for. So the condition was not met and the control was not built.
+Closed 2026-09-10, in two passes. It used to show the sorted column plus
+whatever was being filtered on, two or three of nine, which is what *"в таблице
+мало данных"* meant. Measured with all of them on: guns need 1335px and shields
+1244px, no header is clipped at any width, and the page never scrolls sideways.
+Below about 1350px the table scrolls inside its own `.guns` box, which is what
+`overflow-x: auto` is there for. So all of them are drawn.
+
+**Dropping one is a `×` on its heading, not a row of switches and not a
+stepper.** Both of those were offered and the owner picked the heading: there
+is no extra control on the page at all until something is off, and then a
+`+ add a column…` select appears beside the `+ add a parameter…` one that was
+already there. `gearHidden` holds **the exceptions, not the selection**, so an
+empty set is the full table and a parameter added to the game later appears
+without being named anywhere.
+
+**A column you sort or filter on cannot be hidden and carries no `×`.** An
+arrow pointing at a column that is not on screen, or a filter narrowing the
+list by a number you cannot see, is the table lying about itself.
+
+Neither dropping nor restoring a column asks the server for anything: the
+figures are already in the payload. Verified, along with the click not falling
+through to the sort the heading also answers, and with the row cells staying in
+step with the grid at 12, 9 and 10 columns.
 
 `price` stays out of the parameter columns: it has a fixed column of its own
 further right, and listing it twice is how a table starts lying about itself.
 `default` came out of the payload with the old column rule, its only reader.
+
+## Settled: rank needed is a comparison, and the other numbers are not
+
+Closed 2026-09-10. `rank` is `cmp` in `PARAMETERS`, which draws the same
+`[= < >]` select the mount class does and sends `exactly`, `under` or `over`.
+Every other numeric parameter stays a minimum, at the owner's call: *"at least
+400 hull DPS"* is the question people have about a gun, and *"at least rank
+16"* is not a question about anything. What you want to know is what you can
+fly now.
+
+**Four spellings, two questions, deliberately not merged.** `lt`/`gt` compare
+mount classes and refuse to answer across a socket family, because a shield's
+`fighter 6` and `elite 6` are different mounts. `under`/`over` compare plain
+numbers. One name for both would put that family rule on a price.
+
+Checked against the catalogue: `= 16` gives 51 guns all at rank 16, `< 16`
+gives 109 at ranks 0 to 10, `> 16` gives 75 at 22 to 30. 51 + 109 + 75 = 235,
+the whole list, partitioned.
 
 ## Systems are identified by nickname, never by display name
 

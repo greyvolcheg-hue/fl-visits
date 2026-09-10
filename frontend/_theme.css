@@ -104,14 +104,22 @@
              background: rgba(111, 216, 255, .04);
              border: 1px solid var(--line-soft); }
   h2.house:first-child { margin-top: 0; }
-  /* Two systems abreast once the window can hold two. The gap is horizontal
-     only: `.sys` already carries its own bottom margin, and a row gap here
-     would double it. `align-items: start` so an opened system does not
-     stretch the shut card beside it to its own height. */
-  @media (min-width: 1400px) {
-    .housebody { display: grid; grid-template-columns: 1fr 1fr;
-                 gap: 0 .5rem; align-items: start; }
-  }
+  /* Two systems abreast once there is room for two, and **no breakpoint**.
+     This was `@media (min-width: 1400px)` for a day and the owner never saw it
+     fire: a browser sidebar takes 600px off the window, so his page sat at
+     about 1396 CSS px, a hair under a number picked out of the air. A media
+     query asks the viewport, and the viewport is not what this grid lives in.
+
+     `48%` is what caps it at two: three tracks of 48% cannot fit, so it never
+     goes to three however wide the screen gets. `34rem` is the floor, so it
+     drops back to one column rather than squeezing a system's base list into
+     something unreadable. Measured: one column to 1100px of page, two from
+     about 1130px up, two at 1920. The gap is horizontal only, because `.sys`
+     already carries its own bottom margin and a row gap here would double it,
+     and `align-items: start` keeps an opened system from stretching the shut
+     card beside it. */
+  .housebody { display: grid; align-items: start; gap: 0 .5rem;
+               grid-template-columns: repeat(auto-fit, minmax(max(34rem, 48%), 1fr)); }
   h2.house[data-house] { cursor: pointer; user-select: none; }
   h2.house[data-house]:hover { color: var(--cyan-hi);
                                background: rgba(111, 216, 255, .1); }

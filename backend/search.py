@@ -47,7 +47,11 @@ def _equipment(ctx):
         for raw in ctx.query.get("f", []):
             key, _, rest = raw.partition(":")
             knd, _, value = rest.partition(":")
-            if knd == "num":
+            # Every kind that compares numbers reads its value as one. A
+            # `cmp` parameter arrives as its operator, the same way a mount
+            # class does, so the server has one place deciding what a row
+            # means rather than a kind plus a modifier.
+            if knd in ("num", "under", "over", "exactly"):
                 try:
                     value = float(value)
                 except (TypeError, ValueError):
