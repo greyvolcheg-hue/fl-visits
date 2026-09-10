@@ -91,10 +91,44 @@ function ago(t) {
 //
 // Proved rather than guessed, in a headless browser: press the button, run a
 // poll, release it, and the release lands on a different element.
+//
+// **What it compares against is the whole trick, and the first version got it
+// wrong.** It read `node.innerHTML` back and compared that, which does not work
+// and cannot: the browser hands back its own serialisation, not the string it
+// was given. Measured on 2026-09-10, per view:
+//
+//     search  wrote <option value="guns" selected>   read back  selected=""
+//     rep     the same
+//     systems wrote <div class="housebody" hidden>   read back  hidden=""
+//     log     a U+00A0 inside a rumor, written raw   read back  &nbsp;
+//
+// A bare boolean attribute comes back with `=""` and a character the serialiser
+// prefers as an entity comes back as one, so those four panels never matched
+// and were destroyed and rebuilt on **every five-second tick**. That is what
+// shut a `<select>` under the cursor and took the focus out of the Equipment
+// search box, which read as a browser fault and was ours. Writing the markup
+// more carefully does not fix it; the comparison itself was the bug.
+//
+// So the last html written is remembered here, where it is exactly the string
+// that went in. Cheaper too: reading `innerHTML` on a 700-row table serialised
+// the whole subtree once a tick to answer a question about a string.
+const painted = new WeakMap();
+
 function paint(node, html) {
-  if (node.innerHTML === html) return false;
+  if (painted.get(node) === html) return false;
   node.innerHTML = html;
+  painted.set(node, html);
   return true;
+}
+
+// Empty a node **and forget what it held**, so the next paint really writes.
+// Anything that clears a painted node by hand has to come through here or the
+// record says it still holds markup that is no longer on screen.
+// `check_views.py` is the one caller: it blanks the panel between views so a
+// view that draws nothing is not measured against the previous one's markup.
+function clear(node) {
+  node.innerHTML = '';
+  painted.delete(node);
 }
 
 function totals(pairs) {

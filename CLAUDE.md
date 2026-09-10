@@ -543,6 +543,49 @@ The general rule for anything on this page: a five-second poll is allowed to
 compare, never to rebuild. If a panel must be rebuilt on a tick, its buttons
 are not clickable and no amount of testing the handler will show it.
 
+### `paint` was comparing against the wrong thing, and four views never matched
+
+Reopened and closed again 2026-09-10, from the owner's report that *"селекты
+скрываются после нажатия мышью"* and that the Equipment search box loses focus
+after a while. He guessed a browser fault. It was this section's own fix, half
+done.
+
+`paint` wrote only when its markup differed from **`node.innerHTML`**, and that
+comparison cannot work: the browser hands back its own serialisation, not the
+string it was given. Measured per view:
+
+| View | Written | Read back |
+|---|---|---|
+| `search` | `<option value="guns" selected>` | `selected=""` |
+| `rep` | the same | |
+| `systems` | `<div class="housebody" hidden>` | `hidden=""` |
+| `log` | a U+00A0 inside a rumor, raw | `&nbsp;` |
+
+A bare boolean attribute comes back with `=""`, and a character the serialiser
+prefers as an entity comes back as one. So four of the nine views never matched
+and were destroyed and rebuilt on **every tick**, for three years of
+five-second intervals, with nothing to see: `wire()` re-ran, so the buttons
+still worked. What went was the open `<select>`, the focused input, the
+half-typed text, the selection and the scroll position. `overview`, `chart`,
+`market`, `routes` and `engine` were stable, which is why it hid.
+
+**Writing the markup more carefully is not the fix and must not be attempted.**
+The comparison was the bug. `paint` now remembers the last html it wrote, in a
+`WeakMap` keyed on the node, where it is exactly the string that went in. It is
+also cheaper: reading `innerHTML` on a 700-row table serialised the whole
+subtree once a tick to answer a question about a string.
+
+Two consequences worth keeping:
+
+- **Anything that empties a painted node by hand goes through `clear(node)`**,
+  or the record says it still holds markup that is no longer on screen and the
+  next legitimate write is skipped. `check_views.py` is the one caller.
+- **`check_views.py` now measures the invariant**, by identity rather than by
+  asking `paint` whether it wrote: render a view twice with the same data and
+  no node may be replaced. Proved to fire by putting the old comparison back on
+  purpose: 12 `POLL` lines, naming exactly `systems`, `search`, `rep` and the
+  two log views that carry rumors.
+
 
 ## The look: `design/Neural Companion.dc.html` is the source, not a screenshot
 
@@ -741,6 +784,57 @@ at a dockable base, or present in a wreck. That keeps the 17 codenamed guns,
 which are the hardest hitting in the game and are wreck loot, and drops the 12
 mission weapons that are in neither place. Same shape as `bases.py`'s rule and
 the Trade tab's undockable markets.
+
+## Settled: docked-only filters, and a favourite outranks every filter
+
+Closed 2026-09-10, and the first half **reverses a decision this file used to
+defend**, so read both halves before restoring anything.
+
+**"Only bases I have docked at" now drops rows.** It used to rewrite each row's
+`bases` and keep the row, so the page could say "nowhere you have docked sells
+it", and `backend/search.py` and `equipment.py::search` both carried paragraphs
+explaining that this was the opposite of the system filter and must not be
+merged with it. The owner's verdict: *"бесполезна в текущей реализации"*, and
+he is right. It left 187 of the 235 guns on screen with nothing under them,
+wreck loot included, which is not a filter. Measured against a save with 30
+docked bases: guns 235 → 51, shields 79 → 36. It is a filter kind inside
+`eqp.search` now, so one function still decides what is kept. `search.py` still
+narrows each surviving row's `bases` to the docked dealers, which is a
+different job, runs after, and can no longer empty a row.
+
+**A favourite bypasses every filter.** `eqp.search` takes `keep`, a set of
+nicknames checked before the filters and then **carried through the same
+sort**, which is what puts a favourite in the ranking rather than in a pile on
+top of it. Verified: starring the weakest gun in the game and asking for
+`hull_dps >= 100` returns 226 rows instead of 225, with that gun last.
+
+**The favourites live in `data/marks.json`, under their own kind.** Not
+`localStorage`: that is the trap that lost the Neural Net's marks on
+2026-09-09, and the account is under *the reader's marks belong to the server*.
+`fav` rather than a share of `star`, because a starred news item and a
+favourite gun are different things. The key is the bare item nickname, which is
+unique across guns and shields (314 rows, 314 nicknames), so it needs no prefix
+and carries none.
+
+**The Equipment tab has no `marksHeld` guard and does not need one.** It
+registers no `poll`, so nothing arrives to overwrite a star between the click
+and the reload that follows it. The Neural Net's guard sits next door because
+that tab re-reads its log every five seconds. Said out loud in the code, or the
+absence reads as an oversight.
+
+## Settled: the Equipment table shows every column
+
+Closed 2026-09-10. It used to show the sorted column plus whatever was being
+filtered on, two or three of nine, which is what *"в таблице мало данных"*
+meant. The tracker asked for a `+`/`-` control **if** all of them were too many.
+Measured with all of them on: guns need 1335px and shields 1244px, no header is
+clipped at any width, and the page never scrolls sideways. Below about 1350px
+the table scrolls inside its own `.guns` box, which is what `overflow-x: auto`
+is there for. So the condition was not met and the control was not built.
+
+`price` stays out of the parameter columns: it has a fixed column of its own
+further right, and listing it twice is how a table starts lying about itself.
+`default` came out of the payload with the old column rule, its only reader.
 
 ## Systems are identified by nickname, never by display name
 

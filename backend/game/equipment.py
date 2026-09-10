@@ -349,7 +349,7 @@ def systems(rows):
             for nick, label in sorted(seen.items(), key=lambda kv: (kv[1], kv[0]))]
 
 
-def search(rows, filters, order, descending=True):
+def search(rows, filters, order, descending=True, keep=None):
     """Rows passing every filter, in the order asked for.
 
     `filters` is [(key, kind, value)] and the kind says how to read it:
@@ -358,36 +358,56 @@ def search(rows, filters, order, descending=True):
         pick    an exact match
         text    a case-insensitive substring of the item's name
         system  sold at a base in that system, by system nickname
+        docked  sold at one of the bases in `value`, a set of base ids
         lt, gt  a mount class below or above the one named, within its family
 
     **Sorting is separate from filtering** and stays that way: adding a
     threshold narrows the list without reshuffling what you were reading, and
     the column headers are what change the order.
 
-    `system` is the one filter that reaches into `bases` rather than reading a
-    column, and it is also the one that **drops** a row rather than emptying
-    it. That is the opposite of the docked-only rule in `backend/search.py`,
-    which keeps the row so the page can say "nowhere you have docked sells it".
-    The two look alike and mean different things: "show me what this system
-    sells" has no answer for a gun this system does not sell, whereas "where
-    can I buy it" still has the gun in it. Do not merge them.
+    `system` and `docked` are the two that reach into `bases` rather than
+    reading a column, and both **drop** a row rather than emptying it. `docked`
+    used to be the exception, applied in `backend/search.py` afterwards and
+    written up at length here as the opposite of `system`: it rewrote `bases`
+    and kept the row so the page could say "nowhere you have docked sells it".
+    **That was reversed on 2026-09-10 at the owner's request**, because a
+    filter that drops nothing is not a filter: it left 187 of the 235 guns on
+    screen with no dealer under them, wreck loot included. It is one of the
+    filters now, and it goes here so that one function still decides what is
+    kept. `backend/search.py` still narrows each surviving row's `bases` to the
+    docked ones, which is a different job and can no longer empty a row.
+
+    `keep` is the set of nicknames that **bypass every filter**: the Equipment
+    tab's favourites. It is checked before the filters rather than merged in
+    afterwards so the sort below places them, which is what makes a favourite
+    land in the ranking rather than in a pile on top of it.
     """
+    keep = keep or ()
     out = []
     for row in rows:
-        keep = True
+        if row.get("nickname") in keep:
+            out.append(row)
+            continue
+        keep_row = True
         for key, kind, value in filters:
             got = row.get(key)
             if kind == "num":
                 if got is None or got < value:
-                    keep = False
+                    keep_row = False
                     break
             elif kind == "text":
                 if str(value).lower() not in str(got or "").lower():
-                    keep = False
+                    keep_row = False
                     break
             elif kind == "system":
                 if not any(b.get("sys") == value for b in row.get("bases") or ()):
-                    keep = False
+                    keep_row = False
+                    break
+            elif kind == "docked":
+                # A gun sold nowhere at all has no `bases`, so wreck loot goes
+                # with this one. That is the second half of what was asked for.
+                if not any(b.get("id") in value for b in row.get("bases") or ()):
+                    keep_row = False
                     break
             elif kind in ("lt", "gt"):
                 # Same family or nothing: "under fighter 6" has no opinion about
@@ -396,15 +416,15 @@ def search(rows, filters, order, descending=True):
                 family, want = mount_class(value)
                 mine, have = mount_class(got)
                 if mine != family or not want or not have:
-                    keep = False
+                    keep_row = False
                     break
                 if not (have < want if kind == "lt" else have > want):
-                    keep = False
+                    keep_row = False
                     break
             elif str(got or "") != str(value):
-                keep = False
+                keep_row = False
                 break
-        if keep:
+        if keep_row:
             out.append(row)
 
     def key(row):

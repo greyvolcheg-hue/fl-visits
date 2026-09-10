@@ -135,9 +135,32 @@ function expand() {
     holdSys = tradeData.hold.systems[0].sys;
 }
 
+// **A second render with the same data must replace nothing.** That is the
+// whole contract of `paint`, and four views were breaking it in silence: the
+// first version compared its markup against `node.innerHTML`, which is the
+// browser's own serialisation and not the string it was handed, so a bare
+// `selected` or `hidden` attribute or a U+00A0 in a rumor made every
+// five-second tick a full rebuild. Nothing errored. The panel simply threw
+// away the open `<select>`, the focused input, the selection and the scroll
+// position, once a tick, for as long as the tab was open.
+//
+// Measured by identity rather than by asking `paint` whether it wrote, so this
+// keeps working however `paint` is implemented next. It is the invariant that
+// matters: a poll may compare, never rebuild.
+function stable(pass, id) {
+  const first = $('#list').firstElementChild;
+  if (!first) return;
+  try { render(); }
+  catch (err) { REPORT.push('FAIL  ' + pass + ' ' + id + ' on redraw: ' + err); return; }
+  if ($('#list').firstElementChild !== first)
+    REPORT.push('POLL  ' + pass + ' ' + id + ': a second render replaced the ' +
+                'panel, so every five-second tick rebuilds it and takes the ' +
+                'focus and any open select with it');
+}
+
 function draw(pass, id, want) {
   tab = id.split(':')[0];
-  $('#list').innerHTML = '';
+  clear($('#list'));
   try { render(); }
   catch (err) { REPORT.push('FAIL  ' + pass + ' ' + id + ': ' + err); return; }
   if (want && !document.querySelector(want))
@@ -145,6 +168,7 @@ function draw(pass, id, want) {
   else
     REPORT.push('ok    ' + pass + ' ' + id);
   grids(id);
+  stable(pass, id);
 }
 
 // Every name the tab strip can select must be a view that exists.
@@ -219,7 +243,7 @@ function finish() {
   // way that went rather than let a silent pass stand for a check.
   if (typeof tradeData !== 'undefined' && tradeData && !tradeData.hold.items.length)
     REPORT.push('note  this save has an empty hold, so .holdtable never drew');
-  const bad = REPORT.filter(r => r[0] === 'F' || r[0] === 'E').length + GRID.length;
+  const bad = REPORT.filter(r => /^(FAIL|EMPTY|POLL) /.test(r)).length + GRID.length;
   document.body.innerHTML =
     '<pre style="color:#e6edf3;background:#0d1117;font:13px monospace;padding:1rem">'
     + (bad ? bad + ' problem(s)\n\n'

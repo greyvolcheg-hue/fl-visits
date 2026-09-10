@@ -195,20 +195,31 @@ a single-threaded 2003 renderer. And the billboards are deliberately left alone:
 `[Cube]` grid that places the real rocks, which is why a sprite winks out and a
 rock appears somewhere else. More sprites makes that worse.
 
-**Equipment** answers *which* gun should I be after. Pick guns or shields, then
-add the parameters you care about. A parameter is a filter **and** a column.
-Filters stack, and **filtering never reorders**: that is what the column
-headings are for, and clicking one twice turns it round. The default is hull DPS
-for guns and capacity for shields.
+**Equipment** answers *which* gun should I be after. Pick guns or shields and
+**every parameter is a column**, all nine of them for guns and seven for
+shields. Add the ones you care about as filters on top. Filters stack, and
+**filtering never reorders**: that is what the column headings are for, and
+clicking one twice turns it round. The default is hull DPS for guns and
+capacity for shields.
 
-Two filters sit outside that list, in the top row, because they are the two you
-reach for first. **Name** is a plain substring. **System** is the one filter
-that drops a row rather than emptying it: picking Colorado means "what does
-Colorado sell", which has no answer for a gun Colorado does not sell, so a
-wreck-only gun like ARCHANGEL disappears from it. That is the opposite of the
-docked-only checkbox beside it, which keeps the row and empties its dealer list
-so the page can say "nowhere you have docked sells it". The two look alike and
-mean different things.
+**A favourite ignores every filter.** Click the star on any row and it stays in
+the list whatever you narrow it to, in its proper place in the sort rather than
+pinned on top, so it is a bench to measure candidates against. Favourites are
+kept by the server in `data/marks.json`, beside the Neural Net's read marks, so
+they survive a reload, a restart and a different browser. A favourited shield
+does not appear in the gun table: the columns are different and the row would
+mean nothing.
+
+Two filters sit outside the parameter list, in the top row, because they are
+the two you reach for first. **Name** is a plain substring. **System** means
+"what does Colorado sell", which has no answer for a gun Colorado does not
+sell, so a wreck-only gun like ARCHANGEL disappears from it.
+
+**Only bases I have docked at** drops rows too, and until 2026-09-10 it did
+not: it used to empty a row's dealer list and keep the row, so 187 of the 235
+guns sat there with nothing under them. Ticked, you now get only what is sold
+at a base you have actually been to, which takes wreck loot with it. On a save
+with 30 bases docked that is 51 guns of 235 and 36 shields of 79.
 
 Picking a system on a list already sorted by hull DPS is the top guns sold
 there. On the command line the same question is

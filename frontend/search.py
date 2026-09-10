@@ -8,11 +8,23 @@ CSS = """
   /* A row is a button in all but name: clicking one opens where to buy it. */
   .good { cursor: pointer; }
   .good.on { border-color: var(--docked); }
+  /* The favourite star. Its own hit target inside the name cell, because the
+     row it sits on already answers a click by opening the dealer list. */
+  .favstar { background: none; border: 0; padding: 0 .45rem 0 0; margin: 0;
+             cursor: pointer; color: var(--fainter); font-size: 13px;
+             line-height: 1; }
+  .favstar:hover { color: var(--revealed); }
+  .favstar.on { color: var(--revealed); }
+  .good.fav { border-left: 2px solid var(--revealed); }
 """
 
 JS = r"""
 let gearData = null, gearKind = 'guns', gearFilters = [],
     gearOpen = '', gearVisitedOnly = false, gearSort = '', gearDir = 'down';
+// Favourites: an item kept in the list whatever the filters say. The server
+// owns them, in `data/marks.json` beside the Neural Net's read marks, and this
+// is a cache of what it last said. Seeded on every `loadGear`.
+let gearFavs = new Set();
 // Name and system are not in the removable filter list with the rest. They are
 // the two you reach for first, so they sit in the top row and are always there.
 //
@@ -94,14 +106,16 @@ function renderGear() {
   if (!d.rows.length)
     return out + '<p class="empty">Nothing matches all of those.</p>';
 
-  // Columns: the kind's headline number, whatever is being sorted on, and
-  // whatever is being filtered on. A key appears once however many of those
-  // it happens to be.
+  // **Every parameter, in the order `PARAMETERS` declares them.** It used to
+  // show only the sorted column plus whatever was being filtered on, which is
+  // two or three of nine and is what the owner meant by "мало данных". They
+  // fit: measured with all of them on, guns need 1335px and shields 1244px,
+  // no header is clipped and the page never scrolls sideways. Below about
+  // 1350px the table scrolls inside its own `.guns` box, which is what that
+  // box is for.
   // `price` is left out: it has a fixed column of its own further right, and
   // listing it twice is how a table starts lying about itself.
-  const cols = [];
-  [d.default, d.order].concat(gearFilters.map(f => f.key))
-    .forEach(k => { if (k && k !== 'price' && !cols.includes(k)) cols.push(k); });
+  const cols = params.filter(p => p.key !== 'price').map(p => p.key);
   const arrow = k => k !== d.order ? '' : (d.dir === 'down' ? ' ↓' : ' ↑');
   out += `<p class="note">${d.rows.length} of ${d.total},
     by ${esc(param(d.order).label)}${d.dir === 'down' ? ', biggest first' : ', smallest first'}.
@@ -111,6 +125,14 @@ function renderGear() {
     (gearSystem
       ? ` Only what <b>${esc(sysLabel(d, gearSystem))}</b> sells: a gun found
           in a wreck but sold nowhere there is not in this list.`
+      : '') +
+    (gearVisitedOnly
+      ? ` Only what is sold at a base you have docked at, so wreck loot and
+          anywhere you have not been are both out of it.`
+      : '') +
+    (gearFavs.size
+      ? ` <b class="ok">${gearFavs.size} favourite${gearFavs.size > 1 ? 's' : ''}</b>
+          stay in the list whatever the filters say.`
       : '') + '</p>';
 
   out += '<div class="guns"><div class="geartable" ' +
@@ -122,8 +144,14 @@ function renderGear() {
     '<span>where</span></div>' +
     d.rows.map(r => {
       const open = r.nickname === gearOpen;
-      let line = `<div class="gun good${open ? ' on' : ''}" data-item="${esc(r.nickname)}">` +
-        `<span class="nm">${esc(r.name)}` +
+      const fav = gearFavs.has(r.nickname);
+      let line = '<div class="gun good' + (open ? ' on' : '') + (fav ? ' fav' : '') +
+        `" data-item="${esc(r.nickname)}">` +
+        `<span class="nm"><button class="favstar${fav ? ' on' : ''}" ` +
+        `data-fav="${esc(r.nickname)}" title="${fav
+          ? 'a favourite: stays in the list whatever the filters say'
+          : 'keep this one in the list whatever the filters say'}">` +
+        `${fav ? '★' : '☆'}</button>${esc(r.name)}` +
         (r.rank ? ` <span class="loot">rank ${r.rank}</span>` : '') + '</span>' +
         cols.map(k => `<span class="num ${k === d.order ? 'h' : 'raw'}">` +
           `${fmt(r[k], param(k))}</span>`).join('') +
@@ -215,6 +243,16 @@ function wireGear() {
       gearOpen = b.dataset.item === gearOpen ? '' : b.dataset.item;
       render();
     }));
+  document.querySelectorAll('.favstar').forEach(b =>
+    b.addEventListener('click', e => {
+      // The row under it opens the dealer list, and a star is not that.
+      e.stopPropagation();
+      const key = b.dataset.fav;
+      const on = !gearFavs.has(key);
+      if (on) gearFavs.add(key); else gearFavs.delete(key);
+      render();
+      favourite(key, on);
+    }));
   document.querySelectorAll('.sortby').forEach(h =>
     h.addEventListener('click', () => {
       // Clicking the column already sorted on turns it round; a new column
@@ -224,6 +262,29 @@ function wireGear() {
       gearSort = key;
       loadGear();
     }));
+}
+
+// **No `marksHeld` guard here, and none is needed.** The Neural Net keeps one
+// because it re-reads the log every five seconds and a payload prepared before
+// a click would undo it; Equipment registers no `poll`, so nothing arrives
+// between the click and the reload below. The guard next door is not something
+// this tab forgot.
+//
+// The reload is not optional. Un-starring an item that only survived the
+// filters because of its star has to take it out of the list, and starring one
+// changes what the server would send back, so the list is asked for again once
+// the write is home.
+async function favourite(key, on) {
+  try {
+    await fetch('api/marks', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'fav', key: key, on: on }),
+    });
+  } catch (e) {
+    // The star stays where the click put it; the next load corrects it.
+  }
+  loadGear();
 }
 
 async function loadGear() {
@@ -240,7 +301,11 @@ async function loadGear() {
   if (gearVisitedOnly) q.push('visited=1');
   try {
     const r = await fetch('api/equipment?' + q.join('&'), { cache: 'no-store' });
-    if (r.ok) { gearData = await r.json(); render(); }
+    if (r.ok) {
+      gearData = await r.json();
+      gearFavs = new Set(gearData.favs || []);
+      render();
+    }
   } catch (e) { /* the tab keeps its loading line */ }
 }
 

@@ -293,7 +293,12 @@ def read_state(game, save_path, saved):
 
 MARKS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                      "data", "marks.json")
-KINDS = ("star", "read")
+# `fav` is the Equipment tab's own: a starred gun ignores every filter and
+# stays in the list. Its own kind rather than a share of `star`, because a
+# starred news item and a favourite gun are different things and the vault's
+# first rule is one spelling per meaning. The key is the item nickname, which
+# is unique across guns and shields, so it needs no prefix and carries none.
+KINDS = ("star", "read", "fav")
 _marks_lock = threading.Lock()
 
 

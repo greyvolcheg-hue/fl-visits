@@ -3,13 +3,14 @@
 The page half is in `frontend/search.py`.
 """
 
+from . import common as cm
 from .game import equipment as eqp
 
 
 def _equipment(ctx):
     """One kind of gear, narrowed by whatever thresholds were asked for."""
     body = {"kinds": [], "kind": None, "parameters": [], "choices": {},
-            "systems": [], "order": None, "default": None, "dir": "down",
+            "systems": [], "order": None, "dir": "down", "favs": [],
             "rows": [], "total": 0, "error": None}
     try:
         cat = ctx.game.gear
@@ -26,7 +27,7 @@ def _equipment(ctx):
             order = eqp.ORDER[kind]
         down = (ctx.query.get("dir") or ["down"])[0] != "up"
         body["kind"], body["total"] = kind, len(rows)
-        body["order"], body["default"] = order, eqp.ORDER[kind]
+        body["order"] = order
         body["dir"] = "down" if down else "up"
         body["parameters"] = [
             {"key": k, "label": lab, "kind": knd, "unit": unit}
@@ -52,23 +53,37 @@ def _equipment(ctx):
                 except (TypeError, ValueError):
                     continue
             filters.append((key, knd, value))
-        found = eqp.search(rows, filters, order, down)
 
-        # The docked filter narrows where you can buy, never what
-        # exists: a gun is still a gun if you have not been to its
-        # dealer. So it rewrites `bases` and leaves the row in place,
-        # and the page says "nowhere you have docked" rather than
-        # quietly dropping it.
+        # Favourites are personal state and live where the read marks do, in
+        # `data/marks.json`, so they survive a container tab and a second
+        # browser. See the account in `common.py`; `localStorage` is where the
+        # Neural Net's marks went missing.
         #
-        # **The system filter is the opposite and runs earlier**, inside
-        # `eqp.search`: "what does Colorado sell" has no answer for a gun
-        # Colorado does not sell, so that one drops the row. The two read
-        # alike and are not the same question. Applied in this order a row
-        # can survive the system and then show no dealer, which is exactly
-        # right: sold there, and you have not been.
+        # Narrowed to this kind's own nicknames: a favourited shield has no row
+        # in the gun table and would only widen `keep` for nothing.
+        favs = {n for n in cm.load_marks()["fav"]
+                if any(r["nickname"] == n for r in rows)}
+        body["favs"] = sorted(favs)
+
+        # **Docked-only is a filter like any other and drops rows.** It used to
+        # rewrite `bases` here and keep the row so the page could say "nowhere
+        # you have docked sells it"; that left 187 of the 235 guns on screen
+        # with nothing under them and filtered nothing, which is what the owner
+        # reported on 2026-09-10. `eqp.search` carries the reversal and the
+        # reasoning. A favourite still bypasses it, along with everything else.
+        seen = None
         if (ctx.query.get("visited") or [""])[0]:
-            state = ctx.state()
-            seen = set(state["docked_bases"])
+            seen = set(ctx.state()["docked_bases"])
+            filters.append(("bases", "docked", seen))
+
+        found = eqp.search(rows, filters, order, down, keep=favs)
+
+        # Narrowing each surviving row to the dealers you have actually been
+        # to. A different job from the filter above and it runs after it, so it
+        # can no longer empty a row that was kept. It still can for a
+        # favourite, which survived on its star alone: "nowhere you have
+        # docked" is the honest line for that one.
+        if seen is not None:
             found = [dict(r, bases=[b for b in r["bases"] if b["id"] in seen])
                      for r in found]
         body["rows"] = found
