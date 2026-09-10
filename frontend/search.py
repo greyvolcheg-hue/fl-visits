@@ -97,12 +97,12 @@ function renderGear() {
     // picks its value off a list, `cmp` takes a typed number; the select in
     // front of them is the same control and reads the same way.
     const ops = list => `<select class="op" data-op="${i}">` +
-      [['pick', '='], ['lt', '<'], ['gt', '>']].map(([v, sym]) =>
+      [['pick', '='], ['le', '<='], ['ge', '>=']].map(([v, sym]) =>
         `<option value="${v}"${f.op === v ? ' selected' : ''}>${sym}</option>`
       ).join('') + '</select>' + list;
     out += `<div class="filter"><span class="nm">${esc(p.label)}</span>` +
       (p.kind === 'class'
-        // A mount class is a number, so it takes a comparison. `<` and `>`
+        // A mount class is a number, so it takes a comparison. `<=` and `>=`
         // stay inside the family: a shield's "fighter 6" and "elite 6" are
         // different sockets on the ship, not two sizes of one.
         ? ops(list())
@@ -352,8 +352,12 @@ async function loadGear() {
   // one place that decides what a row means rather than a kind plus a
   // modifier. `class` and `cmp` are the two, and they mean different things by
   // the same symbols: see `equipment.py::search`.
-  const OPS = { class: { pick: 'pick', lt: 'lt', gt: 'gt' },
-                cmp: { pick: 'exactly', lt: 'under', gt: 'over' } };
+  //
+  // **`>=` on a number is `num`**, which is what every other numeric filter
+  // already sends, because "at least" is exactly what `num` means. Giving it a
+  // second name would be two spellings of one thing.
+  const OPS = { class: { pick: 'pick', le: 'le', ge: 'ge' },
+                cmp: { pick: 'exactly', le: 'upto', ge: 'num' } };
   gearFilters.forEach(f => q.push('f=' + encodeURIComponent(
     `${f.key}:${(OPS[f.kind] || {})[f.op] || f.kind}:${f.value}`)));
   // Down the same road as every other filter, so one function decides what is

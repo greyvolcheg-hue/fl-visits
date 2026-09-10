@@ -884,20 +884,35 @@ further right, and listing it twice is how a table starts lying about itself.
 ## Settled: rank needed is a comparison, and the other numbers are not
 
 Closed 2026-09-10. `rank` is `cmp` in `PARAMETERS`, which draws the same
-`[= < >]` select the mount class does and sends `exactly`, `under` or `over`.
-Every other numeric parameter stays a minimum, at the owner's call: *"at least
-400 hull DPS"* is the question people have about a gun, and *"at least rank
-16"* is not a question about anything. What you want to know is what you can
-fly now.
+`[= <= >=]` select the mount class does. Every other numeric parameter stays a
+plain minimum, at the owner's call: *"at least 400 hull DPS"* is the question
+people have about a gun, and *"at least rank 16"* is not a question about
+anything. What you want to know is what you can fly now.
 
-**Four spellings, two questions, deliberately not merged.** `lt`/`gt` compare
-mount classes and refuse to answer across a socket family, because a shield's
-`fighter 6` and `elite 6` are different mounts. `under`/`over` compare plain
+**Both comparisons are inclusive**, changed from `<`/`>` on the owner's call
+the same day, and that has a naming consequence worth keeping: **`>=` on a
+number is `num`**, which every other numeric filter already sends, because "at
+least" is precisely what `num` means. So the page sends `num` for it and there
+is no `over` kind. `<=` has no twin and is `upto`.
+
+**`le`/`ge` are not those two under different names.** They compare mount
+classes and refuse to answer across a socket family, because a shield's
+`fighter 6` and `elite 6` are different mounts; the numeric pair compares
 numbers. One name for both would put that family rule on a price.
 
-Checked against the catalogue: `= 16` gives 51 guns all at rank 16, `< 16`
-gives 109 at ranks 0 to 10, `> 16` gives 75 at 22 to 30. 51 + 109 + 75 = 235,
-the whole list, partitioned.
+Checked against the catalogue, and the inclusive figures compose exactly with
+the strict ones they replaced:
+
+| | `=` | `<=` | `>=` |
+|---|---|---|---|
+| rank 16, guns | 51 | 160 (109 + 51) | 126 (75 + 51) |
+| mount 6, guns | 51 | 145 (94 + 51) | 141 (90 + 51) |
+| mount `fighter 6`, shields | 3 | 18 | 11 |
+
+The shield rows are all `fighter`, none of them `elite` or `freighter`, which
+is the family rule holding. And 126 is what `num 16` gave before any of this,
+which is the check that `>=` really did collapse into it rather than becoming
+a second implementation of it.
 
 ## Systems are identified by nickname, never by display name
 

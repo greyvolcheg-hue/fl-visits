@@ -358,20 +358,23 @@ def search(rows, filters, order, descending=True, keep=None):
 
     `filters` is [(key, kind, value)] and the kind says how to read it:
 
-        num     a minimum
-        pick    an exact match
+        num     a minimum, so `>=`
+        upto    a maximum, so `<=`
+        exactly an exact number
+        pick    an exact match on a string
         text    a case-insensitive substring of the item's name
         system  sold at a base in that system, by system nickname
         docked  sold at one of the bases in `value`, a set of base ids
-        lt, gt  a mount class below or above the one named, within its family
-        under, over, exactly
-                a plain number compared the obvious way
+        le, ge  a mount class at or below, at or above, within its family
 
-    **`under`/`over` and `lt`/`gt` are four spellings of two questions and are
-    deliberately not merged.** `lt` compares mount classes, which only mean
-    anything inside their own socket family, and refuses to answer across one.
-    `under` compares numbers. Giving them one name would put that family rule
-    on a price.
+    **There is no `over`, and that is the point.** The page's `>=` on a number
+    is a minimum, and `num` already is one, so a second name for it would be
+    two spellings of one meaning. `<=` has no such twin and is `upto`.
+
+    **`le`/`ge` are not `upto`/`num` under other names.** They compare mount
+    classes, which only mean anything inside their own socket family, and
+    refuse to answer across one; the numeric pair compares numbers. Giving
+    either pair the other's name would put that family rule on a price.
 
     **Sorting is separate from filtering** and stays that way: adding a
     threshold narrows the list without reshuffling what you were reading, and
@@ -415,15 +418,13 @@ def search(rows, filters, order, descending=True, keep=None):
                 if not any(b.get("sys") == value for b in row.get("bases") or ()):
                     keep_row = False
                     break
-            elif kind in ("under", "over", "exactly"):
+            elif kind in ("upto", "exactly"):
                 try:
                     mine = float(got)
                 except (TypeError, ValueError):
                     keep_row = False
                     break
-                if not (mine < value if kind == "under"
-                        else mine > value if kind == "over"
-                        else mine == value):
+                if not (mine <= value if kind == "upto" else mine == value):
                     keep_row = False
                     break
             elif kind == "docked":
@@ -432,16 +433,16 @@ def search(rows, filters, order, descending=True, keep=None):
                 if not any(b.get("id") in value for b in row.get("bases") or ()):
                     keep_row = False
                     break
-            elif kind in ("lt", "gt"):
-                # Same family or nothing: "under fighter 6" has no opinion about
-                # an elite mount, and answering as though it did would offer
-                # shields the ship cannot take.
+            elif kind in ("le", "ge"):
+                # Same family or nothing: "at most fighter 6" has no opinion
+                # about an elite mount, and answering as though it did would
+                # offer shields the ship cannot take.
                 family, want = mount_class(value)
                 mine, have = mount_class(got)
                 if mine != family or not want or not have:
                     keep_row = False
                     break
-                if not (have < want if kind == "lt" else have > want):
+                if not (have <= want if kind == "le" else have >= want):
                     keep_row = False
                     break
             elif str(got or "") != str(value):

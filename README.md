@@ -234,17 +234,22 @@ there. On the command line the same question is
 There was a DPS sub-tab that added weapons up into a loadout. It is gone at the
 owner's call.
 
-**Rank needed takes `=`, `<` and `>`** rather than a minimum, because "at least
-rank 16" is not a question about anything: what you want to know is what you can
-fly right now. Every other numeric parameter stays a minimum, which is how they
-are actually asked, and nobody wants a gun with *at most* 400 hull DPS.
+**Rank needed takes `=`, `<=` and `>=`** rather than a plain minimum, because
+"at least rank 16" is not a question about anything: what you want to know is
+what you can fly right now, and that is `<=` your rank. Every other numeric
+parameter stays a minimum, which is how they are actually asked, and nobody
+wants a gun with *at most* 400 hull DPS.
 
-**Mount class takes `=`, `<` and `>`** too, because it is the one categorical
+**Mount class takes `=`, `<=` and `>=`** too, because it is the one categorical
 parameter that is really a number: your ship has a class 6 hardpoint and the
 question is what fits it. On a shield the label carries the socket too, and
-`<` and `>` stay inside it: `fighter 6` and `elite 6` are different mounts on
-the ship, not two sizes of one, so a comparison across them would offer gear
+the comparison stays inside it: `fighter 6` and `elite 6` are different mounts
+on the ship, not two sizes of one, so a comparison across them would offer gear
 the ship cannot take.
+
+Both are inclusive on purpose. `<= 6` is 145 guns to `= 6`'s 51 and `< 6`'s 94,
+which is the same list read without having to remember whether the number you
+typed counts.
 
 A parameter with few enough values is an exact pick instead of a minimum,
 because some questions have no threshold in them. **Projectile speed is one:**

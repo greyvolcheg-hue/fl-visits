@@ -51,7 +51,7 @@ def _equipment(ctx):
             # `cmp` parameter arrives as its operator, the same way a mount
             # class does, so the server has one place deciding what a row
             # means rather than a kind plus a modifier.
-            if knd in ("num", "under", "over", "exactly"):
+            if knd in ("num", "upto", "exactly"):
                 try:
                     value = float(value)
                 except (TypeError, ValueError):
