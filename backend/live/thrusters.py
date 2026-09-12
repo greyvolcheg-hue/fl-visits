@@ -25,16 +25,16 @@ moment we write to it, and searching for the value itself is hopeless anyway:
 `ids_name` numbers are unique constants nothing ever writes to, and each one
 matched in exactly one place across the whole address space when checked.
 
-The process plumbing is imported from `speed.py` rather than copied: same
-game, same technique, and a second copy of the region scan would be a second
-thing to keep right.
+The process plumbing is imported rather than copied: same game, same
+technique, and a second copy of the region scan would be a second thing to keep
+right. It lives in `proc.py`, which is also where the Windows version of it is.
 """
 
-import os
 import struct
 import sys
 
-from .speed import NotRunning, find_pid, regions
+from . import proc
+from .proc import NotRunning, find_pid, regions
 
 # max_force sits this far after the ids_name that identifies its record, and the
 # six records repeat at this stride, in st_equip.ini order.
@@ -81,26 +81,20 @@ def locate(pid):
     low, high = SANE_SPEED
 
     candidates = {}
-    try:
-        mem = open(f"/proc/{pid}/mem", "rb")
-    except OSError as exc:
-        raise NotRunning(f"cannot read process memory: {exc}") from exc
-    with mem:
-        for start, end in regions(pid):
-            try:
-                mem.seek(start)
-                buf = mem.read(end - start)
-            except OSError:
-                continue
-            for pattern, ids in wanted.items():
-                i = buf.find(pattern)
-                while i != -1:
-                    at = i + OFFSET
-                    if at + 4 <= len(buf):
-                        force = struct.unpack_from("<f", buf, at)[0]
-                        if low * PER_SPEED <= force <= high * PER_SPEED:
-                            candidates.setdefault(ids, set()).add(start + at)
-                    i = buf.find(pattern, i + 1)
+    for start, end in regions(pid):
+        try:
+            buf = proc.read(pid, start, end - start)
+        except OSError:
+            continue
+        for pattern, ids in wanted.items():
+            i = buf.find(pattern)
+            while i != -1:
+                at = i + OFFSET
+                if at + 4 <= len(buf):
+                    force = struct.unpack_from("<f", buf, at)[0]
+                    if low * PER_SPEED <= force <= high * PER_SPEED:
+                        candidates.setdefault(ids, set()).add(start + at)
+                i = buf.find(pattern, i + 1)
 
     best = {}
     for ids, addrs in candidates.items():
@@ -128,11 +122,9 @@ def read_all(pid=None):
     if not found:
         raise NotRunning("thrusters not found; is the game past the menu?")
     out = []
-    with open(f"/proc/{pid}/mem", "rb") as fh:
-        for ids, addr in sorted(found.items()):
-            fh.seek(addr)
-            force = struct.unpack("<f", fh.read(4))[0]
-            out.append((ids, THRUSTERS[ids], addr, force / PER_SPEED))
+    for ids, addr in sorted(found.items()):
+        force = struct.unpack("<f", proc.read(pid, addr, 4))[0]
+        out.append((ids, THRUSTERS[ids], addr, force / PER_SPEED))
     return pid, out
 
 
@@ -148,12 +140,8 @@ def set_speed(ids, speed, pid=None):
     if ids not in found:
         raise NotRunning(f"{THRUSTERS[ids]} not found in the process")
     addr, force = found[ids], float(speed) * PER_SPEED
-    with open(f"/proc/{pid}/mem", "r+b") as fh:
-        fh.seek(addr)
-        fh.write(struct.pack("<f", force))
-    with open(f"/proc/{pid}/mem", "rb") as fh:
-        fh.seek(addr)
-        got = struct.unpack("<f", fh.read(4))[0]
+    proc.write(pid, addr, struct.pack("<f", force))
+    got = struct.unpack("<f", proc.read(pid, addr, 4))[0]
     if abs(got - force) > 1.0:
         raise NotRunning(f"wrote {force:g} but read back {got:g}")
     return got / PER_SPEED

@@ -47,6 +47,7 @@ COMMANDS = {
     "inject": "backend.live.inject",
     "newgame": "backend.live.newgame",
     "persist": "backend.live.persist",
+    "proc": "backend.live.proc",
     "routetable": "backend.live.routetable",
     "speed": "backend.live.speed",
     "thrusters": "backend.live.thrusters",

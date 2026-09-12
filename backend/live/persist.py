@@ -63,8 +63,15 @@ def _backup(path):
     """Keep the first version ever seen, and never touch it again."""
     keep = path + ".vanilla"
     if not os.path.exists(keep):
-        with open(path, "rb") as src, open(keep, "wb") as dst:
-            dst.write(src.read())
+        try:
+            with open(path, "rb") as src, open(keep, "wb") as dst:
+                dst.write(src.read())
+        except PermissionError as exc:
+            raise WriteFailed(
+                f"cannot keep a vanilla copy beside {os.path.basename(path)}: "
+                f"{exc}. Nothing was changed. On Windows a game under Program "
+                "Files needs an elevated shell, or an install somewhere else."
+            ) from exc
         return keep
     return None
 
@@ -83,11 +90,26 @@ def _save(path, sections):
                           "contents, not written")
 
     folder = os.path.dirname(path)
-    handle, temp = tempfile.mkstemp(dir=folder, suffix=".tmp")
+    try:
+        handle, temp = tempfile.mkstemp(dir=folder, suffix=".tmp")
+    except PermissionError as exc:
+        # **The common Windows case, and it reads as a bug if it is not named.**
+        # A game installed under `C:\Program Files (x86)` is not writable by a
+        # normal user, so every writer in `live/` stops here, on the temp file
+        # rather than on the game file, which is confusing on its own.
+        raise WriteFailed(
+            f"cannot write in {folder}: {exc}. On Windows a game under "
+            "Program Files needs an elevated shell, or an install somewhere "
+            "else; on Linux check who owns the prefix.") from exc
     try:
         with os.fdopen(handle, "wb") as fh:
             fh.write(blob)
         os.replace(temp, path)
+    except PermissionError as exc:
+        os.unlink(temp)
+        raise WriteFailed(
+            f"{os.path.basename(path)}: cannot be replaced ({exc}). On Windows "
+            "that means something else has the file open.") from exc
     except Exception:
         if os.path.exists(temp):
             os.unlink(temp)

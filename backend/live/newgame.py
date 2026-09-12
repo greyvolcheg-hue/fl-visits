@@ -80,12 +80,21 @@ def _read(path):
 def _write(path, sections):
     """Keep a pristine copy the first time, then write. Same shape as drawdist."""
     keep = path + ".vanilla"
-    if not os.path.exists(keep):
-        shutil.copy2(path, keep)
     blob = bini.encode(sections)
     if bini.decode(blob) != sections:
         raise WriteFailed(f"{os.path.basename(path)} would not round-trip")
-    open(path, "wb").write(blob)
+    # The same message `persist._save` gives, for the same reason: under
+    # Program Files this is where a normal Windows user stops, and a bare
+    # PermissionError names a file without saying what to do about it.
+    try:
+        if not os.path.exists(keep):
+            shutil.copy2(path, keep)
+        open(path, "wb").write(blob)
+    except PermissionError as exc:
+        raise WriteFailed(
+            f"cannot write {os.path.basename(path)}: {exc}. On Windows a game "
+            "under Program Files needs an elevated shell, or an install "
+            "somewhere else; on Linux check who owns the prefix.") from exc
 
 
 def _loadout(sections):

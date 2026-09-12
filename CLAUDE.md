@@ -28,6 +28,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `fl.py` | `fl.py <command>`; run it bare for the list |
 | `check_frozen.py` | fingerprints every value `flvisits.py` derives, over every save |
 | `check_views.py` | draws every view in a real browser and reports which throw |
+| `check_windows.py` | measures the Windows structs and symbols, from any platform |
 | `backend/common.py` | the loaded game, the per-request save, the house grouping |
 | `backend/game/flvisits.py` | save decoding, the nickname hash, game data loading |
 | `backend/game/bases.py` | which bases can be docked at, who owns them, and the nav map cell they sit in |
@@ -46,6 +47,9 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/game/jumps.py` | every jump between systems, and the shortest way through them |
 | `data/story-states.txt` | the 42 story states in order. `MissionNum` in a save indexes this |
 | `data/marks.json` | which log entries are starred and read. **Untracked**: personal state |
+| `backend/live/proc.py` | the only code that touches another process. Picks its implementation at import |
+| `backend/live/proc_linux.py` | `/proc/<pid>/{maps,mem}` |
+| `backend/live/proc_windows.py` | `ReadProcessMemory` and friends. **Never run** |
 | `backend/live/speed.py` | cruise speed of the *running* game |
 | `backend/live/thrusters.py` | the same for the six thruster bonuses |
 | `backend/live/tradelane.py` | trade lane speed and the 999 cap on the HUD readout |
@@ -59,6 +63,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
 | `design/` | the visual design, as a Claude Design canvas. The source the page is built from, not a screenshot of it. |
 | `run.sh` | start the server and open a browser on it |
+| `run.cmd` | the same three lines for Windows. **Never run** |
 
 **A tab is a pair of files with the same name**, `backend/<name>.py` and
 `frontend/<name>.py`, and either half may be absent: a tab that only draws what
@@ -767,12 +772,32 @@ terminal nobody reads. A restart that is not a restart is worse than a failed
 one: the page looks exactly as it should and the new work appears to be missing.
 
 It now refuses a port somebody already holds, names the port, and prints the
-`kill` that frees it. **The probe has to stay in its subshell and nothing may
-close fd 3 afterwards.** Closing it looks tidy and is a trap: `exec` carrying
-only redirections applies them to the script for good, so `exec 3<&- 2>/dev/null`
-sends every later line to `/dev/null`. That was written, and it silenced the
-very messages the fix exists to print. Diagnosed by running
-`bash -c 'exec 3<&- 2>/dev/null; echo hi >&2'`, which prints nothing.
+command that frees it.
+
+**The refusal moved into `serve.py` on 2026-09-12 and that is where it belongs.**
+The first fix was a `/dev/tcp` probe in the script, which is a guess by
+construction: a script can look at a port, decide it is free, start the server
+and never learn whether it bound. `serve.py` is the only party that knows, so
+it binds before it loads anything, prints the refusal itself and exits 1.
+`run.sh` is now three lines around `serve.py --open`, and `run.cmd` is the same
+three for Windows.
+
+**Two traps from the shell era, kept because both cost a session.** Nothing in
+`run.sh` can trip either any more, which is precisely why they are written down
+here rather than there:
+
+  * `exec` carrying only redirections applies them to the script for good, so
+    `exec 3<&- 2>/dev/null` sends every later line to `/dev/null`. That was
+    written, to tidy up after the probe, and it silenced the very messages the
+    fix exists to print. Proved with
+    `bash -c 'exec 3<&- 2>/dev/null; echo hi >&2'`, which prints nothing.
+  * **`allow_reuse_address` does not mean the same thing on both platforms.**
+    `HTTPServer` sets it, and on Linux it means "bind over a socket in
+    TIME_WAIT", which is what lets this be restarted straight after Ctrl+C. On
+    Windows `SO_REUSEADDR` lets a second program bind a port another program is
+    **actively listening on**, with no rule about which one gets a connection.
+    That is this whole bug, handed out by the operating system. So `serve.py`
+    keeps the flag on Linux and turns it off on Windows.
 
 ## Found 2026-09-12, not fixed: one base spells `Base` and falls out of the index
 
@@ -1447,7 +1472,100 @@ a compressed chain needs the marker recomputed rather than capped.
 Neither is applied. `newgame.py` writes the starting ship and nothing else, and
 its `.vanilla` copies cover only `loadouts.ini` and `m01a.ini`.
 
+## Settled: one codebase for both platforms, and the Windows half is unproven
+
+Added 2026-09-12 on the owner's ask, *"попробовать адаптировать это всё и под
+винду"*, with their answer to how it would be tested: write it and mark it.
+
+**There is no Windows fork and there must never be one.** No second `serve.py`,
+no `_win` copy of a reader, no branch. Three things differ between the two
+platforms and each picks its spelling at import from `sys.platform`:
+
+| What | Linux | Windows |
+|---|---|---|
+| where the game is | the Wine prefix under `~/Games` | `AppPath` out of the registry, `Program Files (x86)` as the fallback |
+| where the saves are | every Wine prefix beside the game | the `Personal` shell folder, because OneDrive moves Documents |
+| process memory | `/proc/<pid>/{maps,mem}` | `ReadProcessMemory` and friends |
+
+Everything else was already portable and needed nothing: the save decoder, the
+BINI reader, the PE string tables, the DPS model, the jump graph, the job
+boards and the whole page are plain Python on `os.path`.
+
+**`backend/live/proc.py` is the only code in the project that touches another
+process.** Before this, 22 places across `speed.py`, `inject.py`,
+`tradelane.py` and `thrusters.py` opened `/proc/<pid>/mem` themselves, which is
+22 copies of a decision with one right answer per platform. They now call six
+functions: `find_pid`, `mappings`, `regions`, `read`, `write`, `chunks`.
+`mappings` yields `(lo, hi, perms, name)` with `perms` spelled the way
+`/proc/<pid>/maps` spells it, `rwxp`, on both platforms, because that is what
+the callers already read.
+
+**The refactor was proved by the game that was running at the time.** Every
+`fl.py` live command was captured before and after and the two are byte
+identical, and each write path was then exercised with a value equal to the one
+already there: `fl.py speed 300`, a thruster set to its own speed, and a POST
+to `api/allhacks`, which writes into `.text` and into data and reported
+everything already on. The output was identical again afterwards.
+
+### The Windows half has never run, and three traps are designed around
+
+Written against the Win32 documentation in one pass. Each of these returns a
+wrong answer rather than an error, which is why they are designed around rather
+than waited for:
+
+  * **Toolhelp cannot enumerate a 32-bit process's modules from 64-bit Python.**
+    `CreateToolhelp32Snapshot(TH32CS_SNAPMODULE32)` fails with
+    `ERROR_PARTIAL_COPY` across WOW64, and Freelancer is 32-bit while the Python
+    most people install is 64-bit. Modules come from `EnumProcessModulesEx` with
+    `LIST_MODULES_ALL`. Toolhelp is still used for the process list, where it
+    has no such problem.
+  * **`MEMORY_BASIC_INFORMATION` is laid out for the caller, not the target**,
+    so its pointer fields are `c_void_p` and `RegionSize` is `c_size_t`.
+    Declared as `c_uint32` it would look right on a 32-bit Python and read
+    garbage on a 64-bit one.
+  * **Every function gets `argtypes`.** Without them ctypes passes a `HANDLE`
+    as a C `int`, truncating it on 64-bit, and the call then fails or succeeds
+    against nothing.
+
+**Writing needs `VirtualProtectEx` and Linux does not.** `/proc/<pid>/mem`
+writes straight through page protection; `WriteProcessMemory` does not, and
+every target here is in `.text` or `.rdata`. So the Windows `write` lifts the
+protection, writes, puts it back and flushes the instruction cache, which is
+not decoration: a patched instruction still in the CPU's instruction cache is
+the game running the old byte for a while. **This does not change
+`find_scratch`.** That exists because the game's own `mov` into a read-only
+page faults, which is the game's problem and not ours; being able to lift
+protection from outside does not make `.text` padding safe for the game to
+write.
+
+### What `check_windows.py` settles, and what it cannot
+
+It puts the Windows-sized types back into `ctypes.wintypes`, fakes `WinDLL`,
+imports `proc_windows.py` for real and then measures it. That settles every
+name, every struct size and offset against the documented Windows numbers, and
+that every imported function has `argtypes` and `restype`.
+
+**`ctypes.wintypes` imports on Linux and lies about sizes**, which is the trap
+the check itself had to be written around: `wintypes.DWORD` is `c_ulong`, four
+bytes on Windows and **eight on 64-bit Linux**. Imported as-is,
+`MEMORY_BASIC_INFORMATION` measures 56 bytes here and 48 where it matters, and
+a check that accepted 56 would be reporting on a struct that does not exist.
+`c_wchar` is two bytes on Windows and four on Linux, so the check measures
+`WCHAR` with a two-byte stand-in.
+
+It earned its place immediately: `pcPriClassBase` was declared `ctypes.c_long`,
+which is a Win32 `LONG` on Windows and eight bytes on Linux, and the check
+caught `PROCESSENTRY32W` coming out 1096 bytes instead of 568.
+
+What it cannot settle is whether the calls do what the module thinks. Only
+Windows answers that, and `fl.py proc` is the command that asks: pid, modules,
+sixteen bytes of `common.dll`, nothing written.
+
 ## Dependency
 
 `bini.py` lives in `../scripts/` and is shared with other work in this area. It
-is not part of this project and is not frozen.
+is not part of this project and is not frozen. **The path is derived from
+`backend/__init__.py`'s own location**, two levels up, and that file now checks
+the file is there and says where it looked. Without the check the first thing a
+checkout without the vault beside it sees is `ModuleNotFoundError: No module
+named 'bini'`, which names a module nobody has heard of and no path at all.

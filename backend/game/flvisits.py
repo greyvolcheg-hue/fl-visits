@@ -33,9 +33,44 @@ M32 = 0xFFFFFFFF
 # is what the story hands you for bases you have never been to.
 DOCKED = {30, 31}
 
-DEFAULT_GAME = os.path.expanduser(
+# Where the install is when nobody says. Two spellings because there are two
+# ways to be running this, and neither is a guess the other would survive.
+WINE_GAME = os.path.expanduser(
     "~/Games/freelancer/drive_c/Program Files (x86)/Microsoft Games/Freelancer"
 )
+WINDOWS_GAME = r"C:\Program Files (x86)\Microsoft Games\Freelancer"
+
+
+def _installed():
+    r"""The game directory, asked of the registry on Windows.
+
+    **The installer records where it put the game**, under
+    `HKLM\SOFTWARE\Microsoft\Microsoft Games\Freelancer\1.0`, value
+    `AppPath`, and on a 64-bit Windows that key is mirrored under
+    `WOW6432Node` because the game is a 32-bit program. Both are tried, in that
+    order, and the hardcoded Program Files path is the fallback for an install
+    that was moved or copied rather than installed.
+
+    Not tested on Windows. If it returns the wrong place the symptom is a clean
+    "no such file" rather than a wrong answer, and `--game DIR` is the way past
+    it in the meantime.
+    """
+    if sys.platform != "win32":
+        return WINE_GAME
+    import winreg  # noqa: PLC0415 - Windows only, and imported only there
+    for hive in (r"SOFTWARE\Microsoft\Microsoft Games\Freelancer\1.0",
+                 r"SOFTWARE\WOW6432Node\Microsoft\Microsoft Games\Freelancer\1.0"):
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, hive) as key:
+                path = winreg.QueryValueEx(key, "AppPath")[0]
+        except OSError:
+            continue
+        if path and os.path.isdir(path):
+            return path.rstrip("\\")
+    return WINDOWS_GAME
+
+
+DEFAULT_GAME = _installed()
 
 import bini
 

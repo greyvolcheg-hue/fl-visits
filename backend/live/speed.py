@@ -21,61 +21,22 @@ is useless, 1000.0 alone matches 6948 places.
 
 Writing needs no privileges beyond being the same user, provided
 `kernel.yama.ptrace_scope` is 0, which it is on this machine.
+
+**Finding the game and reaching its memory is `proc.py`'s job**, not this
+module's, and the two names re-exported below are here because half the
+project already imports them from this file. `proc` is where they live now,
+and it is where the Windows implementation of them lives too.
 """
 
-import os
 import struct
 import sys
 
+from . import proc
+from .proc import NotRunning, PROCESS, find_pid, regions  # noqa: F401
+
 # The floats that follow CRUISING_SPEED in the loaded EngineEquipConsts block.
 SIGNATURE = struct.pack("<fff", 5.0, 3.0, 0.25)
-PROCESS = "Freelancer.exe"
 SANE = (1.0, 100000.0)
-
-
-class NotRunning(Exception):
-    """No Freelancer process, or its memory cannot be reached."""
-
-
-def find_pid():
-    """PID of the running game, or raise. The newest wins if several match."""
-    found = []
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
-        try:
-            with open(f"/proc/{entry}/cmdline", "rb") as fh:
-                cmdline = fh.read().decode("latin-1")
-        except OSError:
-            continue
-        # The Lutris wrapper and gamescope carry the exe path in their command
-        # lines too, so match the process whose own binary it is: its cmdline
-        # starts with the path rather than mentioning it later.
-        first = cmdline.split("\0", 1)[0]
-        if first.endswith(PROCESS):
-            found.append(int(entry))
-    if not found:
-        raise NotRunning("Freelancer is not running")
-    return max(found)
-
-
-def regions(pid):
-    """Writable mappings worth searching, largest excluded as noise."""
-    out = []
-    try:
-        maps = open(f"/proc/{pid}/maps")
-    except OSError as exc:
-        raise NotRunning(f"cannot read the process map: {exc}") from exc
-    with maps:
-        for line in maps:
-            parts = line.split()
-            if "w" not in parts[1]:
-                continue
-            start, end = (int(x, 16) for x in parts[0].split("-"))
-            if end - start > 512 * 1024 * 1024:
-                continue
-            out.append((start, end))
-    return out
 
 
 def locate(pid):
@@ -86,22 +47,18 @@ def locate(pid):
     the anchor is no longer unique and writing would be a guess.
     """
     hits = []
-    try:
-        mem = open(f"/proc/{pid}/mem", "rb")
-    except OSError as exc:
-        raise NotRunning(f"cannot read process memory: {exc}") from exc
-    with mem:
-        for start, end in regions(pid):
-            try:
-                mem.seek(start)
-                buf = mem.read(end - start)
-            except OSError:
-                continue
-            i = buf.find(SIGNATURE)
-            while i != -1:
-                if i >= 4:
-                    hits.append(start + i - 4)
-                i = buf.find(SIGNATURE, i + 1)
+    for start, end in regions(pid):
+        try:
+            buf = proc.read(pid, start, end - start)
+        except OSError:
+            # A mapping the kernel will not hand over. Skipping it is right:
+            # the anchor is in the game's own data, not in something locked.
+            continue
+        i = buf.find(SIGNATURE)
+        while i != -1:
+            if i >= 4:
+                hits.append(start + i - 4)
+            i = buf.find(SIGNATURE, i + 1)
     if not hits:
         raise NotRunning("cruise speed not found; is the game past the menu?")
     if len(hits) > 1:
@@ -110,9 +67,7 @@ def locate(pid):
 
 
 def read(pid, addr):
-    with open(f"/proc/{pid}/mem", "rb") as fh:
-        fh.seek(addr)
-        return struct.unpack("<f", fh.read(4))[0]
+    return struct.unpack("<f", proc.read(pid, addr, 4))[0]
 
 
 def write(pid, addr, value):
@@ -120,9 +75,7 @@ def write(pid, addr, value):
     low, high = SANE
     if not low <= value <= high:
         raise ValueError(f"{value} is outside {low} to {high}")
-    with open(f"/proc/{pid}/mem", "r+b") as fh:
-        fh.seek(addr)
-        fh.write(struct.pack("<f", float(value)))
+    proc.write(pid, addr, struct.pack("<f", float(value)))
     got = read(pid, addr)
     if abs(got - value) > 0.5:
         raise NotRunning(f"wrote {value} but read back {got}")

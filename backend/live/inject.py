@@ -37,8 +37,9 @@ import sys
 from functools import lru_cache
 
 from ..game import flvisits as fl
+from . import proc
 from . import speed as sp
-from .speed import NotRunning
+from .proc import NotRunning
 
 MODULE = "common.dll"
 
@@ -96,7 +97,10 @@ def module_info(pid, module=MODULE, maps=None):
     want = module.lower()
     path, load = None, None
     for lo, _hi, _perms, name in (maps if maps is not None else _mappings(pid)):
-        if name.rsplit("/", 1)[-1].lower() != want:
+        # Split on both separators: the same mapping is `.../EXE/common.dll`
+        # under Linux and `C:\...\EXE\common.dll` under Windows, and only
+        # the last segment is spelled the same on the two.
+        if name.replace("\\", "/").rsplit("/", 1)[-1].lower() != want:
             continue
         path = name
         load = lo if load is None else min(load, lo)
@@ -159,9 +163,7 @@ def read_raw(pid, addr, count):
     they are. Putting one through `_at` would shift it a second time, which is
     invisible today only because every module loads at its preferred base.
     """
-    with open(f"/proc/{pid}/mem", "rb") as fh:
-        fh.seek(addr)
-        return fh.read(count)
+    return proc.read(pid, addr, count)
 
 
 def live_bytes(pid, va, count, module=MODULE):
@@ -172,11 +174,8 @@ def live_bytes(pid, va, count, module=MODULE):
 def write_bytes(pid, va, data, module=MODULE):
     """Write, read back, and refuse quietly to believe it worked otherwise."""
     addr = _at(pid, va, module)
-    with open(f"/proc/{pid}/mem", "r+b") as fh:
-        fh.seek(addr)
-        fh.write(data)
-        fh.seek(addr)
-        got = fh.read(len(data))
+    proc.write(pid, addr, data)
+    got = proc.read(pid, addr, len(data))
     if got != data:
         raise NotRunning(
             f"wrote {len(data)} bytes at {va:#x} but read back "
@@ -286,40 +285,11 @@ def find_scratch(pid, size=16):
     raise NotRunning(f"no writable run of zeros in {MODULE} for {size} bytes")
 
 
-def _chunks(pid, lo, hi, overlap=0, span=1 << 20):
-    """Walk a mapping a megabyte at a time, overlapping so runs are not split."""
-    try:
-        fh = open(f"/proc/{pid}/mem", "rb")
-    except OSError:
-        return
-    with fh:
-        pos = lo
-        while pos < hi:
-            end = min(pos + span, hi)
-            try:
-                fh.seek(pos)
-                buf = fh.read(end - pos)
-            except OSError:
-                return
-            if not buf:
-                return
-            yield pos, buf
-            pos = end - overlap if end < hi else end
-
-
-def _mappings(pid):
-    try:
-        maps = open(f"/proc/{pid}/maps")
-    except OSError as exc:
-        raise NotRunning(f"cannot read the process map: {exc}") from exc
-    out = []
-    with maps:
-        for line in maps:
-            parts = line.split()
-            lo, hi = (int(x, 16) for x in parts[0].split("-"))
-            name = " ".join(parts[5:]) if len(parts) > 5 else ""
-            out.append((lo, hi, parts[1], name))
-    return out
+# Both of these were this module's own until 2026-09-12 and are now one line
+# each, because walking an address space is a platform's business rather than
+# this module's. See `proc.py`.
+_chunks = proc.chunks
+_mappings = proc.mappings
 
 
 def call_to(site, target, length):

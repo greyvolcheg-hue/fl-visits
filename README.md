@@ -16,8 +16,15 @@ python3 fl.py visits <save.fl>   # bases, in the terminal
 python3 fl.py wrecks <save.fl>   # wrecks, in the terminal
 ```
 
-`run.sh` is the one-command version: it starts `serve.py`, waits for the port to answer instead of sleeping a guess, and opens a browser on the page. Ctrl+C
-stops both. Any arguments it gets are passed straight through to `serve.py`.
+`run.sh` is the one-command version, three lines that pass everything through
+to `serve.py --open`. Ctrl+C stops it. `run.cmd` is the same for Windows.
+
+**It refuses a port somebody is already holding**, names it, and prints the
+command that frees it. That refusal is in `serve.py` rather than in the script
+because only `serve.py` knows whether it got the port: the script used to
+probe, decide the port was free, start the server and never find out, which on
+one occasion put a browser on an hour-old server and made a new tab look
+missing.
 
 `serve.py` follows the newest `AutoSave.fl` on its own and re-reads it every
 five seconds, so you can leave the page open on a second screen while you play.
@@ -28,6 +35,36 @@ on localhost only.
 the folder the save lives in, as text you can select, with a button that shows
 it in the file manager. Worth having because the answer is six levels down a
 Wine prefix and the server is the only party that knows which one it picked.
+
+### Windows
+
+**Written, never run.** Every platform-specific thing has two spellings and
+picks one at import: where the game is, where the saves are, and how another
+process's memory is reached. The Linux half is what this is developed and used
+on and is the only half with any evidence behind it. The Windows half was
+written against the Win32 documentation in one pass and **no line of it has
+ever executed**. Reports of what broke are welcome.
+
+```
+py serve.py --open              or run.cmd
+py fl.py proc                   the one command that tests the memory layer
+python3 check_windows.py        struct layouts and symbols, runs anywhere
+```
+
+`fl.py proc` prints the pid, every loaded module with its base address, and
+sixteen bytes read out of `common.dll`. It writes nothing. If it ends in
+`read OK` the hard part works and the Engine tab should follow; if it does not,
+it says which call failed. Everything that only reads files (all of it except
+the Engine tab) needs none of that and should work as it does here.
+
+What is known to be Linux-shaped and is not being fixed: `check_views.py`
+shells out to `firefox --headless`, which will work if `firefox` is on PATH and
+is a development tool either way. `bini.py` lives outside this repo, in a
+`scripts/` folder two levels up; without it the first import fails with a
+message saying exactly where it looked. A game installed under
+`C:\Program Files (x86)` is not writable by a normal user, so `fl.py persist`,
+`routetable`, `drawdist` and `newgame` will refuse with a message saying so:
+an elevated shell or an install elsewhere is the answer.
 
 Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different

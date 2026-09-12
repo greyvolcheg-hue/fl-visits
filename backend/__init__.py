@@ -27,3 +27,15 @@ _SCRIPTS = os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
+
+# **Say where it looked.** Without this the first thing anyone sees on a
+# checkout that does not have the vault beside it is `ModuleNotFoundError: No
+# module named 'bini'`, which names a module nobody has heard of and no path at
+# all. Every reader of the game's data needs it, so failing here is failing at
+# the first import rather than somewhere down a stack.
+if not os.path.exists(os.path.join(_SCRIPTS, "bini.py")):
+    raise ImportError(
+        f"bini.py is not in {_SCRIPTS}. It decodes Freelancer's binary INI and "
+        "is shared with the rest of 40-computer-geek rather than copied in "
+        "here, so this repo expects a `scripts/` folder two levels up. Copy "
+        "bini.py there, or put it anywhere on PYTHONPATH.")
