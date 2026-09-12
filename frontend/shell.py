@@ -149,12 +149,24 @@ function card(title, done, total, percent, body, fold) {
 
 // Rows arrive in the order the server chose and grouping must not disturb it.
 // A house with nothing under the current checkbox is dropped, not left empty.
-function byHouse(d, rows, renderRow, tally) {
-  const bucket = {};
-  rows.forEach(r => (bucket[r.house] = bucket[r.house] || []).push(r));
+//
+// **`shown` and `every` are two different questions and used to be one
+// argument.** `shown` survived the page's filters and is what gets drawn;
+// `every` is the whole house and is what the heading counts. Counting the
+// filtered list made a heading answer "what am I looking at", which is the one
+// thing the screen already says. With finished systems hidden, Bretonia read
+// `3 / 4` while the house was really `38 / 39`: a house three objects from
+// complete, drawn as one barely started. Reported 2026-09-12.
+//
+// `every` is optional, so a caller with nothing to filter passes one list and
+// gets the old behaviour, which is then the correct one.
+function byHouse(d, shown, renderRow, tally, every) {
+  const bucket = {}, whole = {};
+  shown.forEach(r => (bucket[r.house] = bucket[r.house] || []).push(r));
+  (every || shown).forEach(r => (whole[r.house] = whole[r.house] || []).push(r));
   const shut = collapsed[tab] || {};
   return (d.house_order || []).filter(h => bucket[h]).map(h => {
-    const rs = bucket[h], [done, total] = tally(rs), off = !!shut[h];
+    const rs = bucket[h], [done, total] = tally(whole[h]), off = !!shut[h];
     // Only a grouped heading carries data-house; anything reusing the look
     // must stay unfoldable.
     return `<h2 class="house" data-house="${esc(h)}">` +

@@ -116,7 +116,11 @@ VIEW.systems = {
                   open ? systemBody(s, ext) : '',
                   { id: s.nickname, open });
     }, rs => [rs.reduce((n, s) => n + s.bases.done + s.wrecks.done, 0),
-              rs.reduce((n, s) => n + s.bases.total + s.wrecks.total, 0)]);
+              rs.reduce((n, s) => n + s.bases.total + s.wrecks.total, 0)],
+       // Counted over every system in the house, not over the ones that got
+       // past the two checkboxes. The cards below are the filtered view; the
+       // heading is the house.
+       d.systems);
   },
   wire() {
     document.querySelectorAll('.sys.foldable > .head').forEach(h =>
