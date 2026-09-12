@@ -65,9 +65,23 @@ def tabs():
 
 
 def _table(modules, attr):
+    """Every module's `attr` in one dict, refusing a name two of them claim.
+
+    **It used to be a plain `update`, and that hid a real collision.**
+    `backend/engine.py` and `backend/bestpath.py` both offered a GET called
+    `bestpath`; the later module won by import order and the earlier endpoint
+    became unreachable, with nothing said and nothing to see. An endpoint name
+    is the tab's address, so two tabs cannot share one, and finding that out at
+    startup beats finding it out when a panel answers with another tab's data.
+    """
     out = {}
     for m in modules:
-        out.update(getattr(m, attr, {}) or {})
+        for name, fn in (getattr(m, attr, {}) or {}).items():
+            if name in out:
+                raise RuntimeError(
+                    f"two modules claim {attr} endpoint {name!r}: "
+                    f"{out[name].__module__} and {m.__name__}")
+            out[name] = fn
     return out
 
 

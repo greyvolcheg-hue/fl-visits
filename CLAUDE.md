@@ -577,6 +577,18 @@ something it had edited.
 
 ## Closed: the hack applied, was aimed right, and still could not work
 
+**The control is gone from the Engine tab**, removed 2026-09-12 at the owner's
+request once the file rewrite made it redundant. `live/bestpath.py` and
+`fl.py bestpath` stay; what went is the box, its reader, its POST handler and
+the `bestpath` entry in `backend/engine.py`'s `API`.
+
+**That entry was also a name collision, and a silent one.** `backend/engine.py`
+and `backend/bestpath.py` both offered a GET called `bestpath`, and `tabs.py`
+built one table with `dict.update`, so the later module won by import order and
+the earlier endpoint was unreachable with nothing said. `_table` raises on a
+repeat now, and the guard was proved to fire before being relied on. An
+endpoint name is a tab's address; two tabs cannot share one.
+
 Opened and shut on 2026-09-12. Kept because every step of it was a true answer
 to the wrong question, which is the part worth not repeating.
 

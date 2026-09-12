@@ -12,7 +12,6 @@ surveys 153 files on disk and the strip is polled every five seconds whether
 or not anyone has opened the drawer.
 """
 
-from .live import bestpath as bp
 from .live import dockdist as dkd
 from .live import drawdist as dd
 from .live import persist as pe
@@ -118,25 +117,6 @@ def _drawdist(ctx):
     return body
 
 
-def _bestpath(ctx):
-    """Whether the router is using jump holes, or why it cannot say."""
-    body = {"on": False, "version": None, "slots": [],
-            "error": None}
-    try:
-        # One pid lookup and one build detection for the whole reply.
-        # state() and routes() each used to do both, so a poll cost
-        # two /proc scans and two fingerprint reads to return 3 bytes.
-        pid = sp.find_pid()
-        version, _kind = bp.detect(pid)
-        body["on"], _v = bp.state(pid, version)
-        body["version"] = version
-        body["slots"] = [{"at": at, "file": name}
-                         for at, name in bp.routes(pid, version)]
-    except (bp.NotRunning, OSError) as exc:
-        body["error"] = str(exc)
-    return body
-
-
 def _engine(ctx):
     """Every reading the strip shows, in one request and one pid lookup.
 
@@ -145,7 +125,7 @@ def _engine(ctx):
     than repeating any of them.
     """
     body = {"running": False, "error": None, "cruise": None, "lane": None,
-            "best": None, "thrusters": None, "draw": None}
+            "thrusters": None, "draw": None}
     try:
         sp.find_pid()
         body["running"] = True
@@ -158,15 +138,19 @@ def _engine(ctx):
         return body
     body["cruise"] = _speed(ctx)
     body["lane"] = _tradelane(ctx)
-    body["best"] = _bestpath(ctx)
     if ctx.one("all"):
         body["thrusters"] = _thrusters(ctx)
         body["draw"] = _drawdist(ctx)
     return body
 
 
+# **No `bestpath` here any more, and not only because the control went.** This
+# module and `backend/bestpath.py` both offered an endpoint by that name, and
+# `tabs.py` builds one table with `dict.update`, so the later module silently
+# won and this one was unreachable. Two tabs cannot share an endpoint name;
+# `_table` raises on a repeat now rather than picking by import order.
 API = {"engine": _engine, "speed": _speed, "thrusters": _thrusters,
-       "tradelane": _tradelane, "drawdist": _drawdist, "bestpath": _bestpath}
+       "tradelane": _tradelane, "drawdist": _drawdist}
 
 def _set_speed(ctx, sent):
     # Re-located every time: common.dll moves between runs, and the game may
@@ -221,13 +205,33 @@ def _set_drawdist(ctx, sent):
             "system loads")
 
 
-def _set_bestpath(ctx, _sent):
+def _set_allhacks(ctx, _sent):
+    """Every on/off patch at once, because they are always wanted together.
+
+    Idempotent: each is asked for its current state and only switched if it is
+    not already there, so pressing this twice says so rather than toggling
+    anything back off. That is the difference between this and the per-box
+    buttons, which are toggles by design.
+
+    The knobs with a value in them are deliberately not here. Cruise, the
+    thruster bonuses, lane speed and the takeover distance are settings, not
+    switches, and picking a number on the owner's behalf is not "enable".
+    """
+    done = []
     with ctx.lock:
-        pid = sp.find_pid()
-        version, _kind = bp.detect(pid)
-        on, _v = bp.state(pid, version)
-        bp.apply(not on, pid, version)
-    return "back to jump gates only" if on else "routing through jump holes"
+        on, shown = tl.set_cap(True)
+        done.append(f"speed readout uncapped to {shown}" if on
+                    else "speed readout left capped")
+        rate, quick = tl.set_accel(True)
+        done.append(f"lane wind-up near-instant at {rate:g}" if quick
+                    else f"lane wind-up {rate:g}")
+        installed, _d, _v = dkd.takeover_state()
+        if installed:
+            done.append("docking takeover already in")
+        else:
+            dkd.takeover_on(dkd.NON_STATION)
+            done.append(f"docking takes over at {dkd.NON_STATION:g}")
+    return "; ".join(done)
 
 
 def _set_persist(ctx, _sent):
@@ -237,4 +241,4 @@ def _set_persist(ctx, _sent):
 
 POST = {"speed": _set_speed, "thrusters": _set_thrusters,
         "tradelane": _set_tradelane, "drawdist": _set_drawdist,
-        "bestpath": _set_bestpath, "persist": _set_persist}
+        "allhacks": _set_allhacks, "persist": _set_persist}

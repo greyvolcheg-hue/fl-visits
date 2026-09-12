@@ -61,6 +61,11 @@ CSS = """
     height: 11px; background: rgba(111, 216, 255, .14);
     border: 1px solid rgba(111, 216, 255, .55); }
   .engine input.big::-moz-range-thumb { width: 13px; height: 27px; }
+
+  /* The one button on a banner rather than in a box. `margin-left: auto` is
+     what puts it at the far end of the flex row, away from the sentence. */
+  .engine .banner button.chip.all { margin-left: auto; flex: none;
+                                    align-self: center; }
 """
 
 
@@ -172,13 +177,6 @@ function engMemory() {
     'The HUD refuses to print a speed over ' + (l.shown || 999) + ', so a ' +
     'raised lane speed shows a dash instead of a number.',
     'not in files; never written to disk');
-  const b = eng.best || {};
-  boxes += engFlipBox('BEST PATH VIA JUMP HOLES', !!b.on, 'ON', 'OFF', 'best',
-    'Swaps which route table gets read: <code>systems_shortest_path.ini</code> ' +
-    'includes jump holes, <code>shortest_legal_path.ini</code> only gates. ' +
-    '<b>Dies on every save load</b> — content.dll and server.dll reload with ' +
-    'the save, so press it again.',
-    'bestpath.py · five bytes in three places');
   const stock = l.takeover_stock || 1000;
   boxes += (l.takeover === null || l.takeover === undefined)
     ? engFlipBox('DOCKING TAKEOVER', false, '', 'PUT THE STUB IN', 'takeover',
@@ -195,10 +193,15 @@ function engMemory() {
         'keep 600, because a planet has a radius.',
         'dockdist.py · memory only, relaunch restores stock');
 
+  // One press for the three switches below, because nobody wants two of them.
+  // Only the switches: the knobs beside them carry a number, and choosing one
+  // for somebody is not what "enable" means.
+  const all = `<button class="chip all" data-all="1"` +
+    `${eng && eng.running ? '' : ' disabled'}>ENABLE ALL</button>`;
   return '<div class="banner"><span class="kind">LIVE MEMORY</span>' +
     '<span class="say">Written into the running game, never to a save or a ' +
     'file. Cruise lands on your next burn with no reload; close the game and ' +
-    'every one of these is gone.</span></div>' +
+    'every one of these is gone.</span>' + all + '</div>' +
     `<div class="grid wrapgrid">${boxes}</div>`;
 }
 
@@ -212,8 +215,9 @@ function engFiles() {
     '<code>constants.ini</code> and <code>st_equip.ini</code>, so the next ' +
     'launch starts with them. Safe to press mid-flight: both files are read ' +
     'once at startup.</div>' +
-    '<div class="why">Trade lane speed, the HUD cap, docking and best path are ' +
-    'not written, because they are not in files to begin with.</div>' +
+    '<div class="why">Trade lane speed, the HUD cap and docking are not ' +
+    'written, because they are not in files to begin with. Best path is a ' +
+    'file and has its own command, <code>fl.py routetable</code>.</div>' +
     `<button class="chip" id="persist"${persistBusy || !(c && !c.error) ? ' disabled' : ''}>` +
     `${persistBusy ? 'WRITING…' : 'WRITE ' + cruise + ' / ' + thrust}</button></div>`;
 
@@ -291,7 +295,6 @@ const KNOB = {
 };
 
 const FLIP = {
-  best: () => engPost('bestpath'),
   instant: () => engPost('tradelane', { instant: !(eng.lane && eng.lane.instant) }),
   uncap: () => engPost('tradelane', { uncapped: !(eng.lane && eng.lane.uncapped) }),
   takeover: () => engPost('tradelane', {
@@ -319,6 +322,10 @@ function wireEngine() {
     b.onclick = () => KNOB.cruise(Number(b.dataset.cruise)));
   box.querySelectorAll('[data-flip]').forEach(b =>
     b.onclick = () => { const f = FLIP[b.dataset.flip]; if (f) f(); });
+  // One POST, not three from here: three would race through `engPost`'s busy
+  // flag and only the first would land.
+  box.querySelectorAll('[data-all]').forEach(b =>
+    b.onclick = () => engPost('allhacks'));
   const p = $('#persist');
   if (p) p.onclick = async () => {
     persistBusy = true; render();

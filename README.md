@@ -164,22 +164,32 @@ so subtract 495 to get the figure on your HUD for a lane.
 Memory only, both of them. A relaunch puts everything back and nothing can be
 left in a bad state. `backend/live/dockdist.py` carries the disassembly.
 
-**Set Best Path through jump holes.** The game ships two route tables and routes
-with the duller one: `shortest_legal_path.ini` knows only jump gates, while
-`systems_shortest_path.ini` includes jump holes, which are often the shortcut.
-Both have been in the install since 2003. The button swaps which one gets read.
+**Set Best Path is not a button here any more.** It used to be: the game ships
+two route tables and reads the duller one, `shortest_legal_path.ini` knowing
+only jump gates where `systems_shortest_path.ini` includes holes, and five bytes
+in three places swapped which one gets read.
 
-```bash
-python3 fl.py bestpath         # is it on, and which file each slot points at
-python3 fl.py bestpath --on
-python3 fl.py bestpath --off
-```
+**It could not work, and that is settled by flying it.** The game reads the
+table once when a world loads, and `content.dll` and `server.dll` are reloaded
+by that same load, which wipes the patch. So the only moment it can be applied
+is after the read, and swapping a filename pointer does nothing to a table
+already in memory. With the patch reading ON and all five bytes verified, the
+game still routed Hokkaido to Tau-23 the gates-only way, five jumps through New
+Tokyo, where two exist through Kyushu.
 
-Five bytes in three places, no injected code, nothing written to disk. The catch
-is worth knowing before you rely on it: `content.dll` and `server.dll` are loaded
-**when a save is loaded**, so the setting dies on every load and has to be
-pressed again. flhack hooks the loader to avoid that; pressing the button again
-is cheaper and hides less.
+`fl.py routetable` does the job instead, by writing the routes into the tables
+themselves; see **Map → Best Path**. The patcher is still there as
+`fl.py bestpath` and is now redundant, because both tables carry the same
+routes and it no longer matters which one the game picks.
+
+**ENABLE ALL** sits on the LIVE MEMORY banner and turns on the three switches
+under it in one press: the lane wind-up, the HUD speed cap and the docking
+takeover. It is idempotent, so pressing it twice reports what was already on
+rather than toggling anything back off, which is the difference between it and
+the per-box buttons. The knobs that carry a number are deliberately not in it:
+cruise, the thrusters, lane speed and the takeover distance are settings, and
+picking one on your behalf is not what enable means.
+
 
 **Asteroid draw distance** scales `[Field] fill_dist` across the 153 field
 definitions in `DATA/SOLAR/ASTEROIDS/`. Vanilla runs 1000 to 2500 with a median
