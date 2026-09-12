@@ -13,6 +13,23 @@ for i in $(seq $#); do
 done
 URL="http://127.0.0.1:$PORT/"
 
+# **Refuse to start on a port somebody already holds.** Without this the script
+# looks like it worked and silently serves the old code: `serve.py` fails to
+# bind and exits, the wait loop below connects on its very first try because
+# the *old* server answers, and `xdg-open` puts a browser on it. The only sign
+# is a bind error in a terminal nobody is reading. That cost a restart that
+# was never a restart on 2026-09-12, with a new tab that had gone missing.
+# The probe runs in a subshell, so its fd 3 dies with it and there is nothing
+# here to close. Do not add `exec 3<&- 2>/dev/null`: `exec` carrying only
+# redirections applies them to this script for good, and that one sends every
+# line below to /dev/null. Written after doing exactly that.
+if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
+    echo "something is already listening on 127.0.0.1:$PORT." >&2
+    echo "Stop it first:  kill \$(ss -ltnp | awk -F'pid=' '/:$PORT /{split(\$2,p,\",\"); print p[1]}')" >&2
+    echo "or run this one somewhere else:  ./run.sh --port 8732" >&2
+    exit 1
+fi
+
 python3 serve.py "$@" &
 server=$!
 

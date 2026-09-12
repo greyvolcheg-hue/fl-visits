@@ -490,6 +490,26 @@ sent every figure. The view does refetch on every entry, which Equipment's does
 not: which systems are open is a fact about the save, and docking somewhere new
 between two looks at the tab is precisely what it is for.
 
+## Settled: `run.sh` used to serve the old code and look like it had started
+
+Closed 2026-09-12, from the owner restarting the server for a new tab and the
+tab not being there. Nothing was wrong with the tab.
+
+`run.sh` started `serve.py` in the background and then waited for the port by
+connecting to it. With a server already up, the new one died on `bind` while the
+wait loop connected on its **first** try, because the old process answered, and
+`xdg-open` then put a browser on it. The only trace was a bind error in a
+terminal nobody reads. A restart that is not a restart is worse than a failed
+one: the page looks exactly as it should and the new work appears to be missing.
+
+It now refuses a port somebody already holds, names the port, and prints the
+`kill` that frees it. **The probe has to stay in its subshell and nothing may
+close fd 3 afterwards.** Closing it looks tidy and is a trap: `exec` carrying
+only redirections applies them to the script for good, so `exec 3<&- 2>/dev/null`
+sends every later line to `/dev/null`. That was written, and it silenced the
+very messages the fix exists to print. Diagnosed by running
+`bash -c 'exec 3<&- 2>/dev/null; echo hi >&2'`, which prints nothing.
+
 ## Found 2026-09-12, not fixed: one base spells `Base` and falls out of the index
 
 `flvisits.load_objects` keeps an `[Object]` only when it carries both `nickname`
