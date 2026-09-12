@@ -47,13 +47,14 @@ COMMANDS = {
     "inject": "backend.live.inject",
     "newgame": "backend.live.newgame",
     "persist": "backend.live.persist",
+    "routetable": "backend.live.routetable",
     "speed": "backend.live.speed",
     "thrusters": "backend.live.thrusters",
     "tradelane": "backend.live.tradelane",
 }
 
 WRITES = {"bestpath", "dockdist", "drawdist", "inject", "newgame", "persist",
-          "speed", "thrusters", "tradelane"}
+          "routetable", "speed", "thrusters", "tradelane"}
 
 
 def usage():

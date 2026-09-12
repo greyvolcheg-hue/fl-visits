@@ -53,6 +53,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/live/bestpath.py` | let Set Best Path route through jump holes |
 | `backend/live/inject.py` | the code cave, and how a stub gets into it |
 | `backend/live/persist.py` | writes the live speeds back into the game's files |
+| `backend/live/routetable.py` | writes the shortest routes into the game's own route tables |
 | `backend/live/drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
 | `backend/live/newgame.py` | what a new game starts you in |
 | `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
@@ -487,6 +488,61 @@ know about a hole whose far side it just described. Each step still carries
 `st03b`, the single-player-only Omicrons. They join each other and nothing
 else, so 470 of the 2652 ordered pairs have no route at all. That is the data,
 not a missing edge.
+
+## Settled: the route tables are files, so the shortest paths go in them
+
+Closed 2026-09-12, at the owner's go, after Map → Best Path proved the shipped
+tables are not shortest paths. `live/routetable.py` rewrites them.
+
+**This beats the byte patch on its own ground.** `live/bestpath.py` swaps which
+table the game reads and dies on every save load, because `content.dll` and
+`server.dll` load with the save. A file survives, needs no running game, no
+`/proc/<pid>/mem` and no injected code.
+
+**Each file is rewritten under its own rule, and that is the safety argument.**
+
+    shortest_legal_path.ini      35 systems, 1225 pairs   gates only
+    systems_shortest_path.ini    50 systems, 2079 pairs   holes allowed
+
+Routing the gates-only table with holes allowed was measured and refused: **234
+of its 1225 routes would name a system that file has never listed**, and
+whether the game validates a path against its own table is not known. Under its
+own rule every hop stays inside the 35 it already names, and the holes table
+likewise inside its 50. `write()` refuses outright if that count is not zero.
+
+The shape never changes: same sections, same pairs in the same order, same key,
+same vocabulary of system nicknames. Only the hops between the two ends are
+replaced, and both files round-trip through `bini.py` byte for byte, which is
+what makes writing them safe at all. Verified after writing: section counts,
+rows per section, pair order, and that every chain still runs from its `from`
+to its `to`.
+
+What it bought on this install:
+
+| | routes replaced | jumps saved |
+|---|---|---|
+| `shortest_legal_path.ini` | 366 | 136 |
+| `systems_shortest_path.ini` | 1170 | 648 |
+
+**More rows change than shorten**, and that is the tie-break rather than a
+fault: among routes of equal length the search prefers the one with less flying
+between the jumps, so 366 rows move to buy 136 jumps. `--flying` asks for least
+distance outright, which is a different feature wearing the same button, and is
+not the default because fewest jumps is what the game's own feature means.
+
+### The check went self-referential the moment this ran
+
+**`fl.py jumps --check` compares the graph against the game's table, and
+`routetable.py` writes that table.** After the first write it reported 2079
+equal, 0 shorter: a tautology that reads exactly like good news, which is this
+project's worst failure mode and is called out three times elsewhere in this
+file. It now prefers `<name>.vanilla` when one is there, and reads 1502 / 577 /
+0 / 0 again.
+
+The general shape, worth keeping: **a tool that writes a file must not be
+checked against that file.** `check_frozen.py` gets this right by comparing two
+runs of the same reader; this one got it wrong by comparing a reader to
+something it had edited.
 
 ## Open: the hack applies, and the owner still says best path is wrong
 

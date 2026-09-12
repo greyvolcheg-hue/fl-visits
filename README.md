@@ -539,6 +539,25 @@ lane runs and whether it is still standing, which the files do not settle.
 through `st03b`, join each other and nothing else, so the page says that rather
 than pretending to search.
 
+**And the routes can go into the game itself.** `fl.py routetable` writes them
+into Freelancer's own tables, so its Set Best Path gives the same answers this
+tab does:
+
+```bash
+python3 fl.py routetable            # what would change, changes nothing
+python3 fl.py routetable --write
+python3 fl.py routetable --revert   # back to the shipped tables
+```
+
+This beats the byte patch behind `fl.py bestpath` on its own ground: a file
+survives loading a save, where the patch does not, and it needs no running game.
+Each of the two tables is rewritten under its own rule, gates only for the one
+the game reads by default and holes allowed for the other, because a route
+through a hole names systems the gates-only table has never listed and it is not
+known whether the game checks. It saves 136 jumps in the first and 648 in the
+second, keeps a `.vanilla` beside each, and the game reads them when a world
+loads, so restart it.
+
 **Neural Net** is one list over three sources, and the three chips are filters
 on it rather than a switch between three pages. All three are on by default,
 which is the combined view; turning one off takes its stream out. *Unread only*

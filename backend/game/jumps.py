@@ -285,11 +285,20 @@ def plan(jumps, src, dst, allow=None, holes=True):
 
 
 def check(game_dir=None):
-    """Compare every pair against the game's own table. See the docstring."""
+    """Compare every pair against the game's own table. See the docstring.
+
+    **Against `.vanilla` when there is one**, and that is not a nicety.
+    `live/routetable.py` writes these very routes into that file, so once it has
+    run the check compares this module against itself and reports 2079 equal: a
+    tautology that reads exactly like good news. It did, the first time the
+    table was written. The shipped copy is the only thing worth comparing to.
+    """
     import bini
     game_dir = game_dir or fl.DEFAULT_GAME
     path = fl.ipath(fl.ipath(fl.ipath(game_dir, "DATA"), "UNIVERSE"),
                     "systems_shortest_path.ini")
+    if os.path.exists(path + ".vanilla"):
+        path += ".vanilla"
     table = {}
     for _section, pairs in bini.decode(open(path, "rb").read()):
         for key, values in pairs:
