@@ -337,9 +337,25 @@ and hurts and names the worst loss; clicking the row lists every faction it
 moves, before and after, with the ones pinned at the +/-0.9 bound marked.
 
 **Bribes** are in the same list, as a one-purchase row with a price instead of
-a repeat count, plus how many bars will take it. A bribe **sets** your standing to 0.6 instead of adding, so it never appears once you are already above
-that, buying a second changes nothing, and it is no help when the goal is to be
-hated. 41 of the 55 factions can be bribed at all, at 610 bartenders.
+a repeat count. A bribe **sets** your standing to 0.6 instead of adding, so it
+never appears once you are already above that, buying a second changes nothing,
+and it is no help when the goal is to be hated. 41 of the 55 factions can be
+bribed at all.
+
+**The row says where to buy it**, as `2 of 14 bases`: bases you have docked at,
+against every dockable base in Sirius that offers this bribe. Open the row and
+the reachable ones are listed with their system and nav map cell, above the side
+effects. Bases rather than bartenders, which is the count that used to sit
+there: two bartenders in one bar is still one trip.
+
+**Zero of fourteen is the answer worth having.** On the save this was built
+against, 11 of the 41 bribable factions had no reachable bar at all: the
+Rheinland Police will take 10000 credits at 25 stations and you have landed on
+none of them. The row used to show a price and imply you could pay it.
+
+Price is the same everywhere, so the list answers *where* and never *where
+cheapest*: all 2386 `bribe` lines in `mbases.ini` read a flat 10000. Same shape
+as equipment prices, and see the next paragraph for what the real charge is.
 
 Price is `100000 x (0.6 - current)`, so about 124k for a faction at -0.64 and
 7.6k for one at +0.52. **That rate is derived and has never been measured.** The `bribe` lines

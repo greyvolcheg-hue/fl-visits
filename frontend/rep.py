@@ -20,6 +20,13 @@ CSS = """
   .rephead { color: var(--fainter); font-family: var(--mono); font-size: 9.5px;
              letter-spacing: .18em; text-transform: uppercase; padding-bottom: .1rem; }
   .rephead .nm { text-align: left; }
+
+  /* Where a bribe can actually be bought. A plain list rather than a table:
+     it is three facts per line and the middle one is a four-character cell. */
+  .repbars { display: flex; flex-direction: column; gap: .15rem;
+             margin-bottom: .5rem; }
+  .repbars .atrow .cell { width: 4rem; }
+  .repbars .sysname { color: var(--dim); font-size: 11.5px; min-width: 9rem; }
 """
 
 JS = r"""
@@ -71,7 +78,20 @@ function renderRep() {
       // like it belongs to the name, and the owner read a fall as a rise.
       const worst = loss.length
         ? `, worst hit ${esc(loss[0].name)} ${loss[0].change.toFixed(2)}` : '';
-      const body = repOpen[i] ? '<div class="repwhy">' +
+      // A bribe row opens with where to buy it, because that is the thing the
+      // row does not already say. The collateral table follows, the same for
+      // every row.
+      const bars = (repOpen[i] && r.event === 'bribe')
+        ? (r.bases.length
+            ? '<div class="rephead">buy it at</div><div class="repbars">' + r.bases.map(b =>
+                `<div class="atrow"><span class="sysname">${esc(b.system)}</span>` +
+                `<span class="cell">${esc(b.at)}</span>` +
+                `<span>${esc(b.name)}</span></div>`).join('') + '</div>'
+            : `<p class="empty">${r.bases_total} bases in Sirius will take this
+               bribe and you have docked at none of them. Nothing to buy until
+               you have landed on one.</p>`)
+        : '';
+      const body = repOpen[i] ? '<div class="repwhy">' + bars +
         '<span class="repline rephead"><span class="nm">also moves</span>' +
         '<span>now</span><span>after</span><span>change</span></span>' +
         r.collateral.map(c =>
@@ -84,7 +104,12 @@ function renderRep() {
         + '</div>' : '';
       return `<div class="gun reprow" data-row="${i}">` +
         `<span class="nm">${esc(r.event_label)} &middot; ${esc(r.doer_name)}` +
-        (r.bartenders ? ` <span class="loot">${r.bartenders} bars</span>` : '') +
+        // Bases, not bartenders. Two bartenders on one station is still one
+        // trip, and the count that used to sit here answered "can I bribe at
+        // all" where this answers "and where".
+        (r.event === 'bribe'
+          ? ` <span class="loot">${r.bases.length} of ${r.bases_total} bases</span>`
+          : '') +
         (r.legality ? ` <span class="loot">${esc(r.legality)}</span>` : '') + '</span>' +
         // Standings round to two, but not this: 18 of the 69 Corsair rows are
         // worth under 0.005 a go and would all read +0.00, turning "142 times"

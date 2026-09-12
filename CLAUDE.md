@@ -438,6 +438,49 @@ log is monotonic. It is not built, because the owner picked streams-in-order
 over one interleaved timeline on 2026-09-10. This note exists so nobody
 re-derives the bridge from scratch to find that out.
 
+## Settled: a bribe has a place, and 11 factions have none you can reach
+
+Closed 2026-09-12. The Reputation tab offered "bribe a bartender" with a price
+and no idea where, and the count beside it was **bartenders**, which answers
+"can I bribe this faction at all" and nothing else.
+
+**A `[GF_NPC]` belongs to the `[MBase]` above it in `mbases.ini`**, which is the
+whole mechanism: the file nests by position and by nothing else, so one walk
+that remembers the current base attributes every `bribe` line to a station.
+`game/jobs.py` makes the same walk for the job boards, and `reputation.load_bar`
+now makes it too rather than throwing the base away.
+
+Counted, not assumed:
+
+  * 41 of the 55 factions are bribable, across **162 distinct bases**.
+  * **Every one of the 2386 `bribe` lines reads a flat 10000**, so there is no
+    cheapest bartender and the list answers *where*, never *where cheapest*.
+    Same shape as equipment prices. What the engine actually charges is a
+    separate finding and is in the section on `BRIBE_RATE`.
+  * Bases per faction run 3 to 94, median 22. Too many to list, which is why
+    the page lists only the ones the save has docked at: median 7 on the save
+    this was built against, and that is a list worth reading.
+
+**The number that turned out to matter is zero.** On that save, 11 of the 41
+bribable factions had no reachable bar at all, the Rheinland Police among them:
+25 stations will take the money and the player had landed on none. The row used
+to print a price and imply it could be paid. It now says so in a sentence, and
+`bases_total` is carried precisely so that an empty list reads as a journey
+rather than as a lookup that failed.
+
+**The split across layers is the same one Jobs uses.** `load_bar` returns base
+nicknames and knows nothing else; `backend/rep.py` narrows them against
+`GameData.bases` for dockability and against the save for where you have been,
+and turns them into the shared base shape out of data `GameData` already holds.
+No second base index was built, and `market.base_index` was deliberately not
+imported for it.
+
+Fixed in passing, because this endpoint now needs two facts from the save:
+`_reputation` read the file itself with `fl.decode_save(ctx.save)`, outside
+`Ctx`. That is the second-read trap `common.Ctx` exists to prevent, and adding
+the docked set would have made it a third. It reads `ctx.saved()` now, and the
+standings and the docked bases come from one decode.
+
 ## Settled: a job board's ceiling is two files multiplied together
 
 Closed 2026-09-12 for the Jobs tab. A bar shows you what it is offering today

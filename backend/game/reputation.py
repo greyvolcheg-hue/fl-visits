@@ -257,10 +257,21 @@ def load_model(game_dir=None):
 def load_bar(data_dir):
     """One walk of `mbases.ini`, answering two questions about its bar NPCs.
 
-    `bribes` is faction -> how many bartenders will take a bribe for it. 41 of
-    the 55 factions can be bribed at all, across 610 NPCs. The count is worth
-    carrying because "nobody will take your money for this faction" is a real
-    answer and an empty row is not.
+    `bribes` is faction -> the bases where somebody will take a bribe for it.
+    41 of the 55 factions can be bribed at all. **Bases rather than a count of
+    bartenders**, which is what this returned until 2026-09-12: two bartenders
+    on one station is still one trip, and "where" is the question the page could
+    not answer. An empty entry is a real answer, "nobody anywhere will take your
+    money for this faction", and it is why the key exists at all.
+
+    Nicknames only, and every base the file mentions. Which of them a player can
+    dock at, and which they have been to, are two facts this module does not
+    have; `backend/rep.py` narrows the list against `GameData.bases` and the
+    save.
+
+    **A `[GF_NPC]` belongs to the `[MBase]` above it in the file**, which is how
+    the base is known here at all. Same walk `game/jobs.py` makes for the job
+    boards, and the same reason: this file nests by position and by nothing else.
 
     `present` is every faction with at least one NPC standing in a bar
     anywhere. That is the rule for whether a faction is somebody you can have a
@@ -270,10 +281,17 @@ def load_bar(data_dir):
     7803 rumor lines and 2386 bribes: reading it twice to answer two questions
     about the same sections is a second thing to keep in step for nothing.
     """
-    bribes, present = {}, set()
+    bribes, present, here = {}, set(), None
     path = fl.ipath(fl.ipath(data_dir, "MISSIONS"), "mbases.ini")
     for section, pairs in wr.read_multi(path):
-        if section.lower() != "gf_npc":
+        section = section.lower()
+        if section == "mbase":
+            here = None
+            for key, values in pairs:
+                if key.lower() == "nickname" and values:
+                    here = str(values[0]).lower()
+            continue
+        if section != "gf_npc":
             continue
         for key, values in pairs:
             if not values:
@@ -281,10 +299,12 @@ def load_bar(data_dir):
             name = key.lower()
             if name == "bribe":
                 faction = str(values[0]).lower()
-                bribes[faction] = bribes.get(faction, 0) + 1
+                bribes.setdefault(faction, set())
+                if here:
+                    bribes[faction].add(here)
             elif name == "affiliation":
                 present.add(str(values[0]).lower())
-    return bribes, present
+    return {f: sorted(seen) for f, seen in bribes.items()}, present
 
 
 def player_reps(save_text):
@@ -349,7 +369,9 @@ def plan(target, goal, reps, events, empathy, names, legality, bribes=None):
                 "effect": jump,
                 "repeats": 1,
                 "price": round(BRIBE_RATE * jump),
-                "bartenders": bar,
+                # Nicknames. `backend/rep.py` turns these into places and
+                # says which you have docked at; this layer has neither fact.
+                "bases": bar,
                 "reaches": BRIBE_TO,
                 "collateral": collateral(target, None, 1, target, events,
                                          empathy, names, reps, delta=jump),
