@@ -55,6 +55,14 @@ FEEDS = {
     "routeData": ["routes", "routes?from=li01&to=rh01"],
     "gearData": ["equipment"], "repData": ["reputation"],
     "jobsData": ["jobs"],
+    # Two stages, the Routes shape: a bare call draws the pickers and no route,
+    # a call with both ends draws the step lists and never the picker branch.
+    #
+    # **`all=1` is not decoration.** Without it the route is limited to the
+    # jumps this save has found, so the seed answers "no way there" on a save
+    # that has not been to Rheinland yet and the full pass reports EMPTY for a
+    # view that is working. It did, the first time this was added.
+    "pathData": ["bestpath", "bestpath?from=li01&to=rh05&all=1"],
     # Trade is a pipeline, and one payload can only be at one stage of it. The
     # stage is what decides the markup, so the two stages the default feed does
     # not reach are seeded separately: the picker, and the by-base end.
@@ -86,6 +94,7 @@ DREW = {
     "market:base": ".tradetable .gun",
     "routes": ".routetable .gun",
     "jobs": ".jobtable .gun",
+    "bestpath": ".routeplan .hop",
 }
 
 # A row is a CSS grid and its cells are plain spans, so a template that emits

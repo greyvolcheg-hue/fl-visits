@@ -36,6 +36,7 @@ COMMANDS = {
     "story": "backend.game.story",
     "infocards": "backend.game.infocards",
     "jobs": "backend.game.jobs",
+    "jumps": "backend.game.jumps",
     "visits": "backend.game.flvisits",
     "weapons": "backend.game.weapons",
     "wrecks": "backend.game.wrecks",

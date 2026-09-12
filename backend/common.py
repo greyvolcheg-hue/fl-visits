@@ -22,6 +22,7 @@ from .game import flvisits as fl
 from .game import market as mk
 from .game import infocards as ic
 from .game import jobs as jb
+from .game import jumps as jm
 from .game import news as nw
 from .game import reputation as rep
 from .game import rumors as ru
@@ -131,6 +132,15 @@ class GameData:
         should not pay for a board list it will never draw.
         """
         return jb.load_boards(self.dir)
+
+    @functools.cached_property
+    def jumps(self):
+        """Every jump between systems. See `game/jumps.py`.
+
+        Out here with the rest for the same reason: one tab wants it, and it is
+        a walk of all 53 system files. Startup is the thing being protected.
+        """
+        return jm.load_jumps(self.dir)
 
     @functools.cached_property
     def news(self):
@@ -430,6 +440,16 @@ class Ctx:
 
     def docked(self):
         return set(self.state()["docked_bases"])
+
+    def visits(self):
+        """The raw `visit` table, hash -> flag, off the one decode.
+
+        `state()` resolves these against the base list and throws the rest away,
+        which is right for it and wrong for anything asking about a different
+        kind of object: jump gates and holes are recorded here too and no base
+        ever matches their hashes.
+        """
+        return fl.parse_visits(self.saved())
 
     def dock_order(self):
         """Which base you reached first, second, third. See `dock_order`."""

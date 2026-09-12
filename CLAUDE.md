@@ -43,6 +43,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/game/rumors.py` | what the people in every bar say, and who is saying it |
 | `backend/game/infocards.py` | the RT_HTML half of the resource DLLs, which is where rumor text lives |
 | `backend/game/jobs.py` | what the job board at every base is capable of paying |
+| `backend/game/jumps.py` | every jump between systems, and the shortest way through them |
 | `data/story-states.txt` | the 42 story states in order. `MissionNum` in a save indexes this |
 | `data/marks.json` | which log entries are starred and read. **Untracked**: personal state |
 | `backend/live/speed.py` | cruise speed of the *running* game |
@@ -437,6 +438,88 @@ the 97, interpolate the rest by position between two dated neighbours, since the
 log is monotonic. It is not built, because the owner picked streams-in-order
 over one interleaved timeline on 2026-09-10. This note exists so nobody
 re-derives the bridge from scratch to find that out.
+
+## Settled: the game's own route tables are not shortest paths
+
+Closed 2026-09-12, building Map → Best Path after the owner reported that the
+in-game hack does not work.
+
+**The graph is in the system files and is complete.** An `[Object]` carrying a
+`goto = <system>, <object>, <tunnel>` is a jump: **232 of them across 52
+systems, every one two-way, and every `goto` naming an object the same walk
+found.** 84 gates, 140 holes of five kinds, two `nomad_gate` and six Dyson
+airlocks. The save records which ones you have seen the same way it records a
+base, by `FLHash` of the nickname, all at flag 1.
+
+**Checked against `UNIVERSE/systems_shortest_path.ini`, the table the hack
+switches the game to: equal on 1502 of its 2079 pairs, this tool shorter on
+577, longer on none.** `fl.py jumps --check` is that comparison and it is the
+guard on the graph: a route longer than the table's would mean an edge was
+lost. New York to New London is the example, four jumps in the table against
+three through Magellan.
+
+**The nodes are jump objects, not systems**, and that is what makes it right.
+New York holds both a gate and a hole to Texas and which one you want depends
+on where you came in; a graph of systems cannot say that. Start at any jump in
+the departure system for free, a jump costs one hop and no distance because it
+is instant, flying to another jump in the same system costs the distance
+between them, and arriving is the first jump that lands in the destination.
+
+**Two costs, and they disagree on 49% of the 2182 reachable pairs**, which is
+why both are drawn. Fewest jumps ties-break on distance and least flying
+ties-breaks on jumps, so it is one Dijkstra under two orderings of the same
+pair. Checked across every pair: no route by flying is longer than the
+fewest-jumps one, and none by jumps has more hops than the least-flying one.
+
+**Distance covers the middle systems only, and trade lanes are not in it.**
+Both ends are picked by hand, so where you stand in the first system and where
+you are going in the last are not things this knows; lanes would change real
+travel time completely but need where the lane runs and whether it is standing,
+which the files do not settle. Same rule as the perishable cargo.
+
+**A link counts as found when either end has been seen**, not just the one you
+stand at. 14 of the 116 links in the save of that day were marked at one end
+only, and refusing the return trip on those would be the tool pretending not to
+know about a hole whose far side it just described. Each step still carries
+`found` for its own object, so the page marks what your nav map will not show.
+
+**Five systems are a closed island**: `st01`, `st02`, `st02c`, `st03` and
+`st03b`, the single-player-only Omicrons. They join each other and nothing
+else, so 470 of the 2652 ordered pairs have no route at all. That is the data,
+not a missing edge.
+
+## Open: the hack applies, and the owner still says best path is wrong
+
+The patch in `live/bestpath.py` was **reported ON by `fl.py bestpath` against
+the running game** on 2026-09-12, with all five sites differing from the
+shipped files. So "it does not apply" is not the fault.
+
+**The swap direction is right, which had never been established before.** The
+module's own `routes()` says so in as many words. The deduction, from two facts
+that can both be checked: unpatched Freelancer routes through gates only, which
+is the whole reason the option exists; and unpatched, the slot at content.dll
+`+0x89492` points at `systems_shortest_path.ini` while the one at `+0x89512`
+points at `shortest_legal_path.ini`. For vanilla to behave as it does, the
+router must read `+0x89512`, and the swap puts the holes table there. Read off
+the shipped file through the PE section table, and the live process agrees.
+
+**The build is right too.** `server.dll` holds `0x0A` at RVA `0x1ACE3` and
+`content.dll` `0xC4` at `0x89492`, exactly flhack's build 10; build 11's
+offsets give `0x24` and `0x90`.
+
+**What the table buys, measured**: over the 1190 pairs both tables carry, the
+holes table saves a jump on 550 of them, up to five, and changes the route
+without shortening it on 51 more. So a working patch is worth something and the
+complaint is not "it changes nothing".
+
+**The test that settles it, and it needs flying.** Set best path from Cambridge
+to Sigma-17. Gates only, the game should say Cambridge, New London, Leeds,
+Tau-31, Tau-29, Kyushu, New Tokyo, Honshu, Sigma-19, Sigma-17, nine jumps. With
+holes it should say Cambridge, Omega-5, Omega-41, Omicron Theta, Sigma-17, four.
+If the patch reads ON and the game still draws the nine-jump route, the bytes
+are not what the router reads and the next place to look is the type byte in
+`server.dll`, not the filename pointers. **This tab does not depend on the
+answer**, which is the point of building it.
 
 ## Settled: a bribe has a place, and 11 factions have none you can reach
 

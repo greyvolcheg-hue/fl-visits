@@ -34,7 +34,7 @@ The web page has seven tabs, three of which carry sub-tabs:
 |---|---|
 | **Overview** | none |
 | **Engine** | none |
-| **Map** | Systems, Chart, Jobs |
+| **Map** | Systems, Chart, Jobs, Best Path |
 | **Equipment** | Search |
 | **Trade** | Market, Routes |
 | Reputation, Neural Net | none |
@@ -507,6 +507,37 @@ own figures and does not print a number that implies a model nobody can check.
 Planet Toledo have nobody in the bar offering work, and Planet Sprague has an
 offering faction but a board with no slots on it. `fl.py jobs --all` lists the
 four and says which is which.
+
+**Map → Best Path** works out the way from one system to another, and it exists
+because the game's own answer is not the shortest one. Freelancer ships three
+precomputed route tables and `fl.py bestpath` switches it to the one that knows
+about jump holes; checked against that very table, over all 2079 pairs in it,
+this is equal on 1502 and **shorter on 577, longer on none**. New York to New
+London it routes in four jumps through Cortez where there are three through
+Magellan, on a jump gate that has been there since 2003.
+
+**Two routes, because they disagree on half the map.** Fewest jumps and least
+flying part company on 49% of the pairs that have a route at all, so both are
+drawn, and one line says so when they are the same. Each step is the system you
+are standing in, the nav map cell, the thing to fly to, and whether it is a gate
+or a hole.
+
+**It starts from what you have found**, which is the jumps the save has recorded
+on your nav map. A link counts as found when either of its two ends has been
+seen: being shown the far side of a hole is knowing it is there. The checkbox
+widens it to all 232 jumps in the game and marks every step your map will not
+show you, so it doubles as a list of what would open up.
+
+**Distance is raw flying between the jumps inside each system, in the game's own
+metres, and it covers the middle systems only.** Where you are in the one you
+leave and where you are going in the one you arrive in are not things a route
+between two systems knows. **Trade lanes are not modelled** and the page says
+so: they change real travel time completely, but that needs to know where the
+lane runs and whether it is still standing, which the files do not settle.
+
+**Five systems are a closed island.** The single-player-only Omicrons, `st01`
+through `st03b`, join each other and nothing else, so the page says that rather
+than pretending to search.
 
 **Neural Net** is one list over three sources, and the three chips are filters
 on it rather than a switch between three pages. All three are on by default,
