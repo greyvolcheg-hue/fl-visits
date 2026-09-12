@@ -44,6 +44,13 @@ const leaf = {};
 // `topTab`, not `top`: `window.top` is non-configurable, so a global `let top`
 // is a SyntaxError that kills the whole script before a line of it runs.
 let topTab = 'overview', tab = 'overview', latest = null, polledAt = null;
+// Whether the header is showing where the save actually is, and what the
+// server last said when asked to open that folder. Folded away by default:
+// the path is six levels deep and belongs on screen when asked for, not
+// across the top of every tab. The note survives a fold, because a failure
+// has to stay readable: `xdg-open` is spawned and never waited for, so
+// "opened" means asked rather than "a window appeared".
+let showPath = false, pathNote = '';
 
 // Per tab, not per page: what you want expanded on Systems has nothing to do
 // with anywhere else, and "finished" means something different on each.
@@ -217,13 +224,37 @@ function go(parent, child) {
 // feels like it, the poll is us.
 function drawStatus() {
   const cold = !latest;
+  // The name is a button: the server is the only party that knows which file
+  // out of which Wine prefix is being followed, and until this it kept it to
+  // itself. Open, it shows the folder and offers to walk you there.
   paint($('#status'),
     `<span class="dot${cold ? ' cold' : ''}"></span>` +
     (cold ? '<span>no save read yet</span>'
-          : `<span class="file">${esc(latest.save)}</span>` +
+          : `<button class="file" id="savename" title="where is this file?">` +
+            `${esc(latest.save)}</button>` +
             `<span class="sep">|</span><span>saved ${ago(latest.saved_at)}</span>`) +
-    (polledAt ? `<span class="sep">|</span><span>polled ${ago(polledAt)}</span>` : ''));
+    (polledAt ? `<span class="sep">|</span><span>polled ${ago(polledAt)}</span>` : '') +
+    (showPath && latest
+      ? `<span class="savepath"><span class="dir">${esc(latest.save_dir)}</span>` +
+        `<button class="openat" id="openat">OPEN FOLDER</button>` +
+        (pathNote ? `<span class="said">${esc(pathNote)}</span>` : '') + '</span>'
+      : ''));
 }
+
+// Delegated on the header, not bound in `drawStatus`: the poll repaints this
+// node every five seconds and a handler bound to the button would go with it.
+$('#status').addEventListener('click', async e => {
+  if (e.target.closest('#savename')) { showPath = !showPath; pathNote = ''; drawStatus(); return; }
+  if (!e.target.closest('#openat')) return;
+  try {
+    const r = await fetch('api/reveal', { method: 'POST', body: '{}' });
+    const d = await r.json();
+    // On success the folder is already on the line above, so the server's
+    // `opened <path>` would print it twice. A failure keeps every word of it.
+    pathNote = d.ok ? 'opened' : (d.message || 'nothing happened');
+  } catch (err) { pathNote = 'the server did not answer'; }
+  drawStatus();
+});
 
 function render() {
   const v = VIEW[tab];

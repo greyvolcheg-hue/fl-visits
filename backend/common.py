@@ -13,6 +13,8 @@ import functools
 import json
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import threading
 
@@ -279,6 +281,12 @@ def read_state(game, save_path, saved):
         "systems": out,
         "house_order": HOUSE_ORDER,
         "save": os.path.basename(save_path),
+        # The whole path as well as the name. Which file is being followed is
+        # a question the header asks and only this process can answer: the
+        # save sits six levels down a Wine prefix nobody reconstructs from
+        # memory, and the browser has no way to find out on its own.
+        "save_path": save_path,
+        "save_dir": os.path.dirname(save_path),
         "saved_at": os.path.getmtime(save_path),
         "docked": sum(r["bases"]["done"] for r in out),
         "revealed": sum(len(r["bases"]["revealed"]) for r in out),
@@ -294,6 +302,35 @@ def read_state(game, save_path, saved):
         "docked_bases": sorted(k for k, v in game.bases.items()
                                if flags.get(k) in fl.DOCKED),
     }
+
+
+# --- showing somebody a folder -------------------------------------------
+
+def open_folder(path):
+    """Ask the desktop to show a folder, and do not wait to find out.
+
+    Three spellings of one action, kept in one place because a second copy is
+    how a project ends up opening folders two different ways: `xdg-open` on
+    Linux, `os.startfile` on Windows, `open` on macOS.
+
+    **Spawned and never waited for.** `xdg-open` returns at once on this
+    desktop, but a handler that is misconfigured can sit there, and this is
+    called from a POST, so waiting would hang the panel rather than the
+    folder. The answer therefore means "asked", not "a window appeared", and
+    the page prints the path it asked for so that a silent no-op is still
+    readable. The finished `xdg-open` is left as a zombie until the next call,
+    which `subprocess` reaps on its next `Popen`, so at most one is ever
+    outstanding and there is no reaper worth writing here.
+    """
+    if not os.path.isdir(path):
+        raise FileNotFoundError(f"{path} is not a folder")
+    if sys.platform == "win32":
+        os.startfile(path)  # noqa: S606 - a directory, and one we chose
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.Popen([opener, path], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    return path
 
 
 # --- the reader's own marks ----------------------------------------------

@@ -300,6 +300,36 @@ Two rules that fall out of it and are worth keeping:
 `localStorage` is deliberately not cleared. It costs nothing and it is the only
 fallback if the file is ever lost.
 
+## Settled: the header says which save, and `api/reveal` takes no argument
+
+Added 2026-09-12 at the owner's request: *"при нажатии на autosave.fl указывать
+папку с сейвами"*. The header showed `AutoSave.fl` and nothing else, while the
+file it names sits at
+
+    ~/Games/freelancer-win32/drive_c/users/<account>/Documents/My Games/
+    Freelancer/Accts/SinglePlayer/AutoSave.fl
+
+six levels down a Wine prefix, in one of several accounts, picked by mtime at
+startup. **The browser cannot work that out and the server never said.** So
+`api/state` now carries `save_path` and `save_dir` beside the basename, the
+name in the header is a button, and opening it shows the folder with a button
+that hands it to the file manager.
+
+**`api/reveal` takes no argument, and that is the design rather than an
+omission.** The only folder it can open is the one this process chose at
+startup, so there is nothing for a page to point it at. An endpoint that opened
+a path the browser sent would be a local server that opens arbitrary folders on
+request, which is a different and much worse thing to have running on
+localhost.
+
+**The opener is spawned and never waited for**, so "opened" means asked. A
+misconfigured handler would otherwise hang the POST and freeze the panel, and
+the panel would be reporting on a window rather than on a request. The path is
+printed next to the answer, which is what makes a silent no-op readable. The
+three spellings of the action, `xdg-open`, `os.startfile` and `open`, live in
+one function in `common.py`, because the second copy of that is how a project
+ends up opening folders two different ways.
+
 ## Settled: a faction with nobody in any bar is nobody you can deal with
 
 Closed 2026-09-09, cutting the Reputation tab from 55 factions to 47 at the

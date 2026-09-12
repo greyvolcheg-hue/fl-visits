@@ -6,13 +6,34 @@
               color: var(--cyan-hi); text-shadow: 0 0 18px var(--glow); }
   .brand .sub { font-family: var(--mono); font-size: 11px; letter-spacing: .16em;
                 color: var(--fainter); }
+  /* Wraps, so the save path can take a line of its own under the readout
+     rather than pushing the timestamps off the header. */
   .status { display: flex; align-items: center; gap: 10px; font-family: var(--mono);
-            font-size: 11px; letter-spacing: .1em; color: var(--faint); }
+            font-size: 11px; letter-spacing: .1em; color: var(--faint);
+            flex-wrap: wrap; justify-content: flex-end; }
   .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
                  box-shadow: 0 0 10px var(--ok); }
   .status .dot.cold { background: var(--unknown); box-shadow: none; }
-  .status .file { color: var(--dim); }
+  /* A button that has to look like the text it replaced, because it says the
+     same thing; only the dotted underline marks it as something to press. */
+  .status .file { color: var(--dim); background: none; border: 0; padding: 0;
+                  font: inherit; letter-spacing: inherit; cursor: pointer;
+                  border-bottom: 1px dotted rgba(111, 216, 255, .45); }
+  .status .file:hover { color: var(--cyan-hi); }
   .status .sep { color: #3f5a6c; }
+  .status .savepath { flex-basis: 100%; display: flex; align-items: center;
+                      gap: 10px; justify-content: flex-end; flex-wrap: wrap;
+                      margin-top: 6px; }
+  /* Selectable and breakable: the whole point is to be able to grab it, and
+     it is longer than the header is wide. */
+  .status .savepath .dir { color: var(--faint); user-select: all;
+                           word-break: break-all; text-align: right; }
+  .status .savepath .said { color: var(--revealed); }
+  .status .openat { background: rgba(111, 216, 255, .1);
+                    border: 1px solid rgba(111, 216, 255, .3); color: var(--dim);
+                    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+                    padding: 3px 9px; cursor: pointer; flex: none; }
+  .status .openat:hover { background: rgba(111, 216, 255, .2); color: var(--text); }
 
   /* --- the tab strip ------------------------------------------------------ */
   /* Sticky, because the tables under it run to hundreds of rows and losing

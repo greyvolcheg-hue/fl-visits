@@ -24,6 +24,11 @@ five seconds, so you can leave the page open on a second screen while you play.
 Pass a specific `Save*.fl` to follow that instead. Ctrl+C stops it. It listens
 on localhost only.
 
+**Click the save name in the header to find out which file that is.** It opens
+the folder the save lives in, as text you can select, with a button that shows
+it in the file manager. Worth having because the answer is six levels down a
+Wine prefix and the server is the only party that knows which one it picked.
+
 Useful flags: `--all` includes what you have not found yet, `--loot` lists what
 each wreck holds, `--port` moves the server, `--game DIR` points at a different
 install.
