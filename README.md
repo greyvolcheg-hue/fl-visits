@@ -36,6 +36,25 @@ the folder the save lives in, as text you can select, with a button that shows
 it in the file manager. Worth having because the answer is six levels down a
 Wine prefix and the server is the only party that knows which one it picked.
 
+### Levels
+
+```bash
+python3 fl.py levels                            # the ladder as it stands
+python3 fl.py levels --to 50 --worth 1160922100 # carry it past the vanilla cap
+python3 fl.py levels --restore                  # back to .vanilla
+```
+
+**The whole level system is one file**, `DATA/MISSIONS/ptough.ini`: 39 rows of
+`worth, level` from `0, 0` to `2409599, 38`. Current Level is which row your
+worth has passed, Next Level Requirements is the next row minus your worth, and
+`[Player] rank` in a save is only a cache of that lookup, so editing a save to
+change level does nothing that survives a dock.
+
+The game calls the section `PlayerToughnessScale`, so the same curve probably
+also sets how tough the world thinks you are. Stretching the ladder should make
+encounters harder as well as levels dearer. That is the name and the shape
+talking, not a measurement.
+
 ### Windows
 
 **Written, never run.** Every platform-specific thing has two spellings and

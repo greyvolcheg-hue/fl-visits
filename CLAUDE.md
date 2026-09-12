@@ -59,6 +59,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/live/persist.py` | writes the live speeds back into the game's files |
 | `backend/live/routetable.py` | writes the shortest routes into the game's own route tables |
 | `backend/live/drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
+| `backend/live/levels.py` | the level ladder in `ptough.ini`, and how far it goes |
 | `backend/live/newgame.py` | what a new game starts you in |
 | `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
 | `design/` | the visual design, as a Claude Design canvas. The source the page is built from, not a screenshot of it. |
@@ -1471,6 +1472,73 @@ a compressed chain needs the marker recomputed rather than capped.
 
 Neither is applied. `newgame.py` writes the starting ship and nothing else, and
 its `.vanilla` copies cover only `loadouts.ini` and `m01a.ini`.
+
+## Settled: the level system is one file, and a save's `rank` is only a cache
+
+Closed 2026-09-12. The owner asked to be reset to level 1 or to have the cap
+raised to 50, and named the three numbers the info screen shows: **Current
+Level, Current Worth, Next Level Requirements**. All three come out of one
+table.
+
+**`DATA/MISSIONS/ptough.ini`, `[PlayerToughnessScale]`**, 39 rows of
+`ptough_graph_pt = <worth>, <level>`, from `0, 0` to `2409599, 38`. That last
+row is the vanilla cap. The ladder rises about x1.14 a rung over its top ten.
+
+**Proved against the live game rather than reasoned about.** Worth 757221 sits
+between row 29 (738187) and row 30 (842492); the screen said level 29; and
+842492 - 757221 = 85271, which is exactly the Next Level Requirement it showed.
+Three numbers, no slack.
+
+**`[Player] rank` in a save is a cache of that lookup.** Editing it does
+nothing that lasts: the game recomputes from worth and puts it back. The ladder
+is the only thing worth changing, and being a file it survives a reload and
+needs no patching.
+
+### The wrong answer this replaced, and why it looked right
+
+The first pass measured `rank` against `money` across 220 saves on disk and
+found rank never varied inside a story state while money varied sixty-fold, and
+concluded the campaign sets the level. **That conclusion was wrong and the
+measurement was fine.** Worth is money *plus the ship plus everything bolted to
+it*, and the campaign hands out ships, so during a story playthrough worth
+tracks the story and money is noise on top of it. Measuring one term of a sum
+and reporting on the sum is the mistake, and it cost the owner a long answer to
+a question he had not asked.
+
+### Finding the table
+
+It is not in any `DATA/*.ini` key called rank, worth or level; a walk of the
+whole tree finds `rank` only in `news.ini`, where it means a story state. Four
+brute scans of all 40 binaries for an ascending ladder found nothing but
+relocation tables. What found it in one shot was **the two numbers off the
+screen**: searching the running process for int32 757221 and 85271 landed on
+them adjacent in the player block, and three hundred bytes away sat the table
+itself as `(worth, level)` pairs, stride 8. A grep of all 8594 files in the
+install for the top value, 2409599, then named the file.
+
+The lesson is the cheap one: two numbers a person can read off their own screen
+beat four brute-force scans, and they were available from the first minute.
+
+### What `fl.py levels` does
+
+Extends the ladder past 38 and keeps a `.vanilla` copy, the `drawdist` shape
+exactly. **Built from the vanilla rows every time**, so running it twice is the
+same as running it once. The first added rung continues the vanilla x1.14 so
+there is no seam at the old cap; the rest are a geometric run landing exactly
+on the worth asked for. It refuses a value past int32, which would wrap
+negative, and a ladder that does not strictly rise, which would make a level
+you can never leave.
+
+Applied at the owner's request on 2026-09-12: levels 39 to 50, from 2,746,943
+to 1,160,922,100, step x1.733.
+
+**Two things about this are not known and are not pretended otherwise.**
+Whether the game reads more than 39 rows at all: vanilla ships 39 and nothing
+says the reader is bounded, nothing proves it is not, and `--restore` is the
+answer if it will not start. And what else the curve drives: the game calls it
+`PlayerToughnessScale`, so it very likely also decides how tough the world
+thinks you are, which would mean a stretched ladder makes encounters harder.
+That is a reading of the name and the shape, not a measurement.
 
 ## Settled: one codebase for both platforms, and the Windows half is unproven
 
