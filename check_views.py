@@ -54,6 +54,7 @@ FEEDS = {
     "tradeData": ["market", "market?good=commodity_gold"],
     "routeData": ["routes", "routes?from=li01&to=rh01"],
     "gearData": ["equipment"], "repData": ["reputation"],
+    "jobsData": ["jobs"],
     # Trade is a pipeline, and one payload can only be at one stage of it. The
     # stage is what decides the markup, so the two stages the default feed does
     # not reach are seeded separately: the picker, and the by-base end.
@@ -84,6 +85,7 @@ DREW = {
     "market:pick": ".hits .hit",
     "market:base": ".tradetable .gun",
     "routes": ".routetable .gun",
+    "jobs": ".jobtable .gun",
 }
 
 # A row is a CSS grid and its cells are plain spans, so a template that emits

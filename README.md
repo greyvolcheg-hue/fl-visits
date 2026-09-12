@@ -34,7 +34,7 @@ The web page has seven tabs, three of which carry sub-tabs:
 |---|---|
 | **Overview** | none |
 | **Engine** | none |
-| **Map** | Systems, Chart |
+| **Map** | Systems, Chart, Jobs |
 | **Equipment** | Search |
 | **Trade** | Market, Routes |
 | Reputation, Neural Net | none |
@@ -452,6 +452,45 @@ will never change, on a page that redraws every five seconds, is not something
 to re-send 12 times a minute. The panel is drawn once for the same reason:
 rewriting its markup on every poll would throw away a decoded 2560px image and
 decode it again.
+
+**Map → Jobs** answers where the money is. A bar's job board shows you what it
+is offering today and never what it is *capable* of offering, so the only way to
+learn that one base pays sixteen times what your home station does is to fly
+there and look. That ceiling is in the game files, and this is it:
+
+| | |
+|---|---|
+| **best job** | what the richest faction on that board can offer at the top of its band |
+| **floor** | the least any faction there can offer |
+| **on board** | how many jobs hang up at once |
+| **offered by** | who is standing in that bar with work |
+
+What is actually pinned up when you walk in is drawn from between the two
+numbers, so `best job` is a ceiling and not a promise.
+
+**It opens on the systems you have opened**, which means a system holding at
+least one base you have docked at. The bases in it you have *not* landed on are
+the point: you already know the way there. The checkbox widens it to all 160
+boards in Sirius, which is how you find out what is worth the trip. On this save
+the ceiling inside reach is 9 001, and Planet Crete, Planet Malta, Ruiz Base and
+Tripoli Shipyard pay 146 192 out in the Edge Worlds.
+
+**Click a row for who is offering**, each faction with its own band and its
+share of the draw. Trafalgar Base runs five: Junkers take 40% of what comes up,
+Corsairs and Outcasts 20% each, Gaians and Mollys 10%.
+
+**Two numbers are deliberately missing, and they are the two you would want
+next.** What the job sends at you, and what the best of a full board comes to.
+`npcranktodiff.ini` maps enemy rank and wing size to the same difficulty scale,
+so the game plainly inverts it to pick your opposition, but the direction of
+that inversion is not in the files, and neither is how the draw is spread inside
+a band. Same rule as the perishable cargo on Routes: the page shows the game's
+own figures and does not print a number that implies a model nobody can check.
+
+**160 of the 164 dockable bases run a board.** Planet Primus, Planet Gammu and
+Planet Toledo have nobody in the bar offering work, and Planet Sprague has an
+offering faction but a board with no slots on it. `fl.py jobs --all` lists the
+four and says which is which.
 
 **Neural Net** is one list over three sources, and the three chips are filters
 on it rather than a switch between three pages. All three are on by default,

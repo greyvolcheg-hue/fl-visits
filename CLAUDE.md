@@ -42,6 +42,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/game/news.py` | the 403 news items and the story window each one runs in |
 | `backend/game/rumors.py` | what the people in every bar say, and who is saying it |
 | `backend/game/infocards.py` | the RT_HTML half of the resource DLLs, which is where rumor text lives |
+| `backend/game/jobs.py` | what the job board at every base is capable of paying |
 | `data/story-states.txt` | the 42 story states in order. `MissionNum` in a save indexes this |
 | `data/marks.json` | which log entries are starred and read. **Untracked**: personal state |
 | `backend/live/speed.py` | cruise speed of the *running* game |
@@ -436,6 +437,83 @@ the 97, interpolate the rest by position between two dated neighbours, since the
 log is monotonic. It is not built, because the owner picked streams-in-order
 over one interleaved timeline on 2026-09-10. This note exists so nobody
 re-derives the bridge from scratch to find that out.
+
+## Settled: a job board's ceiling is two files multiplied together
+
+Closed 2026-09-12 for the Jobs tab. A bar shows you what it is offering today
+and never what it can offer, and the difference is what the tab exists to show.
+
+| File | What it gives |
+|---|---|
+| `DATA/MISSIONS/mbases.ini` | `[MVendor] num_offers = 2, 4`, the slots on the board, and `[BaseFaction] mission_type = DestroyMission, <min>, <max>, <weight>`, one faction's band of difficulty and its weight in the draw |
+| `DATA/RANDOMMISSIONS/diff2money.ini` | 23 rungs, difficulty to credits, 1800 at 0.0 up to 247065 at 100.0 |
+
+So a board's ceiling is the money at its highest `max`, and its floor the money
+at its lowest `min`. Counted, never assumed:
+
+  * **160 of the 164 dockable bases run a live board.** Planet Primus, Planet
+    Gammu and Planet Toledo carry no offering faction at all; Planet Sprague
+    carries one and `num_offers = 0, 0`, so its board has no slots. `fl.py jobs
+    --all` lists the four.
+  * **All 241 `mission_type` rows in the game are `DestroyMission`**, the only
+    random mission type vanilla ships. The kind is carried through anyway, so a
+    mod that adds one gets listed rather than silently counted as a bounty.
+  * 101 bases have one faction offering, 51 have two, 11 have three, one has
+    five. Trafalgar Base is the five, and its weights read 40/20/20/10/10.
+  * The ceiling is 146192, at Ruiz Base, Planet Malta, Planet Crete and Tripoli
+    Shipyard. The lowest live board pays 2200.
+
+**The interpolation between two rungs is load-bearing and must not be flattened
+into a lookup.** Four of the 19 band edges in `mbases.ini` miss their rung by
+float32 noise between the two files, `0.11239` against the ladder's `0.112387`,
+the same number written twice at different precision. Walking between the
+neighbours puts those within a credit of where they belong. A lookup would have
+to decide what a value on no rung means, and every answer to that is invented.
+
+**Two numbers are deliberately not printed, and they are the two you want
+next.** What the job sends at you, and what the best of a full board comes to.
+`npcranktodiff.ini` maps (NPC rank, wing size) to the same difficulty scale, so
+the game plainly inverts it to choose your opposition, but the direction of that
+inversion is in no file, and neither is how the draw is spread inside a band.
+This is the `decay_per_second` rule one section down, for the same reason: a
+number on the page implies a model, and neither model is checkable.
+
+**"Open" means a system holding at least one base you have docked at**, the
+owner's call on 2026-09-12 over the wider "or merely revealed". The bases inside
+such a system that you have *not* landed on are the point of the tab. Measured
+on the save of that day: 12 open systems, 63 bases in them, 62 running a board,
+55 of those already docked at.
+
+**Sorting and both filters are done on the page.** 160 rows and no filter
+language is the Routes case, not the Equipment one, and the endpoint has already
+sent every figure. The view does refetch on every entry, which Equipment's does
+not: which systems are open is a fact about the save, and docking somewhere new
+between two looks at the tab is precisely what it is for.
+
+## Found 2026-09-12, not fixed: one base spells `Base` and falls out of the index
+
+`flvisits.load_objects` keeps an `[Object]` only when it carries both `nickname`
+and `base`, and it reads that key case-sensitively while `read_ini` preserves
+the case it found. Across all 53 system files, **247 objects spell it `base` and
+exactly one spells it `Base`**: Planet Toledo, `St01_01_Base` in Omicron Minor.
+
+What follows, measured rather than reasoned:
+
+  * `load_objects` returns 247 objects where the files hold 248.
+  * `bases.dockable_bases` uses `read_multi` plus a key-lowering helper, so it
+    sees the object and counts Planet Toledo among the 164. The two walks
+    disagree about the same base.
+  * Nothing can therefore resolve a visit to it: `common.read_state` maps a
+    visit hash through `game.objects`, which has no entry, so Planet Toledo sits
+    in `unknown` for ever even after docking. It is one of the 164 in the
+    denominator and can never move to the numerator.
+  * `market.base_index` cannot name it either, which is how this surfaced:
+    `fl.py jobs --all` printed a bare nickname and an empty system.
+
+The Jobs tab is not affected, because Toledo's board is shut and never reaches
+it. This is left alone on purpose: it is a one-word change in `flvisits.py`,
+which has its own procedure (`check_frozen.py` before and after, and diff), and
+it moves a number the whole app is about. **The owner's call, not a tidy-up.**
 
 ## Settled: three commodities spoil, and the data says so twice
 

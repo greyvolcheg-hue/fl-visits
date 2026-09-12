@@ -21,6 +21,7 @@ from .game import equipment as eqp
 from .game import flvisits as fl
 from .game import market as mk
 from .game import infocards as ic
+from .game import jobs as jb
 from .game import news as nw
 from .game import reputation as rep
 from .game import rumors as ru
@@ -119,6 +120,17 @@ class GameData:
     @functools.cached_property
     def cards(self):
         return ic.load_cards(self.dir)
+
+    @functools.cached_property
+    def jobs(self):
+        """Every live job board, richest first. See `game/jobs.py`.
+
+        Out here with the log's three tables rather than in `__init__` for the
+        same reason they are: `mbases.ini` is 42 ms to parse against about 200
+        ms of total startup, and one tab wants it. A page opened on Trade
+        should not pay for a board list it will never draw.
+        """
+        return jb.load_boards(self.dir)
 
     @functools.cached_property
     def news(self):

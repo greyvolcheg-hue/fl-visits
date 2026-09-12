@@ -23,7 +23,7 @@ import importlib
 LAYOUT = [
     ("overview", "Overview", ["overview"]),
     ("engine", "Engine", ["engine"]),
-    ("map", "Map", ["systems", "chart"]),
+    ("map", "Map", ["systems", "chart", "jobs"]),
     ("gear", "Equipment", ["search"]),
     ("trade", "Trade", ["trade", "routes"]),
     ("rep", "Reputation", ["rep"]),
