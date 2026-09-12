@@ -290,19 +290,25 @@ multiplier is exactly 1.0 on all 10871 rows of `market_misc.ini` and no item's
 differs between bases. The rank and reputation gates are the same everywhere
 too, so they sit on the row instead of the expansion.
 
-**The list is what you can actually get**: sold at a dockable base, or sitting
-in a wreck. That is 235 guns of 247 and 79 shields of 121. The 42 shields
-dropped are NPC gear (30 have an `npc_` nickname, and no `npc_` item is sold
-anywhere in the game) or have no `[Good]` at all and so no price and no dealer.
-Left in, they take the top of the list: `npc_shield01_mark10` shows 10127
-capacity where the best buyable shield, the Adv. Brigandine, is 289150 credits.
-The 12 guns dropped are Death's Hand, Adv. Dissolver and Adv. Sunrail, all
-mission or NPC weapons. Same argument as the undockable bases on the Trade tab.
+**The list is what you can actually get, and every row says how.** There are
+three ways: a dealer at a base you can dock at, a wreck, or shooting whoever is
+flying it. That is 237 guns of 247 and 79 shields of 121, and the `where`
+column reads a dealer count, *wreck*, or *off a ship*.
 
-The 17 codenamed guns, ARCHANGEL through SILVER FIRE, stay precisely because
-they are in wrecks, and for them the expansion names the wreck: ARCHANGEL reads
-*the Volsung wreck, Omega-41*. They lead the list, since wreck loot is the
-hardest hitting in the game.
+The 17 codenamed guns, ARCHANGEL through SILVER FIRE, are in wrecks, and for
+them the expansion names the wreck: ARCHANGEL reads *the Volsung wreck,
+Omega-41*. The two Nomad guns are the ones you take off a Nomad: no dealer, no
+wreck, a 10% chance of surviving the kill as loot, and the two highest hull DPS
+figures in the game at 2568 and 2543.
+
+**Tick *also what nothing in the game gives you* for the rest.** Ten guns and
+42 shields exist in the equipment files and are handed out by nothing at all:
+Death's Hand Mk III, Reaper Mk III, the Nomad Prototype, Rowlett's Revenge and
+friends. They are hidden by default because the tab answers "what can I get",
+and they are one click away because an item that is simply missing cannot be
+told apart from one the reader lost. Left in unconditionally they would take
+the top of the shield list, where `npc_shield01_mark10` shows 10127 capacity
+against the best buyable Adv. Brigandine at 289150 credits.
 
 The docked filter narrows where you can buy, never what exists. A gun whose
 every dealer is somewhere you have not been keeps its row and says so; 54 guns

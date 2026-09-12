@@ -31,6 +31,11 @@ CSS = """
 JS = r"""
 let gearData = null, gearKind = 'guns', gearFilters = [],
     gearOpen = '', gearVisitedOnly = false, gearSort = '', gearDir = 'down';
+// Whether the list also holds what nothing in the game hands out. Off by
+// default, because the tab answers "what can I get"; on, because an item that
+// is simply absent cannot be told apart from one the reader lost, and that is
+// what sent the owner looking for Death's Hand Mk III.
+let gearAll = false;
 // Favourites: an item kept in the list whatever the filters say. The server
 // owns them, in `data/marks.json` beside the Neural Net's read marks, and this
 // is a cache of what it last said. Seeded on every `loadGear`.
@@ -58,6 +63,10 @@ function renderGear() {
   const params = d.parameters;
   const param = k => params.find(p => p.key === k) || { label: k, unit: '' };
   const money = v => (v === null || v === undefined) ? '-' : v.toLocaleString();
+  // The `where` cell for everything that is not sold. `sold` is absent on
+  // purpose: its cell is the count of dealers, which is a number rather than
+  // a word, and a lookup that answered for it would have to hold every count.
+  const WHERE = { wreck: 'wreck', loot: 'off a ship', none: 'nowhere' };
   const fmt = (v, p) => {
     if (v === null || v === undefined || v === '') return '-';
     if (p.kind === 'pick') return esc(String(v));
@@ -81,7 +90,11 @@ function renderGear() {
     '</select>' +
     '<label class="toggle"><input type="checkbox" id="gearseen"' +
     (gearVisitedOnly ? ' checked' : '') +
-    '> <span>only bases I have docked at</span></label></div>';
+    '> <span>only bases I have docked at</span></label>' +
+    '<label class="toggle"><input type="checkbox" id="gearnowhere"' +
+    (gearAll ? ' checked' : '') +
+    `> <span>also what nothing in the game gives you (${d.hidden})</span></label>` +
+    '</div>';
 
   // The filters, each its own removable row. A numeric one takes a minimum, a
   // categorical one takes a value from the list, because "at least Graviton"
@@ -197,7 +210,7 @@ function renderGear() {
         cols.map(k => `<span class="num ${k === d.order ? 'h' : 'raw'}">` +
           `${fmt(r[k], param(k))}</span>`).join('') +
         `<span class="num">${r.price ? money(Math.round(r.price)) : '-'}</span>` +
-        `<span class="num raw">${r.bases.length || (r.wrecks.length ? 'wreck' : '-')}</span>` +
+        `<span class="num raw">${WHERE[r.source] || r.bases.length}</span>` +
         '</div>';
       if (!open) return line;
       const where = r.bases.length
@@ -209,6 +222,19 @@ function renderGear() {
           ? r.wrecks.map(w =>
               `<div class="atrow"><span class="cell">${esc(w.system)}</span>` +
               `<span>the ${esc(w.name)} wreck</span></div>`).join('')
+          : r.source === 'loot'
+            ? `<p class="note">No dealer and no wreck: you take it off whoever
+                is flying it. ${r.carriers} loadout${r.carriers === 1 ? '' : 's'}
+                in the game mount${r.carriers === 1 ? 's' : ''} one, and the
+                game gives it a ${Math.round(r.drop)}% chance of surviving the
+                kill as loot.</p>`
+          : r.source === 'none'
+            ? `<p class="note warn">${r.undockable
+                ? `Stocked by ${r.undockable} base${r.undockable === 1 ? '' : 's'}
+                   you cannot dock at, and nowhere else.`
+                : `Nothing in the game gives you this. No dealer, no wreck,
+                   nothing flying it: it is in the equipment files and the rest
+                   of the game never refers to it.`}</p>`
           : '<p class="empty">Nowhere you have docked sells it.</p>';
       return line + `<div class="gearwhere">${where}</div>`;
     }).join('') +
@@ -250,6 +276,11 @@ function wireGear() {
   const v = $('#gearseen');
   if (v) v.addEventListener('change', e => {
     gearVisitedOnly = e.target.checked;
+    loadGear();
+  });
+  const nw = $('#gearnowhere');
+  if (nw) nw.addEventListener('change', e => {
+    gearAll = e.target.checked;
     loadGear();
   });
   const add = $('#gearadd');
@@ -366,6 +397,7 @@ async function loadGear() {
   if (gearSystem) q.push('f=' + encodeURIComponent(`system:system:${gearSystem}`));
   if (gearSort) q.push('sort=' + encodeURIComponent(gearSort) + '&dir=' + gearDir);
   if (gearVisitedOnly) q.push('visited=1');
+  if (gearAll) q.push('nowhere=1');
   try {
     const r = await fetch('api/equipment?' + q.join('&'), { cache: 'no-store' });
     if (r.ok) {

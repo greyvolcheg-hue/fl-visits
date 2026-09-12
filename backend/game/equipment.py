@@ -25,10 +25,11 @@ cheapest-versus-dearest logic over here; it has nothing to work on.
 across the 366 goods sold at more than one base neither ever differs between
 them.
 
-*27 of the 247 mountable guns are sold nowhere.* They are the codenamed ones,
-ARCHANGEL, BLOODSTONE, CERBERUS, Death's Hand. Those are wreck loot, so for
-them `where` names the wreck instead of a dealer, which is the actual answer
-rather than an empty list.
+*29 of the 247 mountable guns are sold nowhere.* Seventeen are the codenamed
+ones, ARCHANGEL through SILVER FIRE, which sit in wrecks; two are the Nomad
+guns, which drop off the Nomads flying them; ten are given out by nothing at
+all. So `where` has four answers, not one, and every row carries a `source`
+saying which: `sold`, `wreck`, `loot`, `none`. See `npc_carried`.
 
 Guns come from `weapons.load_weapons`, which already reads both the `[Gun]` and
 its `[Munition]`. Shields are parsed here because nothing else needed them yet.
@@ -215,6 +216,78 @@ def load_shields(game_dir, data_dir, fittable_only=True):
     return out
 
 
+PLAYER_LOADOUT = "msn_playerloadout"
+
+
+def npc_carried(game_dir, data_dir):
+    """nickname -> {"drop": chance, "carriers": [loadout names]}.
+
+    **The third way to get a gun, after a dealer and a wreck: shoot whoever is
+    flying it.** Two files together say so and neither is enough on its own.
+
+    `MISSIONS/lootprops.ini` gives 434 items a `drop_properties`, whose first
+    field is the chance the thing survives the kill and becomes loot. It is
+    read as a percentage: across all 434 entries it runs 0 to 100, it is 100 on
+    every commodity, 33 on nanobots and shield batteries, and 8 on most guns,
+    which is what a percentage looks like and matches what falls out of a fight.
+    **Nothing here depends on that reading beyond it being non-zero**, so a
+    wrong unit would cost a word on the page and not a row in the list.
+
+    `SHIPS/loadouts.ini` and its three siblings say who is carrying what. The
+    file is not searched by name: `freelancer.ini` declares four of them under
+    `loadouts` and `wr.declared_files` already reads that list, the same way the
+    equipment files are found. `lootprops.ini` is the exception and is named
+    here, because `freelancer.ini` does not declare it under any key.
+
+    **Both halves are required and dropping either breaks it.** A drop chance
+    alone lets in the twelve `shield01_mark08_lf`-shaped shields, which carry a
+    6 and sit on no ship in the game, so nothing can ever drop them. A loadout
+    alone lets in all 26 `npc_` shields, which carry no chance at all and would
+    head the capacity list at 10127 points against a best buyable 289150. The
+    pair is what keeps one rule honest for guns and shields alike.
+
+    **There is no "the story gave it to you" source, and that is measured.**
+    `msn_playerloadout`, the ship the campaign hands you at the end, carries
+    exactly one thing no dealer sells, `special_nomad_gun01`, which already
+    qualifies by dropping off Nomads. A source that can never be the answer is
+    worse than no source, so it is not here. Whatever else the mission scripts
+    hand over is not in these files at all.
+    """
+    drop = {}
+    for section, pairs in wr.read_multi(fl.ipath(data_dir, "MISSIONS",
+                                                 "lootprops.ini")):
+        if section.lower() != "mlootprops":
+            continue
+        entry = _entries(pairs)
+        nick, props = _first(entry, "nickname"), entry.get("drop_properties")
+        if not nick or not props:
+            continue
+        try:
+            drop[str(nick).lower()] = float(props[0][0])
+        except (IndexError, TypeError, ValueError):
+            continue
+
+    out = {}
+    for path in wr.declared_files(game_dir, data_dir, "loadouts"):
+        for _section, pairs in wr.read_multi(path):
+            entry = _entries(pairs)
+            nick = _first(entry, "nickname")
+            if not nick:
+                continue
+            # `cargo` as well as `equip`: a loadout carries a gun either way and
+            # the difference is where it is mounted, not whether it is there.
+            for key in ("equip", "cargo"):
+                for values in entry.get(key, []):
+                    if not values:
+                        continue
+                    item = str(values[0]).lower()
+                    held = out.setdefault(item, {"drop": drop.get(item),
+                                                 "carriers": []})
+                    if str(nick) not in held["carriers"]:
+                        held["carriers"].append(str(nick))
+    return out
+
+
 def wreck_loot(game_dir):
     """item display name -> [(wreck name, system nickname)].
 
@@ -258,6 +331,7 @@ def load_catalogue(game_dir=None, obtainable_only=True):
     dockable, ref, sysname = mk.base_index(game_dir, data_dir, strings)
     market = load_market(game_dir, data_dir)
     loot = wreck_loot(game_dir)
+    carried = npc_carried(game_dir, data_dir)
 
     def sold_at(nick):
         seen, out = set(), []
@@ -280,10 +354,28 @@ def load_catalogue(game_dir=None, obtainable_only=True):
         # made more findable by listing the wrecks that also hold one.
         row["wrecks"] = [] if row["bases"] else [
             {"name": w, "system": sysname.get(s, s)} for w, s in loot.get(row["name"], [])]
+        # Dealers the market names that you cannot dock at. Two guns hang on
+        # this: Adv. Dissolver and Adv. Sunrail are stocked, at 24790 credits
+        # and rank 22, by Battleship Essex alone, which `dockable_bases` says
+        # is not a base you can land on. "Nobody sells it" would be wrong about
+        # them and "sold at one base" would be worse, so the row says which.
+        row["undockable"] = len(set(deal.get("bases") or ())) - len(row["bases"])
+        held = carried.get(nick) or {}
+        row["drop"] = held.get("drop")
+        row["carriers"] = len(held.get("carriers") or ())
+        # **One field naming how you get this, in the order you would want it.**
+        # A dealer beats a wreck beats a kill, and `none` is an answer rather
+        # than an absence: an item that vanished from the list was
+        # indistinguishable from an item the reader had lost, which is the bug
+        # this replaced.
+        row["source"] = ("sold" if row["bases"] else
+                         "wreck" if row["wrecks"] else
+                         "loot" if row["drop"] and row["carriers"] else
+                         "none")
         return row
 
     def reachable(row):
-        return bool(row["bases"] or row["wrecks"]) or not obtainable_only
+        return row["source"] != "none" or not obtainable_only
 
     guns = []
     for gun in wp.load_weapons(game_dir):
@@ -486,7 +578,10 @@ def main():
     ap.add_argument("--name", help="only items whose name contains this")
     args = ap.parse_args()
 
-    cat = load_catalogue(args.game)
+    # **`--where` reads the whole catalogue, not the obtainable part.** Its one
+    # job is to answer "where do I get this", and for an item nothing hands out
+    # the answer is "nowhere", which is a sentence. Silence is not.
+    cat = load_catalogue(args.game, obtainable_only=not args.where)
     if args.where:
         want = args.where.strip().lower()
         for rows in cat.values():
@@ -500,13 +595,21 @@ def main():
                     print(f"   {base['name']:<30}{base['at']:<8}{base['system']}")
                 for wreck in row["wrecks"]:
                     print(f"   wreck: {wreck['name']:<23}{wreck['system']}")
-                if not row["bases"] and not row["wrecks"]:
-                    print("   sold nowhere and in no wreck")
+                if row["source"] == "loot":
+                    print(f"   shot off a ship: {row['carriers']} loadouts "
+                          f"carry it, {row['drop']:.0f}% drop")
+                elif row["source"] == "none" and row["undockable"]:
+                    print(f"   stocked only by {row['undockable']} base(s) you "
+                          f"cannot dock at")
+                elif row["source"] == "none":
+                    print("   nothing in the game gives you this: no dealer, "
+                          "no wreck, nothing flying it")
         return
 
     rows = cat[args.kind]
     order = ORDER[args.kind]
     sold = sum(1 for r in rows if r["bases"])
+    WHERE = {"sold": "", "wreck": "wreck", "loot": "off a ship", "none": "nowhere"}
 
     # The same filters the page sends, so this is a second opinion on the same
     # rule rather than a second implementation of it.
@@ -533,6 +636,7 @@ def main():
     print(f"{len(found)} of {len(rows)} {args.kind}, {sold} sold somewhere\n")
     for row in found[:args.top]:
         price = f"{int(row['price']):>7}" if row["price"] else "      ?"
+        where = WHERE[row["source"]] or f"{len(row['bases'])} bases"
         print(f"{row['name'][:32]:<33}{row[order] or 0:>9.1f}{price} cr"
-              f"   {len(row['bases'])} bases")
+              f"   {where}")
 

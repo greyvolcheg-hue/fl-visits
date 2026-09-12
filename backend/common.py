@@ -111,7 +111,13 @@ class GameData:
         # Guns and shields with their stats, prices and dealers. Static too,
         # and it reuses `weapons` and `trade.base_index` rather than parsing
         # any of it a second time.
-        self.gear = eqp.load_catalogue(game_dir)
+        #
+        # **The whole catalogue, unobtainable items included**, and the tab
+        # narrows it. The unobtainable are a checkbox on the page, so loading
+        # them out here would mean either a second parse of the same files or
+        # a checkbox that cannot be ticked. Each row carries a `source` saying
+        # how you get it, and `none` is one of the four answers.
+        self.gear = eqp.load_catalogue(game_dir, obtainable_only=False)
 
     # --- the Neural Net's three big tables, loaded on first use ------------
     #

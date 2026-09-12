@@ -11,9 +11,17 @@ def _equipment(ctx):
     """One kind of gear, narrowed by whatever thresholds were asked for."""
     body = {"kinds": [], "kind": None, "parameters": [], "choices": {},
             "systems": [], "order": None, "dir": "down", "favs": [],
-            "rows": [], "total": 0, "error": None}
+            "rows": [], "total": 0, "all": False, "hidden": 0, "error": None}
     try:
-        cat = ctx.game.gear
+        # **The catalogue arrives whole and is narrowed here, once, before
+        # anything else reads it.** `choices`, `systems`, the counts and the
+        # filters all follow `rows`, so a picker cannot offer a mount class
+        # that only an unobtainable gun has. With the box unticked this is the
+        # list the tab has always shown.
+        show_all = bool((ctx.query.get("nowhere") or [""])[0])
+        cat = {k: [r for r in rows if show_all or r["source"] != "none"]
+               for k, rows in ctx.game.gear.items()}
+        body["all"] = show_all
         body["kinds"] = [
             {"key": k, "label": k.title(), "count": len(cat[k])}
             for k in sorted(cat)]
@@ -21,6 +29,11 @@ def _equipment(ctx):
         if kind not in cat:
             kind = "guns"
         rows = cat[kind]
+        # How many this kind is holding back, so the checkbox can say what
+        # ticking it would bring in. Per kind, not across both: 42 of the 52
+        # are shields and would be a nonsense number over the gun table.
+        body["hidden"] = sum(1 for r in ctx.game.gear[kind]
+                             if r["source"] == "none")
         keys = {k for k, _l, _kd, _u in eqp.PARAMETERS[kind]}
         order = (ctx.query.get("sort") or [""])[0]
         if order not in keys:

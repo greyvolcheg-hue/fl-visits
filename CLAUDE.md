@@ -192,6 +192,14 @@ reading catches that.
   `FLHash` does not cover them. They are not bases and do not affect the report.
 - `AutoSave.fl` changes under your hands while the game is running. Test against
   a fixed `Save*.fl`, or you will chase differences that are just play.
+- **Adv. Dissolver and Adv. Sunrail are stocked by exactly one base and that
+  base is Battleship Essex in Leeds (`br05_04_base`), which `dockable_bases`
+  says you cannot land on.** Found 2026-09-12 while adding the loot source.
+  Either the docking rule is wrong about Essex or those two guns, at 24790
+  credits and rank 22, are genuinely unbuyable in a normal game. The Equipment
+  tab says which rather than guessing: their row reads "stocked by 1 base you
+  cannot dock at". Resolving it means reopening the rule in `bases.py`, which
+  is the owner's call and is not this change.
 
 ## What the `visit` flags mean
 
@@ -1133,11 +1141,64 @@ catalogue drops, and the counts are in `equipment.py`. The visible symptom if
 the filter is ever removed: the shield list is led by `npc_shield01_mark10` at
 10127 capacity, which no player can buy.
 
-**The rule for what gets listed is acquirability**, not a nickname pattern: sold
-at a dockable base, or present in a wreck. That keeps the 17 codenamed guns,
-which are the hardest hitting in the game and are wreck loot, and drops the 12
-mission weapons that are in neither place. Same shape as `bases.py`'s rule and
-the Trade tab's undockable markets.
+**The rule for what gets listed is acquirability**, not a nickname pattern.
+It was *sold at a dockable base, or present in a wreck*, which kept the 17
+codenamed guns (the hardest hitting in the game, all of them wreck loot) and
+dropped 12 others. **A third way was added on 2026-09-12**, shooting whoever is
+flying it; see the next section. Same shape as `bases.py`'s rule and the Trade
+tab's undockable markets.
+
+## Settled: a gun has four sources, and "nowhere" is one of them
+
+Closed 2026-09-12 on the owner's report: *"в списке оборудования нет руки
+смерти мк3 и номадских пушек"*. **Two different causes under one sentence**, and
+finding that out was the whole job.
+
+**The Nomad guns were a real gap.** The obtainable rule knew dealers and
+wrecks. There is a third route the data states plainly and nothing here had
+ever read: `MISSIONS/lootprops.ini` gives `special_nomad_gun01` and `02` a
+`drop_properties` of 10, and `SHIPS/loadouts.ini` hangs them off five and four
+Nomad loadouts. You shoot a Nomad and it falls out, which is exactly as
+obtainable as a wreck. They are the two hardest-hitting guns in the game at
+2568 and 2543 hull DPS, above CERBERUS, so their absence was not a detail.
+
+**Death's Hand Mk III is referenced by nothing.** A grep for it across all of
+`DATA/` returns `weapon_equip.ini` and `weapon_good.ini` and no third file: no
+dealer, no wreck, no loadout, no mission script, no loot entry. It shipped and
+was never wired up, and the same is true of Reaper Mk III, the two Order
+turrets Mk II, Vengeance Mk III, Rowlett's Revenge and the Nomad Prototype
+(which NPCs carry but nothing can drop). The owner's save carries none of the
+twelve, checked against the `equip` lines.
+
+So every row now carries a `source`: `sold`, `wreck`, `loot`, `none`, and the
+tab shows the first three by default with a checkbox for the fourth.
+**Absence that cannot be explained was the actual bug**: the list gave no way
+to tell "this is not in the game" from "the reader lost it", and it was the
+second of those the owner reasonably assumed.
+
+**Both halves of the loot rule are required, and dropping either breaks it.**
+Measured both ways:
+
+  * a drop chance alone lets in the twelve `shield01_mark08_lf`-shaped shields,
+    which carry a 6 and sit on no ship in the game, so nothing can drop them;
+  * a loadout alone lets in all 26 `npc_` shields, which carry no chance at all
+    and would head the capacity list at 10127 against a best buyable 289150,
+    which is the exact failure the `npc_` rule above exists to prevent.
+
+The pair keeps one rule honest for guns and shields alike, so there is no
+gun-only exception to remember. Shields still come out at 79 of 121.
+
+**There is deliberately no "the story gave it to you" source.**
+`msn_playerloadout`, the ship the campaign hands you at the end, carries exactly
+one thing no dealer sells, `special_nomad_gun01`, which already qualifies by
+dropping off Nomads. A source that can never be the answer is worse than no
+source. Whatever else the mission scripts hand over is not in these files.
+
+**On the percentage.** `drop_properties[0]` is read as a chance: across all 434
+entries it runs 0 to 100, it is 100 on every commodity, 33 on nanobots and
+shield batteries and 8 on most guns. Nothing depends on that reading beyond it
+being non-zero, so a wrong unit costs a word on the page and not a row in the
+list. Fields 2 and 3 are always equal to each other and are not the price.
 
 ## Settled: a media query asks the viewport, and the layout is not in it
 
