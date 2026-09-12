@@ -549,14 +549,26 @@ python3 fl.py routetable --write
 python3 fl.py routetable --revert   # back to the shipped tables
 ```
 
-This beats the byte patch behind `fl.py bestpath` on its own ground: a file
-survives loading a save, where the patch does not, and it needs no running game.
-Each of the two tables is rewritten under its own rule, gates only for the one
-the game reads by default and holes allowed for the other, because a route
-through a hole names systems the gates-only table has never listed and it is not
-known whether the game checks. It saves 136 jumps in the first and 648 in the
-second, keeps a `.vanilla` beside each, and the game reads them when a world
-loads, so restart it.
+**This is the only thing that can work, and the byte patch behind `fl.py
+bestpath` is not.** That patch swaps which table the game reads, but the game
+reads the table once when a world loads and the patch is wiped by that same
+load, so it is always applied too late to matter. Flown and confirmed: with the
+patch reading ON the game still routed Hokkaido to Tau-23 the gates-only way,
+five jumps through New Tokyo, where two exist through Kyushu.
+
+Both files are written with the same content, shaped from the widest table the
+game ships, so the engine reads a shape it already parses whichever name it
+picks. That matters because the default table is gates-only by construction and
+the 15 systems you cannot reach without a jump hole are simply missing from it:
+**Chugoku answers "no best path" in a stock game.** It does not any more.
+
+It saved 1044 jumps here and added 854 pairs the default table never carried. A
+`.vanilla` sits beside each file, and the game reads them when a world loads, so
+restart it.
+
+**The cost:** the lawful table stops being lawful, since its routes now run
+through jump holes, and whether anything else in the game reads that
+distinction is not known. `--revert` puts both back.
 
 **Neural Net** is one list over three sources, and the three chips are filters
 on it rather than a switch between three pages. All three are on by default,

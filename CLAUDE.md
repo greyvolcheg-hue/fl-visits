@@ -499,36 +499,67 @@ table the game reads and dies on every save load, because `content.dll` and
 `server.dll` load with the save. A file survives, needs no running game, no
 `/proc/<pid>/mem` and no injected code.
 
-**Each file is rewritten under its own rule, and that is the safety argument.**
+### The byte patch cannot work, and that is settled by observation
 
-    shortest_legal_path.ini      35 systems, 1225 pairs   gates only
-    systems_shortest_path.ini    50 systems, 2079 pairs   holes allowed
+**The order of events kills it.** The game reads the table **once, when the
+world loads**, and `content.dll` and `server.dll` are reloaded by that same
+load, which wipes the patch. So the only moment the patch can be applied is
+after the read has happened, and swapping a filename pointer does nothing to a
+table already in memory. flhack hooks the load itself to get in first; a button
+pressed afterwards is too late by construction.
 
-Routing the gates-only table with holes allowed was measured and refused: **234
-of its 1225 routes would name a system that file has never listed**, and
-whether the game validates a path against its own table is not known. Under its
-own rule every hop stays inside the 35 it already names, and the holes table
-likewise inside its 50. `write()` refuses outright if that count is not zero.
+Established on 2026-09-12 by a route the owner flew, not by reasoning about
+bytes: with the patch reading **ON** and all five sites verified against the
+shipped files, the game routed Hokkaido to Tau-23 as `Hokkaido > New Tokyo >
+Kyushu > Tau-29 > Tau-31`, which is the gates-only table's own row, where the
+holes table says `Hokkaido > Kyushu` in two. Toggling the patch changed
+nothing. The route tables are also not held open by the process, which fits.
 
-The shape never changes: same sections, same pairs in the same order, same key,
-same vocabulary of system nicknames. Only the hops between the two ends are
-replaced, and both files round-trip through `bini.py` byte for byte, which is
-what makes writing them safe at all. Verified after writing: section counts,
-rows per section, pair order, and that every chain still runs from its `from`
-to its `to`.
+**Three earlier answers were each true and each beside the point**, and that is
+worth remembering: the patch does apply, the build is right, and the swap
+direction is right. None of them is the question. The question was what the
+game does, and only flying it answered that.
 
-What it bought on this install:
+### One content, written to both files
 
-| | routes replaced | jumps saved |
-|---|---|---|
-| `shortest_legal_path.ini` | 366 | 136 |
-| `systems_shortest_path.ini` | 1170 | 648 |
+The game ships three tables, strictly nested, and the split is jump holes:
 
-**More rows change than shorten**, and that is the tie-break rather than a
-fault: among routes of equal length the search prefers the one with less flying
-between the jumps, so 366 rows move to buy 136 jumps. `--flying` asks for least
-distance outright, which is a different feature wearing the same button, and is
-not the default because fewest jumps is what the game's own feature means.
+    shortest_legal_path.ini      35 systems, 1225 pairs    0.0% hole-only hops
+    shortest_illegal_path.ini    46 systems, 2071 pairs   58.4%
+    systems_shortest_path.ini    50 systems, 2079 pairs   38.5%
+
+`shortest_legal_path.ini` is what Set Best Path reads by default and is
+gates-only by construction, so the 15 systems unreachable without a hole are
+simply absent: **Chugoku answers "no best path" in a stock game and is right
+to.** All three also omit Alaska, which is story-locked, and that exclusion is
+kept.
+
+Both targets are therefore written with **the same content, shaped from the
+widest table the game ships**: its 50 systems and its 2079 pairs, section for
+section. The engine then reads a shape it already parses, under either name,
+and which table it picks stops mattering. The two files come out byte-identical
+and `write()` checks that they did.
+
+**Filling the gates-only file at its own width was measured and refused**:
+234 of its 1225 rows would name a system it has never listed. Widening the file
+to the shape of one the engine already reads is what removes that objection,
+and it is the difference between this and the first attempt.
+
+What it bought on this install: 1752 routes written into
+`shortest_legal_path.ini` for 1044 jumps saved, including 854 pairs it did not
+carry at all. Hokkaido to Tau-23 goes from five jumps to two.
+
+**The cost, stated because it is real.** The lawful table stops being lawful:
+its routes now run through jump holes. Whether anything else in the game reads
+that distinction is not known. `--revert` puts both files back, and the
+`.vanilla` copies are the shipped 35-system and 50-system files.
+
+**More rows change than shorten**, which is the tie-break rather than a fault:
+among routes of equal length the search prefers less flying between the jumps.
+`--flying` asks for least distance outright, a different feature wearing the
+same button, and is not the default because fewest jumps is what the game's own
+feature means.
+
 
 ### The check went self-referential the moment this ran
 
@@ -544,38 +575,39 @@ checked against that file.** `check_frozen.py` gets this right by comparing two
 runs of the same reader; this one got it wrong by comparing a reader to
 something it had edited.
 
-## Open: the hack applies, and the owner still says best path is wrong
+## Closed: the hack applied, was aimed right, and still could not work
 
-The patch in `live/bestpath.py` was **reported ON by `fl.py bestpath` against
-the running game** on 2026-09-12, with all five sites differing from the
-shipped files. So "it does not apply" is not the fault.
+Opened and shut on 2026-09-12. Kept because every step of it was a true answer
+to the wrong question, which is the part worth not repeating.
 
-**The swap direction is right, which had never been established before.** The
-module's own `routes()` says so in as many words. The deduction, from two facts
-that can both be checked: unpatched Freelancer routes through gates only, which
-is the whole reason the option exists; and unpatched, the slot at content.dll
-`+0x89492` points at `systems_shortest_path.ini` while the one at `+0x89512`
-points at `shortest_legal_path.ini`. For vanilla to behave as it does, the
-router must read `+0x89512`, and the swap puts the holes table there. Read off
-the shipped file through the PE section table, and the live process agrees.
+**It applied.** `fl.py bestpath` read ON against the running game with all five
+sites differing from the shipped files, verified byte by byte against both the
+vanilla and the patched values.
 
-**The build is right too.** `server.dll` holds `0x0A` at RVA `0x1ACE3` and
+**The build was right.** `server.dll` holds `0x0A` at RVA `0x1ACE3` and
 `content.dll` `0xC4` at `0x89492`, exactly flhack's build 10; build 11's
 offsets give `0x24` and `0x90`.
 
-**What the table buys, measured**: over the 1190 pairs both tables carry, the
-holes table saves a jump on 550 of them, up to five, and changes the route
-without shortening it on 51 more. So a working patch is worth something and the
-complaint is not "it changes nothing".
+**The swap direction was right**, which the module's own `routes()` had always
+said was unestablished. The deduction, from two checkable facts: unpatched
+Freelancer routes through gates only, which is the whole reason the option
+exists; and unpatched, the slot at content.dll `+0x89492` points at
+`systems_shortest_path.ini` while `+0x89512` points at
+`shortest_legal_path.ini`. For vanilla to behave as it does the router must
+read `+0x89512`, and the swap puts the holes table there.
 
-**The test that settles it, and it needs flying.** Set best path from Cambridge
-to Sigma-17. Gates only, the game should say Cambridge, New London, Leeds,
-Tau-31, Tau-29, Kyushu, New Tokyo, Honshu, Sigma-19, Sigma-17, nine jumps. With
-holes it should say Cambridge, Omega-5, Omega-41, Omicron Theta, Sigma-17, four.
-If the patch reads ON and the game still draws the nine-jump route, the bytes
-are not what the router reads and the next place to look is the type byte in
-`server.dll`, not the filename pointers. **This tab does not depend on the
-answer**, which is the point of building it.
+**And it still does nothing**, because the table is read once when the world
+loads and the patch is wiped by that same load. The account, and the flown
+route that settled it, are under *the route tables are files* above.
+
+**The lesson is the sequence.** Three correct measurements in a row, each
+answering a question nobody had asked, while the actual question, "what does
+the game do", stayed untouched until the owner flew a route and reported
+`Hokkaido > New Tokyo` where two jumps existed. **A patch reading ON is not a
+patch working**, and no amount of reading bytes was going to say so.
+
+`live/bestpath.py` is left in place and is now redundant: with both tables
+carrying the same routes, which one the game reads no longer matters.
 
 ## Settled: a bribe has a place, and 11 factions have none you can reach
 
