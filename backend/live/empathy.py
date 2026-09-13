@@ -82,6 +82,13 @@ DOUBLES = ("fc_ln_grp", "fc_kn_grp", "fc_rn_grp")
 # number he reasons in, and a wing is not a fixed thing anyway.
 KILLS = (100, 200, 400, 800, 1600)
 
+# **A nudge, not a rule.** Below this the grind stops being an alternative to
+# the ordinary endgame and becomes a button that hands out standing, which is
+# the thing this feature is deliberately not. Anyone who wants that anyway is
+# allowed to have it: it is their game, and a refusal here would only teach
+# them to edit the file by hand.
+SOFT_FLOOR = 100
+
 
 def span():
     """How far neutral is from friendly, out of the model the tab already uses.

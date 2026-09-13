@@ -1599,9 +1599,15 @@ It was briefly counted in wings of four, which is how the owner had described
 the grind, and he asked for plain ship counts instead. He was right twice: it
 is the number people reason in, and a wing is not a fixed size anyway.
 
-So the choices are kills, 100 to 1600, and the rate is derived:
+So it is a typed number of kills and the rate is derived:
 
     rate = -(friend - neutral) / kills / |object_destruction|
+
+**Below 100 it scolds and writes anyway.** `SOFT_FLOOR` is a nudge, not a
+rule: under it the grind stops being an alternative to the ordinary endgame
+and becomes a button that hands out standing, which is the thing this is
+deliberately not. Anyone who wants that is allowed to have it. A refusal would
+only teach them to edit the file by hand, and it is their game.
 
 The span comes from `reputation.GOALS`, which is `0.5`, rather than being typed
 here, so it cannot drift from the number the Reputation tab uses.

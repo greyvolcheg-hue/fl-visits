@@ -89,11 +89,12 @@ Rogue is `-0.018` and Liberty Police sit at `-0.250` toward them, so the kill
 is worth `+0.0045` of Police standing. The three doubles keep their `+1.000`,
 because they are Nomads.
 
-**The setting is counted in ships, not in rep points**, because the only
+**The setting is a number of ships, not a rep value**, because the only
 question it exists to pose is whether the grind is worth flying. At 400, that
 many Nomads takes you from neutral to friendly with everyone at once, which is
 meant to be an expensive alternative to the ordinary endgame rather than a
-shortcut past it.
+shortcut past it. Type anything you like; under 100 it says so and writes it
+anyway.
 
 It is a data file read at startup, so it survives a restart with nothing to
 re-apply.

@@ -35,6 +35,10 @@ CSS = """
   .engine .csacts { display: flex; gap: .5rem; flex-wrap: wrap;
                     margin-top: .4rem; }
   .engine .csacts button.chip { flex: none; }
+  .engine .csrow input[type=number] { width: 6.5rem; }
+  /* The scolding, and it is amber rather than red: this is allowed. */
+  .engine .csrow .nag { flex-basis: 100%; color: var(--amber-dim);
+                        font-size: 11px; line-height: 1.45; }
 
   /* The sliders, straight off the canvas. A browser's own range control is
      the one widget that will not inherit a thing, so every part is drawn:
@@ -280,10 +284,18 @@ function engNomads() {
         'for it, because they are Nomads.'
       : 'Shipped, nobody in Sirius reacts: 51 of the 54 rates in their ' +
         'group are zero.') + '</div>' +
+    // A typed number, not a row of presets: the useful values are a continuum
+    // and the presets were only ever examples. The poll cannot steal what is
+    // being typed, because `paint` compares the markup it wrote and the `value`
+    // attribute does not change while a field is edited.
+    '<div class="reppick csrow">' +
+    `<input type="number" id="nomad-kills" min="1" step="10" ` +
+    `value="${n.kills || 400}">` +
+    `<span class="sys">Nomads</span>` +
+    `<span class="nag" id="nomad-nag" hidden>under ${n.floor} is cheap ` +
+    'enough that the ordinary endgame stops being worth flying</span></div>' +
     '<div class="csacts">' +
-    n.choices.map(k =>
-      `<button class="chip" data-nomad="${k}"` +
-      (k === n.kills ? ' disabled' : '') + `>${k}</button>`).join('') +
+    '<button class="chip" id="nomad-set">SET</button>' +
     '<button class="chip" id="nomad-off">VANILLA</button></div>' +
     '<div class="from">kills to friendly; read at startup, so restart</div></div>';
 }
@@ -447,8 +459,21 @@ function wireEngine() {
     b.onclick = () => engPost('routetable', { mode: b.dataset.mode }));
   const pv = $('#paths-vanilla');
   if (pv) pv.onclick = () => engPost('routetable', { revert: 1 });
-  box.querySelectorAll('[data-nomad]').forEach(b =>
-    b.onclick = () => engPost('empathy', { kills: Number(b.dataset.nomad) }));
+  const nk = $('#nomad-kills'), nag = $('#nomad-nag');
+  if (nk && nag) {
+    // Toggled on the node rather than through `render`, which would rebuild
+    // the field and take the cursor with it.
+    const check = () => { nag.hidden = !(Number(nk.value) > 0 &&
+                                         Number(nk.value) < eng.nomads.floor); };
+    nk.addEventListener('input', check);
+    check();
+    const set = $('#nomad-set');
+    if (set) set.onclick = () => {
+      const want = Number(nk.value);
+      if (!(want > 0)) { engSaid = 'a count above zero, or VANILLA'; render(); return; }
+      engPost('empathy', { kills: want });
+    };
+  }
   const no = $('#nomad-off');
   if (no) no.onclick = () => engPost('empathy', { restore: 1 });
   const p = $('#persist');

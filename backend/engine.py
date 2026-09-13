@@ -161,7 +161,8 @@ def _routetable(ctx):
 def _empathy(ctx):
     """What one Nomad kill does to everybody else's opinion of you."""
     body = {"kill": None, "rate": None, "per": None, "kills": None, "n": 0,
-            "choices": list(em.KILLS), "error": None}
+            "choices": list(em.KILLS), "floor": em.SOFT_FLOOR,
+            "error": None}
     try:
         state = em.read(ctx.game.dir)
         body.update(kill=state["kill"], rate=state["rate"], n=state["n"],
@@ -322,8 +323,12 @@ def _set_empathy(ctx, sent):
         em.read(ctx.game.dir)
     if not kills:
         return f"{touched} factions back to indifferent"
-    return (f"{touched} factions, {kills:.0f} Nomads from neutral to friendly; "
+    said = (f"{touched} factions, {kills:.0f} Nomads from neutral to friendly; "
             f"read at startup, so restart the game")
+    if kills < em.SOFT_FLOOR:
+        said += (f". That is under {em.SOFT_FLOOR}, which is cheap enough that "
+                 f"the ordinary endgame stops being worth flying. Your call.")
+    return said
 
 
 def _set_allhacks(ctx, _sent):
