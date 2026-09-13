@@ -390,7 +390,11 @@ def sentence(game_dir=None, state=None):
     state = state or read(game_dir)
     word = dict(factions(game_dir)).get(state["faction"], state["faction"])
     desig = dict(designators(game_dir)).get(state["desig"], state["desig"])
-    slot = "?" if state["slot"] is None else state["slot"]
+    # An unset second number is written as the 1 it comes out as. `read` keeps
+    # it None, which is the truth about the file: the game is still doing the
+    # arithmetic. This is a sentence, and "1-?" in a sentence needs a paragraph
+    # of explanation to mean anything, where "1" is simply what gets said.
+    slot = 1 if state["slot"] is None else state["slot"]
     return f"{word} {desig} {state['wing']}-{slot}"
 
 

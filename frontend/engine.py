@@ -259,11 +259,8 @@ function engFiles() {
     `<div class="grid wrapgrid">${write}${rocks}${engCallsign()}</div>`;
 }
 
-// What the bots call you. Four words out of three recorded vocabularies, and
-// the reason it is a picker rather than a text box is that a bot can only say
-// what somebody recorded in 2003: there is no recording of a personal name
-// anywhere in the game, so "Yanagi Suzuki" cannot be spoken however it is
-// spelled. Yanagi is a formation designator, which is why it gets heard.
+// Four words out of three recorded vocabularies. A picker rather than a text
+// box because a bot can only say what was recorded; `callsign.py` carries why.
 function engCallsign() {
   const c = eng.call;
   if (!c || c.error) {
@@ -293,21 +290,8 @@ function engCallsign() {
     '<span class="sys">&ndash;</span>' +
     pick('cs-slot', c.numbers, c.slot === null ? 1 : c.slot, true) +
     '</div>' +
-    '<div class="why">Three vocabularies, and nothing outside them can be ' +
-    'said: 48 faction words, 29 formation designators, and the numbers 0 to ' +
-    '20. <b>No personal name is recorded anywhere in the game</b>, so a name ' +
-    'cannot be spoken however it is spelled. Yanagi and Susuki are formation ' +
-    'designators, which is why they get heard and taken for names.</div>' +
-    (c.slot === null
-      ? '<div class="why">The second number reads <b>?</b> because the game is ' +
-        'still working it out for itself, from the ship\'s id. For a ship with ' +
-        'no formation that is the second 1 you hear now. Setting it here ' +
-        'replaces the arithmetic with the number you pick.</div>'
-      : '') +
-    '<div class="why">The shape is fixed at ' +
-    '<code>&lt;word&gt; &lt;designator&gt; &lt;n&gt;-&lt;n&gt;</code>. The ' +
-    'engine picks these words for any ship with no formation, which in single ' +
-    'player is you, so <b>a lone NPC will occasionally use them too</b>.</div>' +
+    '<div class="why">Every word the game has a recording of. Used for any ' +
+    'ship with no formation, so a lone NPC may share them.</div>' +
     '<div class="csacts">' +
     '<button class="chip" id="cs-apply">SET</button>' +
     '<button class="chip" id="cs-restore">VANILLA</button></div>' +
