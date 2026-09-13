@@ -277,10 +277,10 @@ already in memory. With the patch reading ON and all five bytes verified, the
 game still routed Hokkaido to Tau-23 the gates-only way, five jumps through New
 Tokyo, where two exist through Kyushu.
 
-`fl.py routetable` does the job instead, by writing the routes into the tables
-themselves; see **Map → Best Path**. The patcher is still there as
-`fl.py bestpath` and is now redundant, because both tables carry the same
-routes and it no longer matters which one the game picks.
+`fl.py routetable` does the job instead, by writing gates-only shortest paths
+into the table the game actually reads; see **Map → Best Path**. The patcher is
+still there as `fl.py bestpath` and is redundant: the table it would switch to
+carries routes through jump holes, and the engine cannot fly one.
 
 **ENABLE ALL** sits on the LIVE MEMORY banner and turns on the three switches
 under it in one press: the lane wind-up, the HUD speed cap and the docking
@@ -662,7 +662,7 @@ tab does:
 ```bash
 python3 fl.py routetable            # what would change, changes nothing
 python3 fl.py routetable --write
-python3 fl.py routetable --revert   # back to the shipped tables
+python3 fl.py routetable --revert   # back to the shipped table
 ```
 
 **This is the only thing that can work, and the byte patch behind `fl.py
@@ -672,19 +672,24 @@ load, so it is always applied too late to matter. Flown and confirmed: with the
 patch reading ON the game still routed Hokkaido to Tau-23 the gates-only way,
 five jumps through New Tokyo, where two exist through Kyushu.
 
-Both files are written with the same content, shaped from the widest table the
-game ships, so the engine reads a shape it already parses whichever name it
-picks. That matters because the default table is gates-only by construction and
-the 15 systems you cannot reach without a jump hole are simply missing from it:
-**Chugoku answers "no best path" in a stock game.** It does not any more.
+**Gates only, and that is the whole lesson.** An earlier version wrote
+hole-inclusive routes into the table the game reads, and Set Best Path pointed
+the course at the system origin, which in Hokkaido is a red dwarf. The engine
+can only turn a hop into a waypoint when a jump **gate** makes it; with only a
+hole it falls back to 0,0,0. The shipped table it reads has zero gateless hops
+in 1225 rows, and that is a contract, not a coincidence.
 
-It saved 1044 jumps here and added 854 pairs the default table never carried. A
-`.vanilla` sits beside each file, and the game reads them when a world loads, so
-restart it.
+So one file is written, `shortest_legal_path.ini`, at its own width: **136
+routes shorter, none longer, none needing a hole, and none naming a system the
+file did not already list.** New York to New London goes from four jumps to
+three through Magellan, every hop a gate. The hole routes were never where the
+improvement was.
 
-**The cost:** the lawful table stops being lawful, since its routes now run
-through jump holes, and whether anything else in the game reads that
-distinction is not known. `--revert` puts both back.
+Hole routes stay on this tab, which is a reader and needs no engine. There is
+nothing to switch between: the game can only fly one of the two.
+
+A `.vanilla` sits beside the file, the game reads it when a world loads, and
+`--revert` puts it back.
 
 **Neural Net** is one list over three sources, and the three chips are filters
 on it rather than a switch between three pages. All three are on by default,

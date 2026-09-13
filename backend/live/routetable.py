@@ -1,59 +1,59 @@
-"""Put the shortest routes into the game's own route tables.
+"""Put shorter routes into the table Set Best Path actually reads.
 
     fl.py routetable            # what would change, change nothing
     fl.py routetable --write
-    fl.py routetable --revert   # back to the shipped tables
+    fl.py routetable --revert   # back to the shipped table
 
-Freelancer answers Set Best Path out of precomputed tables in `UNIVERSE/`, and
-they are not shortest paths. `game/jumps.py` builds the real graph out of the
-system files and `fl.py jumps --check` does the comparison: against the shipped
-`systems_shortest_path.ini` it is equal on 1502 of the 2079 pairs, shorter on
-577 and longer on none.
+Freelancer answers Set Best Path out of a precomputed table, and it is not
+shortest paths. `game/jumps.py` builds the real graph from the system files and
+this writes the answers back.
 
-## Why this replaces the byte patch rather than helping it
+## Gates only, and the reason is a star
 
-`live/bestpath.py` swaps which of these files the game reads. **It cannot
-work, and that is settled by observation.** On 2026-09-12 the patch read ON,
-all five bytes verified against the shipped files, and the game still routed
-Hokkaido to Tau-23 as `Hokkaido > New Tokyo > Kyushu > Tau-29 > Tau-31`, which
-is the gates-only table's row, where the holes table says `Hokkaido > Kyushu`
-in two jumps.
+**The first version of this wrote hole routes into the file the game reads, and
+it flew the owner into the sun.** Settled 2026-09-13, from Battleship Matsumoto
+to Ohashi Border Station, which is Hokkaido to Shikoku:
 
-The reason is the order of events. **The game reads the table once, when the
-world loads, and `content.dll` and `server.dll` are reloaded by that same
-load**, which wipes the patch. So the only moment the patch can be applied is
-after the read has already happened, and swapping a filename pointer does
-nothing to a table that is already in memory. flhack hooks the load itself to
-get in first; a button pressed afterwards is too late by construction.
+    what was written   Hokkaido > Kyushu > Shikoku    2 jumps, 93 km of flying
+    what the game did  pointed the course at 0,0,0, where `Ku05_Sun` sits
 
-A file, on the other hand, is read every time a world loads. That is the whole
-argument for doing it this way.
+**The engine can only follow a hop that has a jump gate.** Hokkaido to Kyushu
+exists only as a hole, the router could not turn that hop into a waypoint, and
+it fell back to the system origin, which in Hokkaido is a red dwarf.
 
-## One content, written to both files
+The three shipped tables say the same thing by their own shape, and this is the
+measurement that should have been made first:
 
-The game ships three tables, strictly nested, and the split is jump holes:
+    shortest_legal_path.ini      35 systems, 1225 rows, **0** rows with a gateless hop
+    shortest_illegal_path.ini    46 systems, 2071 rows
+    systems_shortest_path.ini    50 systems, 2079 rows, 1440 rows with a gateless hop
 
-    shortest_legal_path.ini      35 systems, 1225 pairs    0.0% hole-only hops
-    shortest_illegal_path.ini    46 systems, 2071 pairs   58.4%
-    systems_shortest_path.ini    50 systems, 2079 pairs   38.5%
+`shortest_legal_path.ini` is gates-only **by construction**, and it is the one
+Set Best Path reads. That is not an accident of content, it is the contract the
+router relies on. The 15 systems no gate can reach are simply absent from it,
+which is why Chugoku answers "no best path" in a stock game and is right to.
 
-`shortest_legal_path.ini` is the one Set Best Path reads by default, and it is
-gates-only by construction, so the 15 systems that cannot be reached without a
-hole are simply absent from it: **Chugoku answers "no best path" in a stock
-game and is right to.**
+## What is written now
 
-So both targets are written with the same content, shaped from the widest table
-the game ships: **its 50 systems and its 2079 pairs, section for section**. The
-engine then reads a file of a shape it already reads, under either name, and
-which table it picks stops mattering. The two files come out byte-identical,
-which is checked.
+Gates-only shortest paths, into `shortest_legal_path.ini` alone, at that file's
+own width. Measured over its 1225 rows: **136 shorter, 0 longer, 0 with no
+gates-only route at all, and 0 naming a system the file does not already
+list.** The last number is the one that matters, because with holes allowed it
+is 234, and widening the file to fit them is exactly what broke it.
 
-Alaska and Omicron Minor stay out, because they are out of all three shipped
-tables: Alaska is story-locked and that exclusion is the designers' own.
+**The headline win never needed a hole.** New York to New London is four jumps
+in the shipped table, `li01 > li02 > iw04 > br02 > br01`, and three through
+Magellan, `li01 > iw03 > br02 > br01`. Every one of those is a gate. The hole
+routes were never where the improvement was.
 
-**The cost, stated because it is real.** The lawful table stops being lawful:
-its routes now run through jump holes. Whether anything else in the game reads
-that distinction is not known. `--revert` puts both files back.
+**`systems_shortest_path.ini` is not touched at all.** The game does not read
+it, and the byte patch that made it read it cannot work: `content.dll` and
+`server.dll` are reloaded by the same world load that reads the table, so a
+patch applied afterwards is too late by construction. Hole routes live in
+`Map -> Best Path`, which is a reader and needs no engine.
+
+Alaska and Omicron Minor stay out, because they are out of the shipped table:
+Alaska is story-locked and that exclusion is the designers' own.
 
 The three rules from `persist.py` are not restated here because this file uses
 that module's own `_backup` and `_save`: round trip before replacing, swap
@@ -69,11 +69,12 @@ from .persist import WriteFailed, _backup, _save
 from ..game import flvisits as fl
 from ..game import jumps as jm
 
-# The table whose sections, pairs and system set the written files copy. The
-# widest one the game ships, so nothing written is a shape the engine has not
-# already parsed.
-SHAPE = "systems_shortest_path.ini"
-TARGETS = ("shortest_legal_path.ini", "systems_shortest_path.ini")
+# The one file Set Best Path reads, and the one this writes. It is its own
+# shape: nothing is widened, so no row can name a system it has never listed.
+TARGET = "shortest_legal_path.ini"
+# Reverted as well when a `.vanilla` is beside it, because the first version of
+# this module wrote to it and anyone who ran that wants it back.
+ALSO_REVERT = ("systems_shortest_path.ini",)
 PATH_KEY = "path"
 
 
@@ -81,7 +82,7 @@ def _path(game_dir, name):
     return fl.ipath(fl.ipath(fl.ipath(game_dir, "DATA"), "UNIVERSE"), name)
 
 
-def _shipped(game_dir, name):
+def _shipped(game_dir, name=TARGET):
     """The file as the game shipped it, which is `.vanilla` once we have run.
 
     Reading the live file instead would make this build on its own output: the
@@ -93,21 +94,24 @@ def _shipped(game_dir, name):
 
 
 def content(game_dir=None, by="jumps"):
-    """(sections, outside) : the table both files get, ready for `_save`.
+    """(sections, outside, holed) : the table, ready for `_save`.
 
-    `outside` counts routes naming a system the shape does not list, which must
-    be zero. It is the check that the shape is wide enough for the rule, and it
-    is why the gates-only file cannot simply be filled with hole routes at its
-    own width: 234 of its 1225 rows would name a system it has never heard of.
+    `outside` counts rows naming a system the shipped file does not list and
+    `holed` counts rows with a hop no gate can make. **Both must be zero**, and
+    they are the two checks the first version of this module did not have: the
+    first lets a route point at a system the router has no index for, and the
+    second is what pointed a course at a star.
     """
     game_dir = game_dir or fl.DEFAULT_GAME
     jumps = jm.load_jumps(game_dir)
-    sections = bini.decode(open(_shipped(game_dir, SHAPE), "rb").read())
-    known = {str(values[0]).lower()
-             for _s, pairs in sections for key, values in pairs
-             if key.lower() == PATH_KEY and values}
+    sections = bini.decode(open(_shipped(game_dir), "rb").read())
+    known = set()
+    for _s, pairs in sections:
+        for key, values in pairs:
+            if key.lower() == PATH_KEY:
+                known.update(str(v).lower() for v in values)
 
-    outside = 0
+    outside = holed = 0
     fresh = []
     for section, pairs in sections:
         rows = []
@@ -116,18 +120,22 @@ def content(game_dir=None, by="jumps"):
                 rows.append((key, values))
                 continue
             src, dst = str(values[0]), str(values[1])
-            steps = jm.route(jumps, src.lower(), dst.lower(), by=by)
+            # `holes=False`, which is the whole point: a route the engine
+            # cannot fly is worse than a longer one it can.
+            steps = jm.route(jumps, src.lower(), dst.lower(), by=by, holes=False)
             if steps is None:
-                # The shipped table knows a pair the graph cannot join. Keep
-                # the game's own answer rather than emptying the row.
+                # The shipped table knows a pair the graph cannot join on
+                # gates. Keep the game's own answer rather than emptying it.
                 rows.append((key, values))
                 continue
+            if any(s["jump"]["kind"] != "gate" for s in steps):
+                holed += 1
             chain = [src] + [jumps[s["jump"]["id"]]["to_sys"] for s in steps]
             if any(x.lower() not in known for x in chain):
                 outside += 1
             rows.append((key, [src, dst] + chain))
         fresh.append((section, rows))
-    return fresh, outside
+    return fresh, outside, holed
 
 
 def _rows(sections):
@@ -136,52 +144,47 @@ def _rows(sections):
 
 
 def plan(game_dir=None, by="jumps"):
-    """[(name, changed, saved, pairs)] against what is on disk now."""
+    """(changed, saved, outside, holed) against what is on disk now."""
     game_dir = game_dir or fl.DEFAULT_GAME
-    fresh, outside = content(game_dir, by)
+    fresh, outside, holed = content(game_dir, by)
     want = {(a, b): hops for a, b, hops in _rows(fresh)}
-    out = []
-    for name in TARGETS:
-        live = bini.decode(open(_path(game_dir, name), "rb").read())
-        have = {(a, b): hops for a, b, hops in _rows(live)}
-        changed = saved = 0
-        for pair, hops in want.items():
-            was = have.get(pair)
-            if was is None:
-                changed += 1
-                continue
-            if was != hops:
-                changed += 1
+    live = bini.decode(open(_path(game_dir, TARGET), "rb").read())
+    have = {(a, b): hops for a, b, hops in _rows(live)}
+    changed = saved = 0
+    for pair, hops in want.items():
+        was = have.get(pair)
+        if was is None or was != hops:
+            changed += 1
+            if was:
                 saved += max(len(was) - len(hops), 0)
-        out.append((name, changed, saved, len(want) - len(have)))
-    return out, outside
+    return changed, saved, outside, holed
 
 
 def write(game_dir=None, by="jumps"):
-    """Back up once, then write the same table into both files."""
+    """Back up once, then write the gates-only table."""
     game_dir = game_dir or fl.DEFAULT_GAME
-    fresh, outside = content(game_dir, by)
+    fresh, outside, holed = content(game_dir, by)
+    if holed:
+        raise WriteFailed(
+            f"{holed} routes have a hop with no jump gate. The engine cannot "
+            f"turn one into a waypoint and points the course at the system "
+            f"origin, which is usually the star. Nothing was written.")
     if outside:
         raise WriteFailed(
-            f"{outside} routes name a system the shape does not list; that is "
-            f"the case this module exists to avoid, nothing was written")
-    steps, _outside = plan(game_dir, by)
-    for name in TARGETS:
-        path = _path(game_dir, name)
-        _backup(path)
-        _save(path, fresh)
-    same = len({open(_path(game_dir, n), "rb").read() for n in TARGETS}) == 1
-    if not same:
-        raise WriteFailed("the two files came out different, which they cannot "
-                          "be from one content; look before trusting them")
-    return steps
+            f"{outside} routes name a system {TARGET} does not list, so the "
+            f"router has no index for them. Nothing was written.")
+    changed, saved, _o, _h = plan(game_dir, by)
+    path = _path(game_dir, TARGET)
+    _backup(path)
+    _save(path, fresh)
+    return changed, saved
 
 
 def revert(game_dir=None):
-    """Put the shipped tables back, from the `.vanilla` beside each."""
+    """Put the shipped table back, and any file an older version wrote."""
     game_dir = game_dir or fl.DEFAULT_GAME
     done = []
-    for name in TARGETS:
+    for name in (TARGET,) + ALSO_REVERT:
         path = _path(game_dir, name)
         keep = path + ".vanilla"
         if not os.path.exists(keep):
@@ -193,23 +196,22 @@ def revert(game_dir=None):
 
 
 def state(game_dir=None):
-    """[(name, systems it lists, is there a .vanilla)] for each target."""
+    """(systems listed, rows, is there a .vanilla, is it the shipped table)."""
     game_dir = game_dir or fl.DEFAULT_GAME
-    out = []
-    for name in TARGETS:
-        path = _path(game_dir, name)
-        rows = _rows(bini.decode(open(path, "rb").read()))
-        out.append((name, len({a for a, _b, _h in rows}),
-                    os.path.exists(path + ".vanilla")))
-    return out
+    path = _path(game_dir, TARGET)
+    rows = _rows(bini.decode(open(path, "rb").read()))
+    keep = path + ".vanilla"
+    stock = not os.path.exists(keep) or (
+        open(path, "rb").read() == open(keep, "rb").read())
+    return len({a for a, _b, _h in rows}), len(rows), os.path.exists(keep), stock
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--game", default=fl.DEFAULT_GAME)
-    ap.add_argument("--write", action="store_true", help="replace both tables")
+    ap.add_argument("--write", action="store_true", help="replace the table")
     ap.add_argument("--revert", action="store_true",
-                    help="restore the shipped tables from .vanilla")
+                    help="restore the shipped table from .vanilla")
     ap.add_argument("--flying", action="store_true",
                     help="least distance instead of fewest jumps")
     args = ap.parse_args()
@@ -219,23 +221,19 @@ def main():
         if args.revert:
             done = revert(args.game)
             print("restored " + (", ".join(done) if done else "nothing: no .vanilla"))
-            return
-        if args.write:
-            for name, changed, saved, added in write(args.game, by):
-                print(f"{name}: {changed} routes written, {saved} jumps saved, "
-                      f"{added} pairs the file did not have")
-            print("\nboth files now hold the same table, and the game reads it "
-                  "when a world loads, so restart it")
+        elif args.write:
+            changed, saved = write(args.game, by)
+            print(f"{TARGET}: {changed} routes written, {saved} jumps saved")
+            print("the game reads it when a world loads, so load a save")
         else:
-            steps, outside = plan(args.game, by)
-            for name, changed, saved, added in steps:
-                print(f"{name}")
-                print(f"   {changed} routes would change, {saved} jumps saved")
-                print(f"   {added} pairs the file does not have yet")
-            print(f"   routes naming a system the shape does not list: {outside}")
-            print("\nnothing written. --write does it, --revert undoes it")
-        for name, systems, backed in state(args.game):
-            print(f"   {name}: {systems} systems, "
-                  f"{'.vanilla kept' if backed else 'NO BACKUP'}")
-    except (WriteFailed, OSError) as exc:
+            changed, saved, outside, holed = plan(args.game, by)
+            print(f"{TARGET}: {changed} routes would change, {saved} jumps saved")
+            if holed or outside:
+                print(f"  REFUSED: {holed} gateless hops, {outside} unlisted systems")
+            print("  nothing written; --write to do it")
+        systems, rows, kept, stock = state(args.game)
+        print(f"\non disk: {rows} rows over {systems} systems, "
+              f"{'shipped table' if stock else 'ours'}"
+              f"{', .vanilla kept' if kept else ''}")
+    except (WriteFailed, OSError, ValueError) as exc:
         raise SystemExit(str(exc))

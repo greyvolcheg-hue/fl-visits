@@ -565,48 +565,64 @@ worth remembering: the patch does apply, the build is right, and the swap
 direction is right. None of them is the question. The question was what the
 game does, and only flying it answered that.
 
-### One content, written to both files
+### Refuted 2026-09-13: one content into both files flies you into a star
 
-The game ships three tables, strictly nested, and the split is jump holes:
+The section that stood here said both targets were written with one
+hole-inclusive content, shaped from the widest shipped table, and listed the
+cost as "the lawful table stops being lawful, and whether anything else in the
+game reads that distinction is not known". **It is known now. The router reads
+it, and without a gate it points the course at the system origin.**
 
-    shortest_legal_path.ini      35 systems, 1225 pairs    0.0% hole-only hops
-    shortest_illegal_path.ini    46 systems, 2071 pairs   58.4%
-    systems_shortest_path.ini    50 systems, 2079 pairs   38.5%
+**SYMPTOM**, the owner's: *"он повел меня в ЗВЕЗДУ"*. Set Best Path from
+Battleship Matsumoto to Ohashi Border Station, which is Hokkaido to Shikoku.
 
-`shortest_legal_path.ini` is what Set Best Path reads by default and is
-gates-only by construction, so the 15 systems unreachable without a hole are
-simply absent: **Chugoku answers "no best path" in a stock game and is right
-to.** All three also omit Alaska, which is story-locked, and that exclusion is
-kept.
+**EVIDENCE**: `Ku05_Sun`, archetype `sun_2000`, sits at exactly `[0, 0, 0]` in
+Hokkaido; the written route's first hop was Hokkaido to Kyushu, which exists
+only as a jump hole; and the shipped table went through New Tokyo, a gate.
 
-Both targets are therefore written with **the same content, shaped from the
-widest table the game ships**: its 50 systems and its 2079 pairs, section for
-section. The engine then reads a shape it already parses, under either name,
-and which table it picks stops mattering. The two files come out byte-identical
-and `write()` checks that they did.
+**The engine can only follow a hop that has a jump gate.** With no gate between
+Hokkaido and Kyushu it could not turn that hop into a waypoint and fell back to
+the system origin, which is a red dwarf.
 
-**Filling the gates-only file at its own width was measured and refused**:
-234 of its 1225 rows would name a system it has never listed. Widening the file
-to the shape of one the engine already reads is what removes that objection,
-and it is the difference between this and the first attempt.
+**The shipped files said so by their own shape and it was not measured.** Rows
+whose route contains a hop no gate can make:
 
-What it bought on this install: 1752 routes written into
-`shortest_legal_path.ini` for 1044 jumps saved, including 854 pairs it did not
-carry at all. Hokkaido to Tau-23 goes from five jumps to two.
+    shortest_legal_path.ini       0 of 1225      <- the one Set Best Path reads
+    systems_shortest_path.ini  1440 of 2029
+    our one content            1723 of 2029
 
-**The cost, stated because it is real.** The lawful table stops being lawful:
-its routes now run through jump holes. Whether anything else in the game reads
-that distinction is not known. `--revert` puts both files back, and the
-`.vanilla` copies are the shipped 35-system and 50-system files.
+`shortest_legal_path.ini` being gates-only is **the contract the router relies
+on**, not an accident of content. Writing hole routes into it is not a mode
+with a cost, it is a bug, and no button should offer it.
 
-**More rows change than shorten**, which is the tie-break rather than a fault:
-among routes of equal length the search prefers less flying between the jumps.
-`--flying` asks for least distance outright, a different feature wearing the
-same button, and is not the default because fewest jumps is what the game's own
-feature means.
+### What is written now, and why nothing needs switching
 
+Gates-only shortest paths, into `shortest_legal_path.ini` alone, **at that
+file's own width**. Measured over its 1225 rows: 136 shorter, 0 longer, 0 with
+no gates-only route, and **0 naming a system the file does not already list**.
+That last number is 234 when holes are allowed, and widening the file to fit
+those 234 is exactly what broke it.
 
-### The check went self-referential the moment this ran
+**The headline win never needed a hole.** New York to New London is four jumps
+shipped, `li01 > li02 > iw04 > br02 > br01`, and three through Magellan,
+`li01 > iw03 > br02 > br01`. Every hop a gate. The hole routes were never where
+the improvement was, and bundling them in is what sank it.
+
+**366 rows change for 136 that shorten.** The other 230 are equal-length routes
+where the tie-break prefers less flying between the jumps. They are gates-only
+and none is longer, so they are safe; `--flying` asks for least distance
+outright and is a different feature.
+
+`systems_shortest_path.ini` is not touched at all. The game does not read it,
+and the byte patch that would make it read it cannot work. Hole routes live in
+`Map -> Best Path`, which is a reader and needs no engine. **So there is
+nothing to switch between**, and the owner's question of how to switch has that
+as its answer.
+
+**`content()` now refuses on two counts, and both were proved to fire** by
+running yesterday's rule through them: 1096 routes with a gateless hop and 234
+naming an unlisted system, nothing written. On the new rule both are zero.
+
 
 **`fl.py jumps --check` compares the graph against the game's table, and
 `routetable.py` writes that table.** After the first write it reported 2079
