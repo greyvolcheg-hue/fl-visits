@@ -59,12 +59,11 @@ import argparse
 import os
 import struct
 import sys
-import tempfile
 
 from ..game import flvisits as fl
 from ..game import wrecks as wr
 from .inject import _headers
-from .persist import WriteFailed, _backup
+from .persist import WriteFailed, _backup, write_raw
 
 TARGET = ("DLLS", "BIN", "content.dll")
 VOICES = ("voices_space_male.ini", "voices_space_female.ini")
@@ -292,40 +291,24 @@ def read(game_dir=None):
     return {"faction": faction, "desig": desig, "wing": wing, "slot": slot}
 
 
-def _write_file(path, blob):
-    """Replace a file atomically, keeping the mode it had."""
-    folder = os.path.dirname(path)
-    try:
-        mode = os.stat(path).st_mode & 0o777
-        handle, temp = tempfile.mkstemp(dir=folder, suffix=".tmp")
-    except PermissionError as exc:
-        raise WriteFailed(
-            f"cannot write in {folder}: {exc}. On Windows a game under Program "
-            "Files needs an elevated shell, or an install somewhere else; on "
-            "Linux check who owns the prefix.") from exc
-    try:
-        with os.fdopen(handle, "wb") as fh:
-            fh.write(blob)
-        # The temp file is created 0600; the game has to be able to read this.
-        os.chmod(temp, mode)
-        os.replace(temp, path)
-    except Exception:
-        if os.path.exists(temp):
-            os.unlink(temp)
-        raise
-
-
 def write(faction=None, desig=None, wing=None, slot=None, game_dir=None):
     """Set any of the four. Anything left None keeps the shipped behaviour.
 
-    **Built from the shipped bytes every time**, so running this twice is the
-    same as running it once and there is no way to end up with a file that was
-    patched twice and cannot say which. Same rule as `drawdist` and `levels`.
+    **Anchors come from the shipped file, the bytes go into the current one.**
+    Setting a byte to a value is idempotent, so twice is the same as once; and
+    an argument left None means "leave that word alone" rather than "put the
+    shipped one back", which `--restore` is for.
+
+    **Rebuilding the file from `.vanilla` would be wrong, and was.**
+    `bestpath.py` patches five other sites in this same `content.dll`, and each
+    function rebuilding the whole file from the shipped copy meant whichever
+    ran second silently undid the first. It did, on 2026-09-13. Two writers in
+    one file must each touch only their own bytes.
     """
     game_dir = game_dir or fl.DEFAULT_GAME
     spots = sites(game_dir)
     spoken = _spoken(game_dir)
-    blob = bytearray(open(_shipped(game_dir), "rb").read())
+    blob = bytearray(open(_path(game_dir), "rb").read())
 
     if faction is not None:
         msg = f"{FACTION_PREFIX}{faction}{FACTION_SUFFIX}"
@@ -365,22 +348,30 @@ def write(faction=None, desig=None, wing=None, slot=None, game_dir=None):
 
     path = _path(game_dir)
     kept = _backup(path)
-    _write_file(path, bytes(blob))
-    back = open(path, "rb").read()
-    if back != bytes(blob):
-        raise WriteFailed("content.dll read back differently from what was "
-                          "written; nothing can be trusted here, restore it")
+    write_raw(path, bytes(blob))
     return read(game_dir), kept
 
 
 def restore(game_dir=None):
-    """Put the shipped `content.dll` back."""
+    """Put the four words back to what the game shipped, and nothing else.
+
+    **Not by writing the whole `.vanilla` back.** `bestpath.py` patches five
+    other sites in this same file, and restoring the file wholesale would take
+    those with it. Only these four sites are reset, from the shipped bytes.
+    """
     game_dir = game_dir or fl.DEFAULT_GAME
     path = _path(game_dir)
     keep = path + ".vanilla"
     if not os.path.exists(keep):
         raise WriteFailed("there is no .vanilla copy; nothing to restore")
-    _write_file(path, open(keep, "rb").read())
+    shipped = open(keep, "rb").read()
+    blob = bytearray(open(path, "rb").read())
+    for off, size in sites(game_dir).values():
+        # The faction word is a string, so its terminator has to come back too,
+        # and the slack after it is what `sites` measured as its room.
+        span = size + 4 if size == 24 else size
+        blob[off:off + span] = shipped[off:off + span]
+    write_raw(path, bytes(blob))
     return read(game_dir)
 
 

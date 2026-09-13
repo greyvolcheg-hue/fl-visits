@@ -76,6 +76,42 @@ def _backup(path):
     return None
 
 
+def write_raw(path, blob):
+    """Replace a file's bytes atomically, keeping the mode it had.
+
+    **Not every file this project writes is BINI.** `_save` below encodes an
+    INI; `content.dll` and `server.dll` are PEs and `callsign.py` and
+    `bestpath.py` patch a handful of bytes in them. Both wanted the same
+    temp-plus-`os.replace` swap, so it lives here once rather than twice.
+
+    **It puts the mode back.** `mkstemp` creates 0600 and the game has to be
+    able to read what it wrote. The BINI writer below does not do that and gets
+    away with it only because the game runs as the same user.
+    """
+    folder = os.path.dirname(path)
+    try:
+        mode = os.stat(path).st_mode & 0o777
+        handle, temp = tempfile.mkstemp(dir=folder, suffix=".tmp")
+    except PermissionError as exc:
+        raise WriteFailed(
+            f"cannot write in {folder}: {exc}. On Windows a game under Program "
+            "Files needs an elevated shell, or an install somewhere else; on "
+            "Linux check who owns the prefix.") from exc
+    try:
+        with os.fdopen(handle, "wb") as fh:
+            fh.write(blob)
+        os.chmod(temp, mode)
+        os.replace(temp, path)
+    except Exception:
+        if os.path.exists(temp):
+            os.unlink(temp)
+        raise
+    back = open(path, "rb").read()
+    if back != blob:
+        raise WriteFailed(f"{os.path.basename(path)} read back differently "
+                          "from what was written; restore it before trusting it")
+
+
 def _save(path, sections):
     """Encode, prove it decodes back to the same thing, then swap it in."""
     blob = bini.encode(sections)

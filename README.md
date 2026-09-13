@@ -685,11 +685,24 @@ file did not already list.** New York to New London goes from four jumps to
 three through Magellan, every hop a gate. The hole routes were never where the
 improvement was.
 
-Hole routes stay on this tab, which is a reader and needs no engine. There is
-nothing to switch between: the game can only fly one of the two.
+**And there is a switch after all**, once the rest of flhack's patch is in.
+Five bytes in `server.dll` and `content.dll` tell the router that a jump hole
+is the same kind of object as a gate, and swap which table it reads. flhack
+applies them by hooking the load; this writes them into the files, which the
+game re-reads on every world load anyway.
 
-A `.vanilla` sits beside the file, the game reads it when a world loads, and
-`--revert` puts it back.
+```bash
+python3 fl.py routetable --mode gates --write   # gates only, 136 shorter
+python3 fl.py routetable --mode holes --write   # holes too, 648 jumps saved
+python3 fl.py routetable --revert                # shipped tables and bytes
+```
+
+The table and the bytes always move together, because either alone is broken: a
+hole table without the bytes aims the course at the system origin, which is
+usually the star. The same switch is a box in the Engine tab.
+
+A `.vanilla` sits beside every file touched, the game reads them when a world
+loads, and `--revert` puts everything back.
 
 **Neural Net** is one list over three sources, and the three chips are filters
 on it rather than a switch between three pages. All three are on by default,

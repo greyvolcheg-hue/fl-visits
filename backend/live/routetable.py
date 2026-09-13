@@ -65,16 +65,32 @@ import os
 
 import bini
 
+from . import bestpath as bp
 from .persist import WriteFailed, _backup, _save
 from ..game import flvisits as fl
 from ..game import jumps as jm
 
 # The one file Set Best Path reads, and the one this writes. It is its own
 # shape: nothing is widened, so no row can name a system it has never listed.
-TARGET = "shortest_legal_path.ini"
-# Reverted as well when a `.vanilla` is beside it, because the first version of
-# this module wrote to it and anyone who ran that wants it back.
-ALSO_REVERT = ("systems_shortest_path.ini",)
+# Two modes, and the difference is which file the engine is reading.
+#
+#   gates   the shipped arrangement. The router reads `shortest_legal_path.ini`
+#           and treats a jump hole as a kind of object it cannot make a
+#           waypoint from, so every hop must have a gate.
+#   holes   five bytes in `server.dll` and `content.dll`, flhack's, which swap
+#           which file is read **and** tell the router that gates and holes are
+#           one type. Then the file it reads is `systems_shortest_path.ini` and
+#           hole routes become flyable.
+#
+# **The two halves of `holes` are not separable.** The filename swap alone
+# hands the router routes it is not allowed to fly and it points the course at
+# the system origin, which is usually a star. `bestpath.file_write` owns those
+# bytes; this module owns the tables.
+MODES = {
+    "gates": {"file": "shortest_legal_path.ini", "holes": False, "patch": False},
+    "holes": {"file": "systems_shortest_path.ini", "holes": True, "patch": True},
+}
+TARGETS = tuple(m["file"] for m in MODES.values())
 PATH_KEY = "path"
 
 
@@ -82,7 +98,7 @@ def _path(game_dir, name):
     return fl.ipath(fl.ipath(fl.ipath(game_dir, "DATA"), "UNIVERSE"), name)
 
 
-def _shipped(game_dir, name=TARGET):
+def _shipped(game_dir, name):
     """The file as the game shipped it, which is `.vanilla` once we have run.
 
     Reading the live file instead would make this build on its own output: the
@@ -93,7 +109,7 @@ def _shipped(game_dir, name=TARGET):
     return path + ".vanilla" if os.path.exists(path + ".vanilla") else path
 
 
-def content(game_dir=None, by="jumps"):
+def content(game_dir=None, by="jumps", mode="gates"):
     """(sections, outside, holed) : the table, ready for `_save`.
 
     `outside` counts rows naming a system the shipped file does not list and
@@ -103,8 +119,9 @@ def content(game_dir=None, by="jumps"):
     second is what pointed a course at a star.
     """
     game_dir = game_dir or fl.DEFAULT_GAME
+    rule = MODES[mode]
     jumps = jm.load_jumps(game_dir)
-    sections = bini.decode(open(_shipped(game_dir), "rb").read())
+    sections = bini.decode(open(_shipped(game_dir, rule["file"]), "rb").read())
     known = set()
     for _s, pairs in sections:
         for key, values in pairs:
@@ -122,13 +139,15 @@ def content(game_dir=None, by="jumps"):
             src, dst = str(values[0]), str(values[1])
             # `holes=False`, which is the whole point: a route the engine
             # cannot fly is worse than a longer one it can.
-            steps = jm.route(jumps, src.lower(), dst.lower(), by=by, holes=False)
+            steps = jm.route(jumps, src.lower(), dst.lower(), by=by,
+                             holes=rule["holes"])
             if steps is None:
                 # The shipped table knows a pair the graph cannot join on
                 # gates. Keep the game's own answer rather than emptying it.
                 rows.append((key, values))
                 continue
-            if any(s["jump"]["kind"] != "gate" for s in steps):
+            if not rule["holes"] and any(s["jump"]["kind"] != "gate"
+                                         for s in steps):
                 holed += 1
             chain = [src] + [jumps[s["jump"]["id"]]["to_sys"] for s in steps]
             if any(x.lower() not in known for x in chain):
@@ -143,12 +162,12 @@ def _rows(sections):
             for _s, pairs in sections for k, v in pairs if k.lower() == PATH_KEY]
 
 
-def plan(game_dir=None, by="jumps"):
+def plan(game_dir=None, by="jumps", mode="gates"):
     """(changed, saved, outside, holed) against what is on disk now."""
     game_dir = game_dir or fl.DEFAULT_GAME
-    fresh, outside, holed = content(game_dir, by)
+    fresh, outside, holed = content(game_dir, by, mode)
     want = {(a, b): hops for a, b, hops in _rows(fresh)}
-    live = bini.decode(open(_path(game_dir, TARGET), "rb").read())
+    live = bini.decode(open(_path(game_dir, MODES[mode]["file"]), "rb").read())
     have = {(a, b): hops for a, b, hops in _rows(live)}
     changed = saved = 0
     for pair, hops in want.items():
@@ -160,10 +179,15 @@ def plan(game_dir=None, by="jumps"):
     return changed, saved, outside, holed
 
 
-def write(game_dir=None, by="jumps"):
-    """Back up once, then write the gates-only table."""
+def write(game_dir=None, by="jumps", mode="gates"):
+    """Write the table for a mode, and set the five bytes that mode needs.
+
+    **The table and the bytes go together or not at all.** A hole table with
+    the bytes off is the star; gates with them on reads the wrong file.
+    """
     game_dir = game_dir or fl.DEFAULT_GAME
-    fresh, outside, holed = content(game_dir, by)
+    rule = MODES[mode]
+    fresh, outside, holed = content(game_dir, by, mode)
     if holed:
         raise WriteFailed(
             f"{holed} routes have a hop with no jump gate. The engine cannot "
@@ -171,12 +195,14 @@ def write(game_dir=None, by="jumps"):
             f"origin, which is usually the star. Nothing was written.")
     if outside:
         raise WriteFailed(
-            f"{outside} routes name a system {TARGET} does not list, so the "
+            f"{outside} routes name a system {rule['file']} does not list, so "
+            f"the "
             f"router has no index for them. Nothing was written.")
-    changed, saved, _o, _h = plan(game_dir, by)
-    path = _path(game_dir, TARGET)
+    changed, saved, _o, _h = plan(game_dir, by, mode)
+    path = _path(game_dir, rule["file"])
     _backup(path)
     _save(path, fresh)
+    bp.file_write(rule["patch"], game_dir)
     return changed, saved
 
 
@@ -184,7 +210,7 @@ def revert(game_dir=None):
     """Put the shipped table back, and any file an older version wrote."""
     game_dir = game_dir or fl.DEFAULT_GAME
     done = []
-    for name in (TARGET,) + ALSO_REVERT:
+    for name in TARGETS:
         path = _path(game_dir, name)
         keep = path + ".vanilla"
         if not os.path.exists(keep):
@@ -192,48 +218,61 @@ def revert(game_dir=None):
         with open(keep, "rb") as src, open(path, "wb") as dst:
             dst.write(src.read())
         done.append(name)
+    bp.file_write(False, game_dir)
     return done
 
 
 def state(game_dir=None):
-    """(systems listed, rows, is there a .vanilla, is it the shipped table)."""
+    """(mode the engine is in, systems listed, rows, .vanilla?, shipped?)."""
     game_dir = game_dir or fl.DEFAULT_GAME
-    path = _path(game_dir, TARGET)
+    _v, patched = bp.file_state(game_dir)
+    mode = "holes" if patched else "gates"
+    path = _path(game_dir, MODES[mode]["file"])
     rows = _rows(bini.decode(open(path, "rb").read()))
     keep = path + ".vanilla"
     stock = not os.path.exists(keep) or (
         open(path, "rb").read() == open(keep, "rb").read())
-    return len({a for a, _b, _h in rows}), len(rows), os.path.exists(keep), stock
+    return mode, len({a for a, _b, _h in rows}), len(rows), os.path.exists(keep), stock
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--game", default=fl.DEFAULT_GAME)
-    ap.add_argument("--write", action="store_true", help="replace the table")
+    # No default: a bare run should report on the mode the engine is in, not
+    # on one it is not, which read as a contradiction with the state line.
+    ap.add_argument("--mode", choices=sorted(MODES),
+                    help="gates: what the engine can fly as shipped. "
+                         "holes: five bytes plus the wider table")
+    ap.add_argument("--write", action="store_true", help="do it")
     ap.add_argument("--revert", action="store_true",
-                    help="restore the shipped table from .vanilla")
+                    help="shipped tables and shipped bytes")
     ap.add_argument("--flying", action="store_true",
                     help="least distance instead of fewest jumps")
     args = ap.parse_args()
     by = "flying" if args.flying else "jumps"
 
     try:
+        if args.mode is None:
+            args.mode = state(args.game)[0]
         if args.revert:
             done = revert(args.game)
-            print("restored " + (", ".join(done) if done else "nothing: no .vanilla"))
+            print("restored " + (", ".join(done) if done else "nothing")
+                  + ", and the five bytes are out")
         elif args.write:
-            changed, saved = write(args.game, by)
-            print(f"{TARGET}: {changed} routes written, {saved} jumps saved")
-            print("the game reads it when a world loads, so load a save")
+            changed, saved = write(args.game, by, args.mode)
+            print(f"{MODES[args.mode]['file']}: {changed} routes written, "
+                  f"{saved} jumps saved")
+            print("load a save; the table and the libraries are both read then")
         else:
-            changed, saved, outside, holed = plan(args.game, by)
-            print(f"{TARGET}: {changed} routes would change, {saved} jumps saved")
+            changed, saved, outside, holed = plan(args.game, by, args.mode)
+            print(f"mode {args.mode} would write {changed} routes into "
+                  f"{MODES[args.mode]['file']}, {saved} jumps saved")
             if holed or outside:
                 print(f"  REFUSED: {holed} gateless hops, {outside} unlisted systems")
             print("  nothing written; --write to do it")
-        systems, rows, kept, stock = state(args.game)
-        print(f"\non disk: {rows} rows over {systems} systems, "
-              f"{'shipped table' if stock else 'ours'}"
-              f"{', .vanilla kept' if kept else ''}")
+        mode, systems, rows, kept, stock = state(args.game)
+        print(f"\nthe engine is in {mode} mode, reading "
+              f"{MODES[mode]['file']}: {rows} rows over {systems} systems, "
+              f"{'shipped' if stock else 'ours'}{', .vanilla kept' if kept else ''}")
     except (WriteFailed, OSError, ValueError) as exc:
         raise SystemExit(str(exc))

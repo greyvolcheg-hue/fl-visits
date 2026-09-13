@@ -44,10 +44,13 @@ read from the same place, and neither can be mistaken for the other.
 """
 
 import argparse
+import os
 import sys
 
 from . import inject as ij
 from . import speed as sp
+from ..game import flvisits as fl
+from .persist import WriteFailed, _backup, write_raw
 from .speed import NotRunning
 
 SERVER, CONTENT = "server.dll", "content.dll"
@@ -184,6 +187,134 @@ def routes(pid=None, version=None):
         text = ij.read_raw(pid, pointer, 64).split(b"\0", 1)[0]
         out.append((at, text.decode("latin-1", "replace")))
     return out
+
+
+
+
+# --- the same five bytes, in the files -----------------------------------
+#
+# **This is the version that survives, and the memory one above is not.**
+# `content.dll` and `server.dll` are re-read from disk every time a world
+# loads, which is exactly why a patch written into the process is wiped: the
+# load replaces those pages from the file. Put the bytes in the file and the
+# load brings them back instead of taking them away.
+#
+# flhack cannot do this because it is a runtime tool that deliberately touches
+# no file, so it hooks the load instead: a trampoline over `add esp, 0x214` at
+# `Freelancer.exe+0x1a81a8`, which is the instruction right after both
+# libraries are loaded, re-applying the five bytes on every load. That works
+# and needs a stub, a code cave and hand-written x86. Writing the file needs
+# none of it, and this project already writes game files with a `.vanilla`
+# beside them.
+#
+# **The type byte is the half that matters and the half we dropped.** In
+# flhack's own assembly it is commented `treat jump gates & holes the same`.
+# Without it the router will not build a waypoint out of a jump hole and falls
+# back to the system origin, which on 2026-09-13 put the owner into a red
+# dwarf. The filename swap alone hands the router routes it is not allowed to
+# fly.
+
+FILES = {SERVER: ("EXE", SERVER), CONTENT: ("DLLS", "BIN", CONTENT)}
+
+
+def _file(game_dir, module):
+    return fl.ipath(game_dir, *FILES[module])
+
+
+def _shipped(game_dir, module):
+    """The module as the game shipped it, which is `.vanilla` once we ran."""
+    path = _file(game_dir, module)
+    return path + ".vanilla" if os.path.exists(path + ".vanilla") else path
+
+
+def _at(path, rva):
+    """A module-relative address as an offset into the file on disk."""
+    _base, sections = ij._headers(path)
+    off = fl._rva_to_offset(sections, rva)
+    if off is None:
+        raise WriteFailed(f"{rva:#x} is in no section of {os.path.basename(path)}")
+    return off
+
+
+def file_build(game_dir=None):
+    """Which build the files are, by the same two bytes flhack fingerprints."""
+    game_dir = game_dir or fl.DEFAULT_GAME
+    server = open(_shipped(game_dir, SERVER), "rb").read()
+    content = open(_shipped(game_dir, CONTENT), "rb").read()
+    for version, off in BUILDS.items():
+        kind = server[_at(_shipped(game_dir, SERVER), off["type"])]
+        mark = content[_at(_shipped(game_dir, CONTENT),
+                           CONTENT_MARK_AT[version])]
+        if kind in (VANILLA_TYPE, PATCHED_TYPE) and mark == CONTENT_MARK:
+            return version
+    raise WriteFailed("server.dll and content.dll are neither of the two "
+                      "builds flhack knows; nothing was touched")
+
+
+def file_sites(game_dir, version):
+    """[(module, file offset, shipped bytes, patched bytes)] for all five."""
+    off = BUILDS[version]
+    sp_, cp_ = _shipped(game_dir, SERVER), _shipped(game_dir, CONTENT)
+    server, content = open(sp_, "rb").read(), open(cp_, "rb").read()
+    type_at = _at(sp_, off["type"])
+    path_at = _at(cp_, off["path"])
+    jump_at = _at(cp_, off["jump"])
+    # The filename halves are a swap, so each one's patched value is the
+    # other's shipped value. Read rather than assumed, so a build with
+    # different pointers still swaps the right way round.
+    low_a = content[path_at:path_at + 1]
+    low_b = content[path_at + PATH_APART:path_at + PATH_APART + 1]
+    return [
+        (SERVER, type_at, server[type_at:type_at + 1], bytes([PATCHED_TYPE])),
+        (SERVER, type_at + 9, server[type_at + 9:type_at + 11], b"\x74\x07"),
+        (CONTENT, path_at, low_a, low_b),
+        (CONTENT, path_at + PATH_APART, low_b, low_a),
+        (CONTENT, jump_at, content[jump_at:jump_at + 2], b"\x89\xf6"),
+    ]
+
+
+def file_state(game_dir=None):
+    """(version, on?) read off the files. On means **all five** sites match."""
+    game_dir = game_dir or fl.DEFAULT_GAME
+    version = file_build(game_dir)
+    live = {m: open(_file(game_dir, m), "rb").read() for m in (SERVER, CONTENT)}
+    on = all(live[m][o:o + len(new)] == new
+             for m, o, _old, new in file_sites(game_dir, version))
+    return version, on
+
+
+def file_write(on=True, game_dir=None):
+    """Put the five bytes in the files, or take them out. Keeps `.vanilla`.
+
+    **The values come from the shipped file and are applied to the current
+    one.** Setting a byte to a value is idempotent, so twice is still the same
+    as once, and there is no way to swap the filename pointers back and forth
+    into nonsense.
+
+    **Rebuilding the whole file from `.vanilla` would be wrong here, and was.**
+    `callsign.py` patches four other sites in this same `content.dll`, and the
+    first version of this function rebuilt the file from the shipped copy and
+    silently threw that away: the owner's callsign went back to "Freelancer
+    Alpha 1-1" the moment best path was switched on. Two writers in one file
+    must each touch only their own bytes.
+    """
+    game_dir = game_dir or fl.DEFAULT_GAME
+    version = file_build(game_dir)
+    want = file_sites(game_dir, version)
+    for module in (SERVER, CONTENT):
+        path = _file(game_dir, module)
+        blob = bytearray(open(path, "rb").read())
+        for mod, off, old, new in want:
+            if mod != module:
+                continue
+            patch = new if on else old
+            if len(patch) != len(old):
+                raise WriteFailed(f"{mod} site {off:#x} is {len(old)} bytes and "
+                                  f"the replacement is {len(patch)}")
+            blob[off:off + len(patch)] = patch
+        _backup(path)
+        write_raw(path, bytes(blob))
+    return file_state(game_dir)
 
 
 def main():

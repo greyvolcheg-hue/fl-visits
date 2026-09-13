@@ -1557,6 +1557,94 @@ answer if it will not start. And what else the curve drives: the game calls it
 thinks you are, which would mean a stretched ladder makes encounters harder.
 That is a reading of the name and the shape, not a measurement.
 
+## Settled: how flhack survived a world load, and why we do not need to
+
+Closed 2026-09-13 from the owner's question, *"А FL Hack как работал?"*, with
+his source in hand. It answers both that and why our own port did nothing.
+
+**flhack hooks the load.** It writes a `jmp` over `add esp, 0x214` at
+`Freelancer.exe+0x1a81a8`, the instruction that runs right after both libraries
+are loaded, and the author says why in a comment:
+
+    // Content.dll and Server.dll are loaded every time a game is loaded -
+    // patch in code after they're loaded.
+
+`Freelancer.exe` is never reloaded, so that trampoline survives, fires on every
+world load, re-finds the two libraries with `GetModuleHandleA` because their
+bases move, re-checks the build fingerprint and re-applies the bytes **before
+the router reads anything**. Verified against this install: `81 c4 14 02 00` is
+at that address, exactly as the source expects.
+
+**Our port had the right bytes and the wrong moment.** `live/bestpath.py` wrote
+the same five bytes in the same three places, from outside, once, when a button
+was pressed. That is after the load has already read the table, and the next
+load wipes it. Three correct measurements and one useless feature.
+
+**We do not need the trampoline, because we may write files and flhack may
+not.** flhack is a runtime tool that deliberately touches nothing on disk, so
+hooking the load is its only option. `server.dll` and `content.dll` are re-read
+from disk on every world load, which is precisely why a memory patch is wiped:
+the load replaces those pages from the file. Put the bytes **in the file** and
+the same load brings them back instead of taking them away. No stub, no cave,
+no hand-written x86.
+
+### The byte we dropped is the one that mattered
+
+In flhack's own assembly the first of the five is commented:
+
+    mov byte [edi], 0x03      ; treat jump gates & holes the same
+
+**That is not the filename swap.** The swap is a different pair, `0x8C` and
+`0xC4` at `0x80` apart, the low halves of two pointers:
+
+    0x70a828c  'Universe\shortest_legal_path.ini'      gates only
+    0x70a82c4  'Universe\systems_shortest_path.ini'    holes too
+
+So flhack does two things at once: give the router the wider table, **and** tell
+it a hole is the same kind of object as a gate. On 2026-09-13 the route tables
+were rewritten with hole routes while that type byte was untouched, and the
+router put the course at the system origin, which in Hokkaido is a red dwarf.
+The section above records that as "the engine can only follow a gate". The
+correction is: **only until that byte is set.**
+
+### Two modes, and the halves are not separable
+
+`live/routetable.py` now has both, and moves the table and the bytes together
+because either alone is broken:
+
+| mode | reads | table | the five bytes |
+|---|---|---|---|
+| `gates` | `shortest_legal_path.ini` | gates-only shortest paths, 136 shorter | out |
+| `holes` | `systems_shortest_path.ini` | hole-inclusive, 1170 routes, 648 jumps saved | in |
+
+`--revert` puts both tables and the bytes back. The switch is a box in the
+Engine tab, and this is the answer to the owner's *"как переключаться между
+ними"*: not in the game, in the file the game reads.
+
+### Two writers in one file must touch only their own bytes
+
+**Found by breaking it.** `callsign.py` patches four sites in `content.dll` and
+`bestpath.file_write` patches three more, and both were written the way every
+other writer here is written: rebuild the file from `.vanilla`, apply my sites.
+That is right for a file with one owner and wrong the moment there are two. The
+best-path patch silently reset the owner's callsign to "Freelancer Alpha 1-1".
+
+Both now **read their anchors and shipped values from `.vanilla` and apply them
+to the current file**, which is idempotent because setting a byte to a value
+twice is setting it once, and which leaves every other byte alone.
+`callsign.restore` likewise resets its own four sites rather than writing the
+whole shipped file back. Proved by running both in both orders.
+
+`persist.write_raw` is the one atomic byte writer both use, and **it puts the
+file mode back**: `mkstemp` creates 0600 and the game has to read what it wrote.
+
+### Backups
+
+163 `.vanilla` files, plus a full archive of every binary and every writable
+data file at `~/Games/fl-backups/`, verified by extracting it and comparing
+hashes against the live files. `server.dll` and `content.dll` had no `.vanilla`
+before this and have one now.
+
 ## Settled: a callsign is three recorded vocabularies, and a name is not one
 
 Closed 2026-09-13. The owner asked for *"кастомное имя из игровых ассетов и

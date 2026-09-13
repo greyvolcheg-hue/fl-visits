@@ -256,7 +256,37 @@ function engFiles() {
     '<span class="say">Touches files on disk. Each one is backed up to ' +
     '<code>.vanilla</code> the first time, and an existing backup is never ' +
     'overwritten.</span></div>' +
-    `<div class="grid wrapgrid">${write}${rocks}${engCallsign()}</div>`;
+    `<div class="grid wrapgrid">${write}${rocks}${engCallsign()}` +
+    `${engPaths()}</div>`;
+}
+
+// Which route table Set Best Path reads. Two modes and they are not a
+// preference: `holes` is a table of routes through jump holes plus the five
+// bytes that let the router fly one, and either half without the other points
+// the course at a star. `routetable.py` moves them together.
+function engPaths() {
+  const p = eng.paths;
+  if (!p || p.error) {
+    return '<div class="box file"><div class="lbl">SET BEST PATH</div>' +
+      `<div class="why">${esc((p && p.error) || 'not read yet')}</div></div>`;
+  }
+  const say = { gates: 'gates only, as shipped', holes: 'jump holes as well' };
+  return '<div class="box file"><div class="top">' +
+    '<span class="lbl">SET BEST PATH</span>' +
+    `<span class="val">${esc(say[p.mode] || p.mode)}</span></div>` +
+    `<div class="why">The game is reading <code>${esc(p.files[p.mode])}</code>: ` +
+    `${p.rows} routes over ${p.systems} systems, ` +
+    (p.stock ? 'the shipped table.' : 'ours.') + '</div>' +
+    '<div class="why">Jump holes need five bytes in <code>server.dll</code> ' +
+    'and <code>content.dll</code> as well as the wider table. Without them the ' +
+    'router cannot make a waypoint out of a hole and aims at the system ' +
+    'origin, which is usually the star.</div>' +
+    '<div class="csacts">' +
+    p.modes.map(m => `<button class="chip" data-mode="${esc(m)}"` +
+      (m === p.mode ? ' disabled' : '') +
+      `>${esc(m.toUpperCase())}</button>`).join('') +
+    '<button class="chip" id="paths-vanilla">VANILLA</button></div>' +
+    '<div class="from">lands the next time a save loads</div></div>';
 }
 
 // Four words out of three recorded vocabularies. A picker rather than a text
@@ -385,6 +415,10 @@ function wireEngine() {
   });
   const vanilla = $('#cs-restore');
   if (vanilla) vanilla.onclick = () => engPost('callsign', { restore: 1 });
+  box.querySelectorAll('[data-mode]').forEach(b =>
+    b.onclick = () => engPost('routetable', { mode: b.dataset.mode }));
+  const pv = $('#paths-vanilla');
+  if (pv) pv.onclick = () => engPost('routetable', { revert: 1 });
   const p = $('#persist');
   if (p) p.onclick = async () => {
     persistBusy = true; render();

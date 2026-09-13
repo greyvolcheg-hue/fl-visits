@@ -14,6 +14,7 @@ or not anyone has opened the drawer.
 
 from .live import callsign as cs
 from .live import dockdist as dkd
+from .live import routetable as rt
 from .live import drawdist as dd
 from .live import persist as pe
 from .live import speed as sp
@@ -142,6 +143,20 @@ def _callsign(ctx):
     return body
 
 
+def _routetable(ctx):
+    """Which route table Set Best Path is reading, and what is in it."""
+    body = {"mode": None, "systems": 0, "rows": 0, "stock": True,
+            "modes": sorted(rt.MODES), "files": {k: v["file"]
+                                                 for k, v in rt.MODES.items()},
+            "error": None}
+    try:
+        mode, systems, rows, _kept, stock = rt.state(ctx.game.dir)
+        body.update(mode=mode, systems=systems, rows=rows, stock=stock)
+    except (rt.WriteFailed, OSError, ValueError) as exc:
+        body["error"] = str(exc)
+    return body
+
+
 def _engine(ctx):
     """Every reading the strip shows, in one request and one pid lookup.
 
@@ -150,7 +165,8 @@ def _engine(ctx):
     than repeating any of them.
     """
     body = {"running": False, "error": None, "cruise": None, "lane": None,
-            "thrusters": None, "draw": None, "call": None}
+            "thrusters": None, "draw": None, "call": None,
+            "paths": None}
     try:
         sp.find_pid()
         body["running"] = True
@@ -161,6 +177,7 @@ def _engine(ctx):
         if ctx.one("all"):
             body["draw"] = _drawdist(ctx)
             body["call"] = _callsign(ctx)
+            body["paths"] = _routetable(ctx)
         return body
     body["cruise"] = _speed(ctx)
     body["lane"] = _tradelane(ctx)
@@ -168,6 +185,7 @@ def _engine(ctx):
         body["thrusters"] = _thrusters(ctx)
         body["draw"] = _drawdist(ctx)
         body["call"] = _callsign(ctx)
+        body["paths"] = _routetable(ctx)
     return body
 
 
@@ -177,7 +195,8 @@ def _engine(ctx):
 # won and this one was unreachable. Two tabs cannot share an endpoint name;
 # `_table` raises on a repeat now rather than picking by import order.
 API = {"engine": _engine, "speed": _speed, "thrusters": _thrusters,
-       "tradelane": _tradelane, "drawdist": _drawdist, "callsign": _callsign}
+       "tradelane": _tradelane, "drawdist": _drawdist, "callsign": _callsign,
+       "routetable": _routetable}
 
 def _set_speed(ctx, sent):
     # Re-located every time: common.dll moves between runs, and the game may
@@ -254,6 +273,25 @@ def _set_callsign(ctx, sent):
             "takes effect the next time a save loads")
 
 
+def _set_routetable(ctx, sent):
+    """Switch which table Set Best Path reads, and write it.
+
+    **The table and the five bytes move together**, which is what `rt.write`
+    guarantees: a hole table with the bytes off points the course at a star,
+    and gates with them on reads the wrong file.
+    """
+    with ctx.lock:
+        if sent.get("revert"):
+            done = rt.revert(ctx.game.dir)
+            return f"{len(done)} tables and the five bytes back to shipped"
+        mode = sent.get("mode", "gates")
+        if mode not in rt.MODES:
+            raise ValueError(f"no such mode: {mode}")
+        changed, saved = rt.write(ctx.game.dir, "jumps", mode)
+    return (f"{mode}: {changed} routes into {rt.MODES[mode]['file']}, "
+            f"{saved} jumps saved; load a save")
+
+
 def _set_allhacks(ctx, _sent):
     """Every on/off patch at once, because they are always wanted together.
 
@@ -291,4 +329,4 @@ def _set_persist(ctx, _sent):
 POST = {"speed": _set_speed, "thrusters": _set_thrusters,
         "tradelane": _set_tradelane, "drawdist": _set_drawdist,
         "allhacks": _set_allhacks, "persist": _set_persist,
-        "callsign": _set_callsign}
+        "callsign": _set_callsign, "routetable": _set_routetable}
