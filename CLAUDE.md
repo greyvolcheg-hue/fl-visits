@@ -1582,22 +1582,26 @@ penalty and **the other 51 factions move by zero.**
 the ordinary Nomad fighter, as against the `MSN`-prefixed ones the story
 spawns, so a kill in the open world fires that group's event.
 
-### The setting is a length, and the first version got the axis wrong
+### The setting is a body count, and the first version got the axis wrong
 
-`fl.py empathy 100` sets the other 51 so that **100 wings of four**, 400 kills,
-is the journey from neutral to friendly with all of them at once.
+`fl.py empathy 400` sets the other 51 so that **400 Nomads** is the journey
+from neutral to friendly with all of them at once.
 
 The first version offered the values the file itself uses, `-0.05` to `-0.45`,
 on the reasoning that borrowing the game's vocabulary beat inventing one. That
 was the wrong axis. Nothing in the format constrains the value, and the only
 question worth asking of this feature is **how long the grind is**. At `-0.25`
-it was **17 wings**, which the owner rightly refused: this is meant to be the
+it was **67 kills**, which the owner rightly refused: this is meant to be the
 expensive way round a deliberately awkward faction balance, and the player has
 to be able to weigh it against just flying the missions.
 
-So the choices are wings, 25 to 400, and the rate is derived:
+It was briefly counted in wings of four, which is how the owner had described
+the grind, and he asked for plain ship counts instead. He was right twice: it
+is the number people reason in, and a wing is not a fixed size anyway.
 
-    rate = -(friend - neutral) / (wings * 4) / |object_destruction|
+So the choices are kills, 100 to 1600, and the rate is derived:
+
+    rate = -(friend - neutral) / kills / |object_destruction|
 
 The span comes from `reputation.GOALS`, which is `0.5`, rather than being typed
 here, so it cannot drift from the number the Reputation tab uses.

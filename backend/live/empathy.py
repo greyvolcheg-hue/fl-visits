@@ -69,21 +69,18 @@ RATE_KEY = "empathy_rate"
 # should still count against them, and their shipped +1.000 stays.
 DOUBLES = ("fc_ln_grp", "fc_kn_grp", "fc_rn_grp")
 
-# A Nomad wing, which is how the grind is actually counted when you are flying
-# it rather than reading a file.
-PACK = 4
-
-# **The setting is a length, not a rate.** The first version offered the values
-# the game's own file uses, -0.05 to -0.45, on the reasoning that borrowing its
-# vocabulary was safer than inventing one. That was the wrong axis: nothing in
-# the format constrains the value, and the only question worth asking of this
-# feature is how long the grind is. At -0.25 it was 17 wings from neutral to
-# friendly, which the owner rightly called no alternative at all: this is meant
-# to be the expensive way round a deliberately awkward faction balance, and the
-# player should have to weigh it.
+# **The setting is a length, not a rate, and the length is a body count.** The
+# first version offered the values the game's own file uses, -0.05 to -0.45, on
+# the reasoning that borrowing its vocabulary beat inventing a number. That was
+# the wrong axis: nothing in the format constrains the value, and the only
+# question worth asking of this feature is how long the grind is. At -0.25 it
+# was 67 kills from neutral to friendly, which is no alternative to anything.
+# This is meant to be the expensive way round a deliberately awkward faction
+# balance, and the player has to be able to weigh it.
 #
-# So the choices are wings, and the rate is derived. 100 is the owner's call.
-PACKS = (25, 50, 100, 200, 400)
+# Counted in ships rather than in wings of four, at the owner's call: it is the
+# number he reasons in, and a wing is not a fixed thing anyway.
+KILLS = (100, 200, 400, 800, 1600)
 
 
 def span():
@@ -95,17 +92,17 @@ def span():
     return rep.GOALS["friend"] - rep.GOALS["neutral"]
 
 
-def rate_for(packs, kill):
-    """The empathy rate that makes `packs` wings the journey to friendly."""
-    if not packs or not kill:
+def rate_for(kills, kill):
+    """The empathy rate that makes `kills` ships the journey to friendly."""
+    if not kills or not kill:
         return 0.0
-    return -(span() / (packs * PACK)) / abs(kill)
+    return -(span() / kills) / abs(kill)
 
 
-def packs_for(rate, kill):
-    """How many wings that rate asks for, or None when it asks for none."""
+def kills_for(rate, kill):
+    """How many ships that rate asks for, or None when it asks for none."""
     per = abs(rate * kill)
-    return None if not per else span() / per / PACK
+    return None if not per else span() / per
 
 
 def _path(game_dir):
@@ -170,23 +167,23 @@ def read(game_dir=None):
     seen = set(others.values())
     rate = others[next(iter(others))] if len(seen) == 1 else None
     return {"kill": kill, "rates": rates, "rate": rate,
-            "packs": None if rate in (None, 0) else packs_for(rate, kill),
+            "kills": None if rate in (None, 0) else kills_for(rate, kill),
             "n": sum(1 for v in others.values() if v)}
 
 
-def write(packs=None, game_dir=None, rate=None):
-    """Set every non-Nomad faction, in wings to friendly. Keeps a `.vanilla`.
+def write(kills=None, game_dir=None, rate=None):
+    """Set every non-Nomad faction, in ships to friendly. Keeps a `.vanilla`.
 
-    `packs` is the setting; `rate` is the escape hatch for anyone who wants to
-    say it in the file's own units, and `packs=0` puts everyone back to the
+    `kills` is the setting; `rate` is the escape hatch for anyone who wants to
+    say it in the file's own units, and `kills=0` puts everyone back to the
     shipped indifference.
     """
     game_dir = game_dir or fl.DEFAULT_GAME
     if rate is None:
-        if packs is None:
-            raise WriteFailed("say how many wings, or pass a rate")
+        if kills is None:
+            raise WriteFailed("say how many ships, or pass a rate")
         kill = read(game_dir)["kill"]
-        rate = rate_for(float(packs), kill)
+        rate = rate_for(float(kills), kill)
     rate = float(rate)
     if not -1.0 <= rate <= 0.0:
         raise WriteFailed(
@@ -226,8 +223,8 @@ def restore(game_dir=None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("packs", nargs="?", type=float,
-                    help=f"wings of {PACK} to fly from neutral to friendly; "
+    ap.add_argument("kills", nargs="?", type=float,
+                    help="Nomads to kill for neutral to friendly; "
                          "0 for the shipped indifference")
     ap.add_argument("--game", default=fl.DEFAULT_GAME)
     ap.add_argument("--rate", type=float, help="say it in the file's units")
@@ -239,14 +236,14 @@ def main():
         if args.restore:
             restore(args.game)
             print("restored")
-        elif args.packs is not None or args.rate is not None:
-            touched, kept = write(args.packs, args.game, args.rate)
+        elif args.kills is not None or args.rate is not None:
+            touched, kept = write(args.kills, args.game, args.rate)
             if kept:
                 print(f"kept {os.path.basename(kept)}")
             print(f"{touched} factions changed")
         state = read(args.game)
 
-        kill, rate, packs = state["kill"], state["rate"], state["packs"]
+        kill, rate, kills = state["kill"], state["rate"], state["kills"]
         print(f"\none Nomad kill: object_destruction {kill:+.4f}")
         if rate is None:
             print(f"  the other factions do not agree on a rate; "
@@ -255,8 +252,7 @@ def main():
             print("  every other faction moves by 0.0000: nobody cares")
         else:
             print(f"  every other faction gains {kill * rate:+.5f}, so "
-                  f"{packs:.0f} wings of {PACK} from neutral to friendly "
-                  f"({packs * PACK:.0f} kills)")
+                  f"{kills:.0f} Nomads from neutral to friendly")
         for who in DOUBLES:
             got = state["rates"].get(who, 0.0)
             print(f"  {who:<11} loses {kill * got:+.4f}, a story double, "
