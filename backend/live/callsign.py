@@ -30,8 +30,21 @@ callsign. Two are strings and two are code:
 
     faction       the string "gcs_refer_faction_player", swapped whole
     designator    the string "gcs_refer_formationdesig_01", last two digits
-    first number  a literal `push 1` feeding "gcs_misc_number_%d-"
-    second number `(id - 1) % 20 + 1`, eleven bytes, replaced by a constant
+    second number a literal `push 1` feeding "gcs_misc_number_%d-"
+    first number  `(id - 1) % 20 + 1`, eleven bytes, replaced by a constant
+
+**The site feeding the dashed format is the number spoken second, and that is
+the opposite of what it looks like.** Corrected 2026-09-13 by the owner, who
+could hear it: the file held 6 at the dashed site and 13 at the plain one, and
+the bots said "13-6". It had been the other way round here, so `fl.py callsign`
+printed "6-13" for a game that was saying "13-6", and both halves of the picker
+were labelled backwards.
+
+Nothing in the disassembly settles the order, and the previous reading claimed
+it did. What the dash in `gcs_misc_number_%d-` actually marks is not known and
+is not guessed at here; the recording simply comes second. **Only the person
+with the speakers on can settle this**, which is the same lesson as the route
+table that read ON and did nothing.
 
 The designator arithmetic is what proves the reading rather than suggesting it.
 The other arm of the same branch does
@@ -236,14 +249,28 @@ def sites(game_dir=None):
     plain = _va(sections, image_base,
                 _once(blob, (NUMBER_FMT + "\0").encode(), "the plain number"))
 
+    # **Named for the bytes, not for where the number lands in the sentence.**
+    # Calling these `wing` and `slot` is what let the two get swapped for a day:
+    # the shape of a site is a fact about the binary, and which half of
+    # "13-6" it becomes is a fact about the audio, and only one of those can be
+    # read here. `read` and `write` join them, in one place, just below.
+    #
     # push 1 / lea 0x14(%esp),%eax / push <"gcs_misc_number_%d-">
-    wing = _once(blob, bytes.fromhex("6a018d442414") + b"\x68"
-                 + struct.pack("<I", dash), "the first number")
+    pushed = _once(blob, bytes.fromhex("6a018d442414") + b"\x68"
+                   + struct.pack("<I", dash), "the dashed number")
     # xor edx / dec eax / mov ecx,20 / div / inc edx / push edx / push <fmt>
-    slot = _once(blob, bytes.fromhex("33d248b914000000f7f142") + b"\x52\x68"
-                 + struct.pack("<I", plain), "the second number")
+    computed = _once(blob, bytes.fromhex("33d248b914000000f7f142") + b"\x52\x68"
+                     + struct.pack("<I", plain), "the plain number")
     return {"faction": (faction, 24), "desig": (desig, 27),
-            "wing": (wing, 2), "slot": (slot, 11)}
+            "pushed": (pushed, 2), "computed": (computed, 11)}
+
+
+# Which site becomes which half of "<first>-<second>". **Settled by ear on
+# 2026-09-13 and by nothing else**: with 6 at the dashed site and 13 at the
+# plain one the bots said "13-6". Flip these two lines if a future build
+# disagrees; nothing else in the module needs to move.
+FIRST_SITE = "computed"     # the number spoken before the dash
+SECOND_SITE = "pushed"      # the number spoken after it
 
 
 # The eleven bytes the second number computes itself with, and what replaces
@@ -275,20 +302,22 @@ def read(game_dir=None):
     desig = blob[off:blob.index(b"\0", off)].decode("latin-1")
     desig = int(desig[len(DESIG_PREFIX):]) if desig.startswith(DESIG_PREFIX) else None
 
-    off, _n = spots["wing"]
-    wing = blob[off + 1] if blob[off] == 0x6A else None
+    off, _n = spots["pushed"]
+    pushed = blob[off + 1] if blob[off] == 0x6A else None
 
-    off, _n = spots["slot"]
+    off, _n = spots["computed"]
     chunk = blob[off:off + 11]
     if chunk == SLOT_VANILLA:
-        slot = None
+        computed = None
     elif chunk[0] == 0xBA:
-        slot = struct.unpack_from("<I", chunk, 1)[0]
+        computed = struct.unpack_from("<I", chunk, 1)[0]
     else:
-        raise WriteFailed(f"the second number site at {off:#x} holds bytes "
+        raise WriteFailed(f"the computed number site at {off:#x} holds bytes "
                           f"neither this tool nor the game put there: "
                           f"{chunk.hex(' ')}")
-    return {"faction": faction, "desig": desig, "wing": wing, "slot": slot}
+    got = {"pushed": pushed, "computed": computed}
+    return {"faction": faction, "desig": desig,
+            "wing": got[FIRST_SITE], "slot": got[SECOND_SITE]}
 
 
 def write(faction=None, desig=None, wing=None, slot=None, game_dir=None):
@@ -339,12 +368,15 @@ def write(faction=None, desig=None, wing=None, slot=None, game_dir=None):
         if value not in ok:
             raise WriteFailed(f"{value} has no recording; the game can say "
                               f"{ok[0]} to {ok[-1]}")
-    if wing is not None:
-        off, _room = spots["wing"]
-        blob[off + 1] = wing
-    if slot is not None:
-        off, _room = spots["slot"]
-        blob[off:off + 11] = _slot_patch(slot)
+    # `wing` is the number spoken first and `slot` the one spoken second; which
+    # site each of those is lives in FIRST_SITE / SECOND_SITE and nowhere else.
+    want = {FIRST_SITE: wing, SECOND_SITE: slot}
+    if want["pushed"] is not None:
+        off, _room = spots["pushed"]
+        blob[off + 1] = want["pushed"]
+    if want["computed"] is not None:
+        off, _room = spots["computed"]
+        blob[off:off + 11] = _slot_patch(want["computed"])
 
     path = _path(game_dir)
     kept = _backup(path)

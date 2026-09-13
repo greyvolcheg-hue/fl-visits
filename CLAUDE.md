@@ -1959,8 +1959,14 @@ All in `DLLS/BIN/content.dll`, in the one function that builds a callsign:
 |---|---|---|
 | faction | the string `gcs_refer_faction_player`, 24 bytes and 4 NUL of slack | swapped whole |
 | designator | the string `gcs_refer_formationdesig_01`, 27 bytes | last two digits |
-| first number | `6a 01`, a literal `push 1`, feeding `gcs_misc_number_%d-` | one byte |
-| second number | `(id - 1) % 20 + 1` in eleven bytes | `mov $N,%edx` plus six nops |
+| **second** number | `6a 01`, a literal `push 1`, feeding `gcs_misc_number_%d-` | one byte |
+| **first** number | `(id - 1) % 20 + 1` in eleven bytes | `mov $N,%edx` plus six nops |
+
+**The site feeding the dashed format is spoken second, and this table said the
+opposite until 2026-09-13.** The file held 6 at the dashed site and 13 at the
+plain one; the bots said **13-6**; `fl.py callsign` printed 6-13. So the picker
+and the read-back were both labelled backwards, and the owner was the only
+instrument that could say so.
 
 **The designator arithmetic proves the mapping rather than suggesting it.** The
 other arm of the same branch does
@@ -2021,9 +2027,35 @@ set B over vanilla; the patched instructions disassemble to `mov $0x6,%edx` plus
 six nops landing exactly on the following `push %edx`, and nothing jumps into
 the eleven replaced bytes.
 
-**What is not verified is the only thing that matters in the end**: whether the
-game says the new words. That is audio, it cannot be heard from here, and the
-test is to load a save and request a dock.
+### Confirmed by ear on 2026-09-13: the bots say the new words
+
+The one thing that could not be checked from here is settled. The owner heard
+his own callsign in game, which is what this feature was for, and the only
+defect was the order of the two numbers.
+
+**And that defect is the lesson, not the fix.** He reported it as *"Freelancer
+Red 6-13. Цифры местами перепутал"*, quoting `fl.py callsign`'s own output line
+and saying the halves were swapped. That was read here as a claim about what
+the game says, and instead of asking which of the two he meant, an argument was
+built from the disassembly to show the tool was right. It was not right. The
+sites were labelled backwards and he could hear it.
+
+**Three times in one day the owner's report was treated as the thing to
+disprove**, over the route table, over Omicron Gamma and over this, and twice
+he was right. The cost is not the wasted tokens, it is that he had to fight to
+be believed about his own game. The rule that follows, and it is the same one
+the route table already taught:
+
+  * **On anything the files cannot settle, the person with the speakers and the
+    screen is the instrument, and this tool is the hypothesis.** Static bytes
+    can say what a site holds. They cannot say what a sentence sounds like,
+    where a course points, or what is floating in a system.
+  * **When a report is ambiguous, ask which reading is meant.** One question
+    beats a page of evidence aimed at the wrong claim.
+
+`FIRST_SITE` and `SECOND_SITE` in `callsign.py` are the whole of the mapping
+now, and the two sites are named for their byte shape, `pushed` and `computed`,
+so that nothing in the module claims to know an order it cannot check.
 
 ## Settled: one codebase for both platforms, and the Windows half is unproven
 
