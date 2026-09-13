@@ -276,7 +276,15 @@ Closed 2026-09-13, the second time the owner reported it: *"и в Омикрон
 **EVIDENCE**: the wreck flags across every save on disk, set against what each
 object carries in the system files.
 
-### The system he was describing is Omicron Alpha, and Gamma is fine
+### Omicron Gamma was a false lead, withdrawn by the owner
+
+**Read this before re-opening it.** On 2026-09-13 the owner withdrew the report
+himself: *"я тебе наврал и пустил по ложному следу. Все обломки в том омикроне
+реальные"*. Gamma is not broken, and the section below is what was measured on
+the way to finding that out. It is kept because the measurements are good and
+because the next person to look at Gamma will have the same suspicion.
+
+### Omicron Alpha is the system that actually looked wrong
 
 Every system holding a hull that can never hold anything, and there are only
 four of them:
@@ -295,25 +303,37 @@ Gamma really is seventeen Corsair hulls with twenty Artifacts each: it is a
 cache, and being the one system where every hull is loaded is exactly what
 makes it look wrong beside everything else.
 
+Checked down to the mechanism rather than taken on the owner's word, because
+his word had just changed: all 16 Corsair hulls carry `SECRET_c_co_elite2_hi02a`
+or `...b`, which is `cargo = commodity_alien_artifacts, 20` plus two
+`fc_c_gun01_mark04`; the guns read `lootable = true`; and the hull archetype
+carries the drop fuse described below. **There is nothing wrong with Omicron
+Gamma.** Four separate theories about it were tried and every one died, and
+they are listed at the end of this section so nobody walks them again.
+
 ### The flag he expected is real, and it is not a value
 
 It is **whether the object carries a `loadout` key at all**. A hull with none
 can never hold anything, and the game never sets bit 8 on it because there was
 never anything to take.
 
-Labelled against all 220 saves on disk, over the 109 wrecks some save has
+Labelled against all 220 saves on disk, over the 135 wrecks some save has
 recorded:
 
 | the object | the game recorded the loot taken | count |
 |---|---|---|
-| has a `loadout` | yes | **75** |
-| has no `loadout` | no | **34** |
+| has a `loadout` | yes | **82** |
+| has no `loadout` | no | **53** |
 | | disagreements | **0** |
 
-**That count grows as he plays and the ratio is the part that matters.** It was
-107 wrecks when this was first measured and 109 an hour later, because
-`AutoSave.fl` keeps recording; the classifier is in this repo's history, not in
-a file, and re-running it is cheap.
+**53 of 53 is the number that matters**: every hull the rule calls scenery has
+now been visited in some save, and the game set the looted bit on none of them.
+
+**The sample grows as he plays, so re-measure rather than quote.** It was 107
+wrecks when first measured, 109 an hour later, and 135 the same evening once he
+loaded `Save707c.fl`, which alone carries 133. The ratio held at every size. The
+classifier is a throwaway script over `wrecks.load_wrecks` and
+`flvisits.parse_visits`, not a file in this repo, and re-running it is cheap.
 
 ### What was broken was the page, and it is the whole reason this came back
 
@@ -341,6 +361,56 @@ loadout**: `surprise_superconductors` carries `loadout =
 surprise_superconductors`. One object in 157 is built that way.
 `wrecks.archetype_loadouts` is the fallback, it resolves to 40 Superconductors,
 and it moves the empty count from 54 to **53**.
+
+### How a wreck actually drops its loot, found on the false trail
+
+Worth having, because until 2026-09-13 this project inferred wreck loot from
+the loadout and had never read the mechanism. It is a **fuse on the hull's
+Solar archetype**, and it independently confirms the `loadout` rule above.
+
+Every wreck hull is `destructible = true` with `hit_pts = 3600` and two fuses:
+
+    fuse = fuse_suprise_<hull>,     0, 3601    ; fires at once, cosmetic damage
+    fuse = fuse_suprise_drop_loot,  0, 3590    ; fires once you have shot it
+
+`FX/fuse_suprise_solar.ini` defines the second one, and it is the whole of what
+a wreck gives you:
+
+  * **22 `[destroy_hp_attachment]` blocks, every one `fate = loot`**, over
+    `HpWeapon01..05`, `HpTurret01..06`, `HpShield01`, `HpThruster01`, `HpMine01`,
+    `HpCM01`, `HpCD01`, `HpTorpedo01`, `HpCargo01..04` and `HpMount`. That is
+    the `equip` half of the loadout, knocked off its hardpoints.
+  * **one `[dump_cargo]` at `origin_hardpoint = HpMount`**, which is the `cargo`
+    half.
+
+**So a hull with no loadout has nothing mounted and nothing in the hold, and
+the fuse has nothing to drop.** That is why the rule works, and it is a better
+reason than the correlation the saves give.
+
+Counted over the 157: **133 hulls are `MISSION_SATELLITE` carrying that fuse**,
+23 more are the same thing with the key spelled `Archetype`, and exactly one is
+the `DESTROYABLE_DEPOT` container, which has no fuse at all and drops its cargo
+by being a depot.
+
+Two things were checked here and are **not** the answer, so that nobody spends
+the evening on them again: `HpMount` exists on all four hull models looked at,
+so `dump_cargo` always has an origin; and `lootable = true` on every gun
+involved, including the Corsair `fc_c_gun01_mark04`.
+
+### 23 wrecks spell the key `Archetype`, and that is the `Base` bug again
+
+`read_multi` keeps the case it finds, so `entry["archetype"]` misses 23 of the
+157. It costs nothing today, because all 23 carry a loadout of their own and
+never reach the archetype fallback, and it would cost the next container
+anybody adds everything. `load_wrecks` case-folds the entry before that lookup.
+Proved harmless rather than assumed: `holds` and the loot list are byte
+identical across all 157 with the fold and without it.
+
+**This is the third member of a family now** (`base`/`Base` in
+`flvisits.load_objects`, `archetype`/`Archetype` here), and the family rule is
+worth stating once: **in Freelancer's INI files the key case is not
+load-bearing, so any reader that treats it as load-bearing is wrong, and it is
+wrong silently.** It returns fewer rows, never an error.
 
 ### Four theories that were wrong, in the order they were tried
 

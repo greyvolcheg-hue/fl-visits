@@ -148,10 +148,16 @@ def load_wrecks(game_dir):
 
     **A hull with no loadout anywhere can never hold anything**, and that is
     the `holds` flag rather than a guess. Checked against every save on disk:
-    of the 107 wrecks any save has ever recorded, 72 of 72 with a loadout were
-    looted and 34 of 35 without one were found and left, because the game never
-    sets the emptied bit on a hull there was nothing to take from. The one
-    exception was the container above, and `archetype_loadouts` is it.
+    of the 135 wrecks any save has ever recorded, 82 with a loadout were all
+    looted and 53 without one were all found and left, with no exception either
+    way, because the game never sets the emptied bit on a hull there was nothing
+    to take from.
+
+    **The mechanism says the same thing.** A wreck gives up its loot through
+    `fuse_suprise_drop_loot` on its Solar archetype, which knocks equipment off
+    22 named hardpoints and dumps the hold at `HpMount`. No loadout means
+    nothing on the hardpoints and nothing in the hold, so there is nothing for
+    the fuse to drop. CLAUDE.md has the detail.
     """
     data_dir = fl.ipath(game_dir, "DATA")
     names = fl.load_names(game_dir)
@@ -171,7 +177,15 @@ def load_wrecks(game_dir):
             if str(visit) != str(SECRET_VISIT) and not loadout.upper().startswith("SECRET"):
                 continue
             if not loadout:
-                arch = str(entry.get("archetype", [""])[0]).lower()
+                # **Case-folded, because 23 of the 157 wrecks spell the key
+                # `Archetype`.** `read_multi` keeps the case it found, so a
+                # plain `entry["archetype"]` silently misses those 23, which is
+                # the same trap as the one base spelling `Base`. It costs
+                # nothing today, since all 23 carry a loadout of their own and
+                # never reach this branch, and it would cost the next container
+                # anybody adds everything.
+                low = {k.lower(): v for k, v in entry.items()}
+                arch = str(low.get("archetype", [""])[0]).lower()
                 loadout = arch_loadouts.get(arch, "")
             nick = str(entry.get("nickname", [""])[0])
             ids = entry.get("ids_name", [0])[0]

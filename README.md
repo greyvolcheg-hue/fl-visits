@@ -827,6 +827,11 @@ stripped, `*` is found but still holding its loot, `-` is not found yet, and an
 untouched wreck lists its cargo without the checkbox, since that is the part you
 can still go and collect.
 
+A wreck gives up its loot through a fuse on its hull that knocks the equipment
+off the hardpoints and dumps the hold; a hull with no loadout has neither, so
+there is nothing for the fuse to drop. That is the rule, and across every save
+on this disk it agrees with the game on all 135 wrecks any of them recorded.
+
 Those 53 sit in four systems, and each of the four says so above its list:
 Omega-5 has 23 of its 27, Omicron Alpha 19 of 24, Omega-11 6 of 10 and
 Sigma-13 5 of 11. Everywhere else, every hull holds something. The line is
