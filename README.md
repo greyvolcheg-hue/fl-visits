@@ -18,13 +18,9 @@ So I made a companion app to make the gameplay more 2020s-ish.
 
 **Neural Net** is a compilation of Trent's diary, News and Rumors with the ability to mark any item read or important. I was always pissed off on how the neural net resets its position and I was always lost on where I was at the moment.
 
-Here's the app: https://github.com/greyvolcheg-hue/fl-visits/tree/main
-
 If, after all this you want to buy me a coffee, I'd be happy: https://ko-fi.com/greyvolcheg
 
 And important disclaimer: this app has been coded by AI.
-
-**[support the author](https://ko-fi.com/greyvolcheg)**
 
 ## Run it
 
