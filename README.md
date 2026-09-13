@@ -1,13 +1,34 @@
 # fl-visits
 
-Reads a Freelancer save game and tells you what you have found: which bases you
-have docked at and which wrecks you have picked up, per system, with map
-coordinates. It reads the save; it never writes to it.
+I recently reinstalled Freelancer and realized that FLHack and other things are great, but lack everything I need. Plus, I'll need more skills to run them on my freshly installed Linux, then build the companion myself.
+
+So I made a companion app to make the gameplay more 2020s-ish.
+
+**The Overview tab** is a data compilation from all the other tabs.
+
+**Engine tab** lets you change some params (mostly speed) in-game and later save them to the corresponding data files. You can change cruise, trade lane and thruster speeds as well as trade lane wind-up and asteroid draw distance. Be careful with that - it may cause freezes on x6 and higher settings.
+
+**Map tab** has 4 sub-tabs. Chart draws you an image file that you put in 'data/freelancer-map.jpg'. Best path shows you the best path from system to system. This was not thoroughly tested yet. Jobs sub-tab lists the bases that offer best paying bounties. Can be limited to the bases that you've docked with. Systems is the sub-tab that this companion was built around. It shows the bases and wrecks that you have or haven't found.
+
+**Equipment tab** lets you filter the top guns available to you.
+
+**Trade** also has sub-tabs. Market shows you the by-base or by-commodity filter with top destinations. If you have cargo on board, it will count the most profitable system to sell it all without needing to roam the whole Sirius sector. The Routes sub-tab is easiest described with "If you're going from New York to Dresden anyway, what would be the best commodity to buy in one system and sell in the other?" My second favorite tab.
+
+**Reputation tab** gives you more insight on what factions will be pissed off by your friendly actions towards other factions. One of the most useful, but also one of the most raw tabs - I still can't wrap my head around how to make it usable. If you have any ideas, you're welcome to share them.
+
+**Neural Net** is a compilation of Trent's diary, News and Rumors with the ability to mark any item read or important. I was always pissed off on how the neural net resets its position and I was always lost on where I was at the moment.
+
+Here's the app: https://github.com/greyvolcheg-hue/fl-visits/tree/main
+
+If, after all this you want to buy me a coffee, I'd be happy: https://ko-fi.com/greyvolcheg
+
+And important disclaimer: this app has been coded by AI.
+
+**[support the author](https://ko-fi.com/greyvolcheg)**
 
 ## Run it
 
 ```bash
-
 ./run.sh                         # start the server and open the page
 python3 serve.py                 # web view on http://127.0.0.1:8731/
 python3 fl.py                    # every command line it has
