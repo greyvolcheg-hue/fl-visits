@@ -185,10 +185,23 @@
   }
   .addgun:disabled { opacity: .35; cursor: default; }
 
-  select, input[type=text], input[type=search] {
+  /* Straight off the canvas, which draws its two text fields as
+     `rgba(4,10,16,.9)` on a `rgba(111,216,255,.24)` border in the mono face.
+     **`number` belongs in this list**: it was left out, so the one number
+     field on the page fell through to the browser's own look, chrome spinner
+     and all, in the middle of a hand-drawn HUD. */
+  select, input[type=text], input[type=search], input[type=number] {
     background: rgba(4, 10, 16, .9); color: var(--text);
     border: 1px solid rgba(111, 216, 255, .24); font-family: var(--mono);
     font-size: 12px; padding: .4rem .6rem; outline: none;
+  }
+  /* The canvas has no spinner anywhere, and a stepper drawn by the browser is
+     the one part of a field that cannot be themed. Both engines need telling
+     separately, and Gecko only listens to `textfield`. */
+  input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button {
+    -webkit-appearance: none; appearance: none; margin: 0;
   }
   select:focus, input:focus { border-color: var(--docked); }
   .reppick { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
