@@ -160,13 +160,15 @@ def _routetable(ctx):
 
 def _empathy(ctx):
     """What one Nomad kill does to everybody else's opinion of you."""
-    body = {"kill": None, "rate": None, "per": None, "n": 0,
-            "choices": list(em.RATES), "error": None}
+    body = {"kill": None, "rate": None, "per": None, "packs": None, "n": 0,
+            "pack": em.PACK, "choices": list(em.PACKS), "error": None}
     try:
         state = em.read(ctx.game.dir)
-        body.update(kill=state["kill"], rate=state["rate"], n=state["n"])
+        body.update(kill=state["kill"], rate=state["rate"], n=state["n"],
+                    packs=None if state["packs"] is None
+                    else round(state["packs"]))
         if state["rate"] is not None and state["kill"] is not None:
-            body["per"] = round(state["kill"] * state["rate"], 4)
+            body["per"] = round(state["kill"] * state["rate"], 5)
     except (em.WriteFailed, OSError, ValueError) as exc:
         body["error"] = str(exc)
     return body
@@ -315,13 +317,13 @@ def _set_empathy(ctx, sent):
         if sent.get("restore"):
             em.restore(ctx.game.dir)
             return "empathy.ini back to shipped; nobody cares about Nomads again"
-        rate = float(sent["rate"])
-        touched, _kept = em.write(rate, ctx.game.dir)
+        packs = float(sent["packs"])
+        touched, _kept = em.write(packs, ctx.game.dir)
         state = em.read(ctx.game.dir)
-    if not rate:
+    if not packs:
         return f"{touched} factions back to indifferent"
-    return (f"{touched} factions now gain {state['kill'] * rate:+.4f} "
-            f"per Nomad kill; it is read at startup, so restart the game")
+    return (f"{touched} factions, {packs:.0f} wings of {em.PACK} from neutral "
+            f"to friendly; read at startup, so restart the game")
 
 
 def _set_allhacks(ctx, _sent):

@@ -269,25 +269,24 @@ function engNomads() {
     return '<div class="box file"><div class="lbl">KILLING NOMADS</div>' +
       `<div class="why">${esc((n && n.error) || 'not read yet')}</div></div>`;
   }
-  const per = n.per === null ? null : n.per;
+  // Counted in wings, not in rep points: the question this setting exists to
+  // pose is "is it worth flying", and nobody weighs that in thousandths.
   return '<div class="box file"><div class="top">' +
     '<span class="lbl">KILLING NOMADS</span>' +
-    `<span class="val">${per ? (per > 0 ? '+' : '') + per.toFixed(4)
-                             : 'nothing'}</span></div>` +
-    '<div class="why">' + (per
-      ? `Every faction that is not a Nomad gains ${per.toFixed(4)} standing ` +
-        'per kill. The three infiltrated navies from the campaign still lose ' +
-        'it, because they are Nomads.'
+    `<span class="val">${n.packs ? n.packs + ' wings' : 'nothing'}</span></div>` +
+    '<div class="why">' + (n.packs
+      ? `${n.packs} wings of ${n.pack}, ${n.packs * n.pack} kills, to go from ` +
+        'neutral to friendly with everyone at once. The three infiltrated ' +
+        'navies from the campaign still hate you for it, because they are ' +
+        'Nomads.'
       : 'Shipped, nobody in Sirius reacts: 51 of the 54 rates in their ' +
         'group are zero.') + '</div>' +
     '<div class="csacts">' +
-    n.choices.filter(r => r).map(r =>
-      `<button class="chip" data-nomad="${r}"` +
-      (r === n.rate ? ' disabled' : '') +
-      `>${(n.kill * r > 0 ? '+' : '') + (n.kill * r).toFixed(4)}</button>`
-    ).join('') +
+    n.choices.map(p =>
+      `<button class="chip" data-nomad="${p}"` +
+      (p === n.packs ? ' disabled' : '') + `>${p}</button>`).join('') +
     '<button class="chip" id="nomad-off">VANILLA</button></div>' +
-    '<div class="from">read at startup, so restart the game</div></div>';
+    '<div class="from">wings to friendly; read at startup, so restart</div></div>';
 }
 
 // Which route table Set Best Path reads. Two modes and they are not a
@@ -450,7 +449,7 @@ function wireEngine() {
   const pv = $('#paths-vanilla');
   if (pv) pv.onclick = () => engPost('routetable', { revert: 1 });
   box.querySelectorAll('[data-nomad]').forEach(b =>
-    b.onclick = () => engPost('empathy', { rate: Number(b.dataset.nomad) }));
+    b.onclick = () => engPost('empathy', { packs: Number(b.dataset.nomad) }));
   const no = $('#nomad-off');
   if (no) no.onclick = () => engPost('empathy', { restore: 1 });
   const p = $('#persist');

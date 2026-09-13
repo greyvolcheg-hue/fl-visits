@@ -75,7 +75,7 @@ talking, not a measurement.
 
 ```bash
 python3 fl.py empathy            # what one kill does to Sirius now
-python3 fl.py empathy -0.25      # make everyone who is not a Nomad approve
+python3 fl.py empathy 100        # 100 wings of 4 from neutral to friendly
 python3 fl.py empathy --restore
 ```
 
@@ -86,9 +86,14 @@ other 51 factions are set to exactly 0.
 
 A negative rate is approval, which the game's own rows show: killing a Liberty
 Rogue is `-0.018` and Liberty Police sit at `-0.250` toward them, so the kill
-is worth `+0.0045` of Police standing. At `-0.25` a Nomad kill is worth
-`+0.0075` to every faction that is not a Nomad. The three doubles keep their
-`+1.000`, because they are Nomads.
+is worth `+0.0045` of Police standing. The three doubles keep their `+1.000`,
+because they are Nomads.
+
+**The setting is counted in wings of four, not in rep points**, because the
+only question it exists to pose is whether the grind is worth flying. At 100
+wings, 400 kills takes you from neutral to friendly with everyone at once,
+which is meant to be an expensive alternative to the ordinary endgame rather
+than a shortcut past it.
 
 It is a data file read at startup, so it survives a restart with nothing to
 re-apply.

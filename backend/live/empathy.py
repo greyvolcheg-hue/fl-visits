@@ -55,6 +55,7 @@ import sys
 import bini
 
 from ..game import flvisits as fl
+from ..game import reputation as rep
 from ..game import wrecks as wr
 from .persist import WriteFailed, _backup, _save
 
@@ -68,9 +69,43 @@ RATE_KEY = "empathy_rate"
 # should still count against them, and their shipped +1.000 stays.
 DOUBLES = ("fc_ln_grp", "fc_kn_grp", "fc_rn_grp")
 
-# What the game itself uses. 0.0 is the shipped "nobody cares"; -0.45 is the
-# strongest approval any faction shows for any kill anywhere in the file.
-RATES = (0.0, -0.05, -0.10, -0.25, -0.35, -0.45)
+# A Nomad wing, which is how the grind is actually counted when you are flying
+# it rather than reading a file.
+PACK = 4
+
+# **The setting is a length, not a rate.** The first version offered the values
+# the game's own file uses, -0.05 to -0.45, on the reasoning that borrowing its
+# vocabulary was safer than inventing one. That was the wrong axis: nothing in
+# the format constrains the value, and the only question worth asking of this
+# feature is how long the grind is. At -0.25 it was 17 wings from neutral to
+# friendly, which the owner rightly called no alternative at all: this is meant
+# to be the expensive way round a deliberately awkward faction balance, and the
+# player should have to weigh it.
+#
+# So the choices are wings, and the rate is derived. 100 is the owner's call.
+PACKS = (25, 50, 100, 200, 400)
+
+
+def span():
+    """How far neutral is from friendly, out of the model the tab already uses.
+
+    Derived rather than typed, so a change to `reputation.GOALS` cannot leave
+    this quoting a distance nothing else agrees with.
+    """
+    return rep.GOALS["friend"] - rep.GOALS["neutral"]
+
+
+def rate_for(packs, kill):
+    """The empathy rate that makes `packs` wings the journey to friendly."""
+    if not packs or not kill:
+        return 0.0
+    return -(span() / (packs * PACK)) / abs(kill)
+
+
+def packs_for(rate, kill):
+    """How many wings that rate asks for, or None when it asks for none."""
+    per = abs(rate * kill)
+    return None if not per else span() / per / PACK
 
 
 def _path(game_dir):
@@ -133,14 +168,25 @@ def read(game_dir=None):
             rates[str(values[0]).lower()] = float(values[1])
     others = {k: v for k, v in rates.items() if k not in DOUBLES}
     seen = set(others.values())
-    return {"kill": kill, "rates": rates,
-            "rate": others[next(iter(others))] if len(seen) == 1 else None,
+    rate = others[next(iter(others))] if len(seen) == 1 else None
+    return {"kill": kill, "rates": rates, "rate": rate,
+            "packs": None if rate in (None, 0) else packs_for(rate, kill),
             "n": sum(1 for v in others.values() if v)}
 
 
-def write(rate, game_dir=None):
-    """Set every non-Nomad faction's rate. Keeps a `.vanilla` the first time."""
+def write(packs=None, game_dir=None, rate=None):
+    """Set every non-Nomad faction, in wings to friendly. Keeps a `.vanilla`.
+
+    `packs` is the setting; `rate` is the escape hatch for anyone who wants to
+    say it in the file's own units, and `packs=0` puts everyone back to the
+    shipped indifference.
+    """
     game_dir = game_dir or fl.DEFAULT_GAME
+    if rate is None:
+        if packs is None:
+            raise WriteFailed("say how many wings, or pass a rate")
+        kill = read(game_dir)["kill"]
+        rate = rate_for(float(packs), kill)
     rate = float(rate)
     if not -1.0 <= rate <= 0.0:
         raise WriteFailed(
@@ -180,46 +226,46 @@ def restore(game_dir=None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("rate", nargs="?", type=float,
-                    help="what a Nomad kill is worth to everyone else")
+    ap.add_argument("packs", nargs="?", type=float,
+                    help=f"wings of {PACK} to fly from neutral to friendly; "
+                         "0 for the shipped indifference")
     ap.add_argument("--game", default=fl.DEFAULT_GAME)
+    ap.add_argument("--rate", type=float, help="say it in the file's units")
     ap.add_argument("--restore", action="store_true", help="undo, from .vanilla")
     ap.add_argument("--who", action="store_true", help="list every faction")
     args = ap.parse_args()
 
     try:
         if args.restore:
-            state = restore(args.game)
+            restore(args.game)
             print("restored")
-        elif args.rate is not None:
-            touched, kept = write(args.rate, args.game)
+        elif args.packs is not None or args.rate is not None:
+            touched, kept = write(args.packs, args.game, args.rate)
             if kept:
                 print(f"kept {os.path.basename(kept)}")
-            print(f"{touched} factions now move by {args.rate:g} per Nomad kill")
-            state = read(args.game)
-        else:
-            state = read(args.game)
+            print(f"{touched} factions changed")
+        state = read(args.game)
 
-        kill = state["kill"]
-        rate = state["rate"]
+        kill, rate, packs = state["kill"], state["rate"], state["packs"]
         print(f"\none Nomad kill: object_destruction {kill:+.4f}")
         if rate is None:
             print(f"  the other factions do not agree on a rate; "
                   f"{state['n']} of them are non-zero")
-        elif rate == 0:
+        elif not rate:
             print("  every other faction moves by 0.0000: nobody cares")
         else:
-            print(f"  every other faction moves by {kill * rate:+.4f} "
-                  f"(rate {rate:g})")
+            print(f"  every other faction gains {kill * rate:+.5f}, so "
+                  f"{packs:.0f} wings of {PACK} from neutral to friendly "
+                  f"({packs * PACK:.0f} kills)")
         for who in DOUBLES:
             got = state["rates"].get(who, 0.0)
-            print(f"  {who:<11} moves {kill * got:+.4f} (rate {got:g}, "
-                  f"a story double, left alone)")
+            print(f"  {who:<11} loses {kill * got:+.4f}, a story double, "
+                  f"left alone")
         if args.who:
             names = labels(args.game)
             print()
             for who, r in sorted(state["rates"].items(),
                                  key=lambda kv: (kv[1], kv[0])):
-                print(f"   {who:<12} {kill * r:+.4f}   {names.get(who, who)}")
+                print(f"   {who:<12} {kill * r:+.5f}   {names.get(who, who)}")
     except (WriteFailed, OSError, ValueError) as exc:
         raise SystemExit(str(exc))

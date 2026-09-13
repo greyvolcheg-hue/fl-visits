@@ -1582,10 +1582,31 @@ penalty and **the other 51 factions move by zero.**
 the ordinary Nomad fighter, as against the `MSN`-prefixed ones the story
 spawns, so a kill in the open world fires that group's event.
 
-`fl.py empathy -0.25` sets the other 51 to a rate the game itself uses: rates
-across the file run `-0.45` to `+1.00`, and `-0.05`, `-0.10` and `-0.25` are
-its common negatives. At `-0.25` a Nomad kill is worth `+0.0075` to everyone,
-the same order as the game's own bounty work.
+### The setting is a length, and the first version got the axis wrong
+
+`fl.py empathy 100` sets the other 51 so that **100 wings of four**, 400 kills,
+is the journey from neutral to friendly with all of them at once.
+
+The first version offered the values the file itself uses, `-0.05` to `-0.45`,
+on the reasoning that borrowing the game's vocabulary beat inventing one. That
+was the wrong axis. Nothing in the format constrains the value, and the only
+question worth asking of this feature is **how long the grind is**. At `-0.25`
+it was **17 wings**, which the owner rightly refused: this is meant to be the
+expensive way round a deliberately awkward faction balance, and the player has
+to be able to weigh it against just flying the missions.
+
+So the choices are wings, 25 to 400, and the rate is derived:
+
+    rate = -(friend - neutral) / (wings * 4) / |object_destruction|
+
+The span comes from `reputation.GOALS`, which is `0.5`, rather than being typed
+here, so it cannot drift from the number the Reputation tab uses.
+
+**Measured against the owner's own save, which is what made the size real.**
+Fifty of his 55 standings sit at exactly `0.0000`, because the end-of-campaign
+reputation reset in `m13.ini` was zeroed (see *Changes made to this install by
+hand*). So `0 -> +0.5 for fifty factions at once` is not a hypothetical span,
+it is precisely his position, and it is what the wings are counted against.
 
 **The three doubles keep their `+1.000`** because they are Nomads wearing a
 navy's colours, and keeping them is what makes the change honest: it is
