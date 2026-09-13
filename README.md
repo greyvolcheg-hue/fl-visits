@@ -7,7 +7,6 @@ coordinates. It reads the save; it never writes to it.
 ## Run it
 
 ```bash
-cd ~/Projects/40-computer-geek/fl-visits
 
 ./run.sh                         # start the server and open the page
 python3 serve.py                 # web view on http://127.0.0.1:8731/
