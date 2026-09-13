@@ -26,6 +26,16 @@ read one setting.
 ID, LABEL = "engine", "Engine"
 
 CSS = """
+  /* The callsign picker. The faction list holds names as long as "Daumann
+     Heavy Construction", so it is capped rather than allowed to push the
+     other three onto a second line where a bare "1" says nothing. */
+  .engine .csrow { margin: .2rem 0 .1rem; }
+  .engine .csrow select { max-width: 11rem; }
+  .engine .csrow .sys { color: var(--amber-dim); padding: 0 .1rem; }
+  .engine .csacts { display: flex; gap: .5rem; flex-wrap: wrap;
+                    margin-top: .4rem; }
+  .engine .csacts button.chip { flex: none; }
+
   /* The sliders, straight off the canvas. A browser's own range control is
      the one widget that will not inherit a thing, so every part is drawn:
      WebKit and Gecko name the pieces differently and both lists are needed. */
@@ -246,7 +256,62 @@ function engFiles() {
     '<span class="say">Touches files on disk. Each one is backed up to ' +
     '<code>.vanilla</code> the first time, and an existing backup is never ' +
     'overwritten.</span></div>' +
-    `<div class="grid wrapgrid">${write}${rocks}</div>`;
+    `<div class="grid wrapgrid">${write}${rocks}${engCallsign()}</div>`;
+}
+
+// What the bots call you. Four words out of three recorded vocabularies, and
+// the reason it is a picker rather than a text box is that a bot can only say
+// what somebody recorded in 2003: there is no recording of a personal name
+// anywhere in the game, so "Yanagi Suzuki" cannot be spoken however it is
+// spelled. Yanagi is a formation designator, which is why it gets heard.
+function engCallsign() {
+  const c = eng.call;
+  if (!c || c.error) {
+    return '<div class="box file"><div class="lbl">WHAT THEY CALL YOU</div>' +
+      `<div class="why">${esc((c && c.error) || 'not read yet')}</div></div>`;
+  }
+  const pick = (id, rows, now, fmt) =>
+    `<select id="${id}">` + rows.map(r => {
+      const key = fmt ? r : r.key, label = fmt ? r : r.label;
+      return `<option value="${esc(String(key))}"` +
+        (String(key) === String(now) ? ' selected' : '') +
+        `>${esc(String(label))}</option>`;
+    }).join('') + '</select>';
+
+  return '<div class="box file"><div class="top">' +
+    '<span class="lbl">WHAT THEY CALL YOU</span>' +
+    `<span class="val">${esc(c.says)}</span></div>` +
+    // Two rows on purpose rather than four controls wrapping wherever the
+    // box happens to end: the words belong together and the two numbers are
+    // one reading, "six dash six". The dash is drawn for the same reason, as
+    // two bare number selects do not say which half is which.
+    '<div class="reppick csrow">' +
+    pick('cs-faction', c.factions, c.faction) +
+    pick('cs-desig', c.designators, c.desig) + '</div>' +
+    '<div class="reppick csrow">' +
+    pick('cs-wing', c.numbers, c.wing, true) +
+    '<span class="sys">&ndash;</span>' +
+    pick('cs-slot', c.numbers, c.slot === null ? 1 : c.slot, true) +
+    '</div>' +
+    '<div class="why">Three vocabularies, and nothing outside them can be ' +
+    'said: 48 faction words, 29 formation designators, and the numbers 0 to ' +
+    '20. <b>No personal name is recorded anywhere in the game</b>, so a name ' +
+    'cannot be spoken however it is spelled. Yanagi and Susuki are formation ' +
+    'designators, which is why they get heard and taken for names.</div>' +
+    (c.slot === null
+      ? '<div class="why">The second number reads <b>?</b> because the game is ' +
+        'still working it out for itself, from the ship\'s id. For a ship with ' +
+        'no formation that is the second 1 you hear now. Setting it here ' +
+        'replaces the arithmetic with the number you pick.</div>'
+      : '') +
+    '<div class="why">The shape is fixed at ' +
+    '<code>&lt;word&gt; &lt;designator&gt; &lt;n&gt;-&lt;n&gt;</code>. The ' +
+    'engine picks these words for any ship with no formation, which in single ' +
+    'player is you, so <b>a lone NPC will occasionally use them too</b>.</div>' +
+    '<div class="csacts">' +
+    '<button class="chip" id="cs-apply">SET</button>' +
+    '<button class="chip" id="cs-restore">VANILLA</button></div>' +
+    '<div class="from">lands the next time a save loads</div></div>';
 }
 
 function renderEngine() {
@@ -268,7 +333,8 @@ async function engPost(url, body) {
   if (engBusy) return;
   engBusy = true;
   const box = engBox();
-  if (box) box.querySelectorAll('button, input').forEach(b => b.disabled = true);
+  if (box) box.querySelectorAll('button, input, select')
+    .forEach(b => b.disabled = true);
   try {
     const r = await fetch('api/' + url, {
       method: 'POST', cache: 'no-store',
@@ -326,6 +392,15 @@ function wireEngine() {
   // flag and only the first would land.
   box.querySelectorAll('[data-all]').forEach(b =>
     b.onclick = () => engPost('allhacks'));
+  const apply = $('#cs-apply');
+  if (apply) apply.onclick = () => engPost('callsign', {
+    faction: $('#cs-faction').value,
+    desig: $('#cs-desig').value,
+    wing: $('#cs-wing').value,
+    slot: $('#cs-slot').value,
+  });
+  const vanilla = $('#cs-restore');
+  if (vanilla) vanilla.onclick = () => engPost('callsign', { restore: 1 });
   const p = $('#persist');
   if (p) p.onclick = async () => {
     persistBusy = true; render();

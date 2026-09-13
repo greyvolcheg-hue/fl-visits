@@ -60,6 +60,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/live/routetable.py` | writes the shortest routes into the game's own route tables |
 | `backend/live/drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
 | `backend/live/levels.py` | the level ladder in `ptough.ini`, and how far it goes |
+| `backend/live/callsign.py` | what the bots call you: four words patched into `content.dll` |
 | `backend/live/newgame.py` | what a new game starts you in |
 | `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
 | `design/` | the visual design, as a Claude Design canvas. The source the page is built from, not a screenshot of it. |
@@ -1539,6 +1540,107 @@ answer if it will not start. And what else the curve drives: the game calls it
 `PlayerToughnessScale`, so it very likely also decides how tough the world
 thinks you are, which would mean a stretched ladder makes encounters harder.
 That is a reading of the name and the shape, not a measurement.
+
+## Settled: a callsign is three recorded vocabularies, and a name is not one
+
+Closed 2026-09-13. The owner asked for *"кастомное имя из игровых ассетов и
+чтобы боты могли его говорить"*, offering "yanagi suzuki 6" against the
+"freelancer alpha 1-1" he kept hearing, then asked to choose every part
+including the numbers, and for it to live in a file rather than in the process.
+
+**"Yanagi" and "Susuki" are formation designators, not names.** They are in the
+same list as Alpha, Beta and Gamma, which is why they get heard and taken for
+names.
+
+**No personal name is recorded anywhere in the game.** `faction_prop.ini` does
+carry pools per culture, 100 Kusari first names and 300 surnames with Suzuki
+among them, and they are text for the contact list. Searched across all 1852
+distinct message ids in every voice file: `yanagi`, `suzuki`, `adams`, `aaron`
+return **zero**. Three vocabularies are recorded and a callsign is those three:
+
+    <faction word>    <formation designator>    <number> - <number>
+    48 recordings          29 recordings          0 to 20, both halves
+
+**All three lists are derived, never typed.** The faction words are the
+`gcs_refer_faction_*_short` ids present in the voice files, named through
+`InitialWorld.ini`. The designators are the union of every faction's
+`formation_desig` range, which comes to 197808..197836, 29 values, against 29
+recordings `_01` to `_29`. The numbers are whichever of 0 to 20 have a
+recording both with and without the trailing dash.
+
+### The four sites, and the disassembly that found them
+
+All in `DLLS/BIN/content.dll`, in the one function that builds a callsign:
+
+| Slot | What is there | Patch |
+|---|---|---|
+| faction | the string `gcs_refer_faction_player`, 24 bytes and 4 NUL of slack | swapped whole |
+| designator | the string `gcs_refer_formationdesig_01`, 27 bytes | last two digits |
+| first number | `6a 01`, a literal `push 1`, feeding `gcs_misc_number_%d-` | one byte |
+| second number | `(id - 1) % 20 + 1` in eleven bytes | `mov $N,%edx` plus six nops |
+
+**The designator arithmetic proves the mapping rather than suggesting it.** The
+other arm of the same branch does
+
+    add $0xfffcfb51,%edx     ; -197807
+    push $0x70a6540          ; "gcs_refer_formationdesig_%02d"
+
+so the number is `ids - 197807`: 197808 is Alpha and 197836 is Yanagi, which is
+exactly the 29 recordings and exactly the 29 strings. Three counts agreeing.
+
+**The branch is "has a formation", not "is the player".** The literal
+designator and the literal 1 are the arms a ship with neither takes, which in
+single player is the player, and is also any NPC flying alone. **So these words
+will occasionally turn up on somebody else's radio**, and there is no version
+of this without that. It is on the page, not left to be discovered.
+
+### How it was found, which is the reusable part
+
+The strings were found by grepping the binaries, but what turned four strings
+into four patch sites was `objdump -D -b binary -m i386` over `content.dll` and
+reading about sixty lines of it. Every attempt to get there by pattern-matching
+bytes had failed. **A 2003 binary disassembles fine and the answer was thirty
+seconds away the whole time.**
+
+Searching the running process for the assembled ids found nothing, and that is
+worth knowing before anyone tries: the engine hashes a message id as soon as it
+has built it and never keeps the text, the same way nicknames are handled
+everywhere else in this game.
+
+### `fl.py callsign`
+
+The `drawdist` and `levels` shape: `.vanilla` first, built from the shipped
+bytes every time so twice is the same as once, and `--restore` in one command.
+The picker is a box in the Engine tab's GAME FILES half.
+
+**Every site is found by signature, never by a hardcoded offset**, the rule
+already in `speed.py`, and the two code signatures anchor on the address of a
+string that was itself found by search. `write` refuses unless each matches
+exactly once.
+
+**Four refusals, each proved by running it rather than assumed:** a word with no
+recording (`fc_n`, the Nomads, is a real faction with no voice line), a
+nonsense word, a designator above 29, and a number above 20. None of them
+touched the file.
+
+**It needs a raw byte writer**, which this project did not have: `persist._save`
+encodes BINI and `content.dll` is a PE. `callsign._write_file` is temp plus
+`os.replace`, the same atomic idiom, and it **restores the file mode**, because
+`mkstemp` creates 0600 and the game has to be able to read what it wrote. The
+older writers do not do that and get away with it only because the game runs as
+the same user.
+
+Verified: `.vanilla` byte-identical to the shipped file and unchanged by three
+later writes; exactly four changed runs totalling 20 bytes; PE headers and all
+five sections identical; the two code patches land in section 0 and the two
+strings in section 1; writing set B over set A gives the same file as writing
+set B over vanilla; the patched instructions disassemble to `mov $0x6,%edx` plus
+six nops landing exactly on the following `push %edx`, and nothing jumps into
+the eleven replaced bytes.
+
+**What is not verified is the only thing that matters in the end**: whether the
+game says the new words. That is audio, it cannot be heard from here, and the
+test is to load a save and request a dock.
 
 ## Settled: one codebase for both platforms, and the Windows half is unproven
 

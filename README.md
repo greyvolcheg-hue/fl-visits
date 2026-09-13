@@ -71,6 +71,29 @@ also sets how tough the world thinks you are. Stretching the ladder should make
 encounters harder as well as levels dearer. That is the name and the shape
 talking, not a measurement.
 
+### What the bots call you
+
+```bash
+python3 fl.py callsign --list                 # every word the game can say
+python3 fl.py callsign --faction fc_bd --desig 29 --wing 6 --slot 6
+python3 fl.py callsign --restore              # back to .vanilla
+```
+
+Also a box in the Engine tab. A callsign is three recorded vocabularies in a
+row, `<faction word> <formation designator> <n>-<n>`: 48 words, 29 designators
+and the numbers 0 to 20. "Freelancer Alpha 1-1" is one pick out of each, and
+every one of them can be changed.
+
+**No personal name is recorded anywhere in the game**, so a name cannot be
+spoken however it is spelled. Yanagi and Susuki are formation designators, from
+the same list as Alpha and Beta, which is why they get heard and taken for
+names.
+
+The engine picks these words for any ship with no formation, which in single
+player is you and is also any NPC flying alone, so **you will occasionally hear
+your own words on somebody else's radio**. It writes four sites in
+`content.dll`, keeps a `.vanilla` copy, and lands the next time a save loads.
+
 ### Windows
 
 **Written, never run.** Every platform-specific thing has two spellings and

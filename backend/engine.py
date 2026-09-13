@@ -12,6 +12,7 @@ surveys 153 files on disk and the strip is polled every five seconds whether
 or not anyone has opened the drawer.
 """
 
+from .live import callsign as cs
 from .live import dockdist as dkd
 from .live import drawdist as dd
 from .live import persist as pe
@@ -117,6 +118,30 @@ def _drawdist(ctx):
     return body
 
 
+def _callsign(ctx):
+    """What the bots call you, and every word they are able to say.
+
+    The three lists are read off the game's own data every time rather than
+    cached: they are a few thousand INI lines and this is only asked for when
+    the drawer is open, which is the same bargain `_drawdist` makes.
+    """
+    body = {"faction": None, "desig": None, "wing": None, "slot": None,
+            "says": None, "factions": [], "designators": [], "numbers": [],
+            "error": None}
+    try:
+        state = cs.read(ctx.game.dir)
+        body.update(state)
+        body["says"] = cs.sentence(ctx.game.dir, state)
+        body["factions"] = [{"key": k, "label": v}
+                            for k, v in cs.factions(ctx.game.dir)]
+        body["designators"] = [{"key": n, "label": v}
+                               for n, v in cs.designators(ctx.game.dir)]
+        body["numbers"] = cs.numbers(ctx.game.dir)
+    except (cs.WriteFailed, OSError, ValueError) as exc:
+        body["error"] = str(exc)
+    return body
+
+
 def _engine(ctx):
     """Every reading the strip shows, in one request and one pid lookup.
 
@@ -125,7 +150,7 @@ def _engine(ctx):
     than repeating any of them.
     """
     body = {"running": False, "error": None, "cruise": None, "lane": None,
-            "thrusters": None, "draw": None}
+            "thrusters": None, "draw": None, "call": None}
     try:
         sp.find_pid()
         body["running"] = True
@@ -135,12 +160,14 @@ def _engine(ctx):
         # the game shut and is the one thing worth answering here.
         if ctx.one("all"):
             body["draw"] = _drawdist(ctx)
+            body["call"] = _callsign(ctx)
         return body
     body["cruise"] = _speed(ctx)
     body["lane"] = _tradelane(ctx)
     if ctx.one("all"):
         body["thrusters"] = _thrusters(ctx)
         body["draw"] = _drawdist(ctx)
+        body["call"] = _callsign(ctx)
     return body
 
 
@@ -150,7 +177,7 @@ def _engine(ctx):
 # won and this one was unreachable. Two tabs cannot share an endpoint name;
 # `_table` raises on a repeat now rather than picking by import order.
 API = {"engine": _engine, "speed": _speed, "thrusters": _thrusters,
-       "tradelane": _tradelane, "drawdist": _drawdist}
+       "tradelane": _tradelane, "drawdist": _drawdist, "callsign": _callsign}
 
 def _set_speed(ctx, sent):
     # Re-located every time: common.dll moves between runs, and the game may
@@ -205,6 +232,28 @@ def _set_drawdist(ctx, sent):
             "system loads")
 
 
+def _set_callsign(ctx, sent):
+    """Set any of the four words. This one writes to a file, not to memory.
+
+    **Not in `allhacks`**, and for the same reason cruise and the thruster
+    bonuses are not: these are four choices out of 48, 29, 21 and 21, and
+    picking them on the owner's behalf is not "enable".
+    """
+    with ctx.lock:
+        if sent.get("restore"):
+            cs.restore(ctx.game.dir)
+            return "content.dll back to vanilla; they will call you Freelancer again"
+        pick = lambda key: None if sent.get(key) in (None, "") else sent[key]
+        state, _kept = cs.write(
+            faction=pick("faction"),
+            desig=None if pick("desig") is None else int(sent["desig"]),
+            wing=None if pick("wing") is None else int(sent["wing"]),
+            slot=None if pick("slot") is None else int(sent["slot"]),
+            game_dir=ctx.game.dir)
+    return (f"they will call you {cs.sentence(ctx.game.dir, state)}; "
+            "takes effect the next time a save loads")
+
+
 def _set_allhacks(ctx, _sent):
     """Every on/off patch at once, because they are always wanted together.
 
@@ -241,4 +290,5 @@ def _set_persist(ctx, _sent):
 
 POST = {"speed": _set_speed, "thrusters": _set_thrusters,
         "tradelane": _set_tradelane, "drawdist": _set_drawdist,
-        "allhacks": _set_allhacks, "persist": _set_persist}
+        "allhacks": _set_allhacks, "persist": _set_persist,
+        "callsign": _set_callsign}
