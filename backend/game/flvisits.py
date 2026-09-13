@@ -377,8 +377,8 @@ def main():
     names = load_names(args.game)
 
     # Keep only bases a player can actually dock at: 197 in universe.ini, 181
-    # that anything in space points at, 164 that can be docked. The other 33
-    # would put a permanent floor under every percentage. Which 33 and why is
+    # that anything in space points at, 163 that can be docked. The other 34
+    # would put a permanent floor under every percentage. Which 34 and why is
     # in bases.py, deliberately not restated here.
     dockable = bs.dockable_bases(args.game, data_dir, system_files, ipath)
     bases = {k: v for k, v in bases.items() if k in dockable}

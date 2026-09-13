@@ -648,10 +648,10 @@ that inversion is not in the files, and neither is how the draw is spread inside
 a band. Same rule as the perishable cargo on Routes: the page shows the game's
 own figures and does not print a number that implies a model nobody can check.
 
-**160 of the 164 dockable bases run a board.** Planet Primus, Planet Gammu and
-Planet Toledo have nobody in the bar offering work, and Planet Sprague has an
-offering faction but a board with no slots on it. `fl.py jobs --all` lists the
-four and says which is which.
+**160 of the 163 dockable bases run a board.** Planet Primus and Planet Gammu
+have nobody in the bar offering work, and Planet Sprague has an offering faction
+but a board with no slots on it. `fl.py jobs --all` lists the three and says
+which is which.
 
 **Map → Best Path** works out the way from one system to another, and it exists
 because the game's own answer is not the shortest one. Freelancer ships three
@@ -805,24 +805,33 @@ in-space comms. There is no text to show.
 
 **Bases** fall into three buckets. *Docked* is where you have actually landed.
 *Revealed* is a base the story has put on your nav map that you have never
-visited. *Unknown* is the rest. The denominator is 164 and never the 197 entries in
+visited. *Unknown* is the rest. The denominator is 163 and never the 197 entries in
 the game's own universe list: 16 are cutscene copies and story-only locations
 that no save can ever record, 15 are the Asteroid and Gas Miners, which look
-dockable in the data but refuse in play, and 3 are in Tohoku and Alaska,
-which are story-gated. `backend/game/bases.py` explains how each group is told apart, and
-is honest that the last three are the one exclusion no rule in the data
-produces, and that they rest on knowing the game and on nothing
-checkable in the files.
+dockable in the data but refuse in play, and 4 are in Tohoku, Alaska and
+Omicron Minor, which are story-gated. `backend/game/bases.py` explains how each
+group is told apart, and is honest that those four are the one exclusion no
+rule in the data produces, and that three of them rest on knowing the game and
+on nothing checkable in the files. Omicron Minor is the fourth and the data
+does back that one up: nothing jumps out of it to anywhere you can reach after
+the campaign, and excluding its one base takes the system off the map.
 
 **Wrecks** are the 157 objects the game marks as secrets, spread over 33
-systems. 54 of them hold nothing, which is deliberate on the game's part, and
-those count as emptied as soon as they are found: the game never sets the
-looted bit on a wreck with no loot, so waiting for it would leave them open
+systems. 53 of them can never hold anything, which is deliberate on the game's
+part, and those count as emptied as soon as they are found: the game never sets
+the looted bit on a wreck with no loot, so waiting for it would leave them open
 forever. Found is found: a wreck counts once whether or not you emptied it, so
 the total never goes backwards. The list still marks the difference, because the
-game records it. `+` is stripped, `*` is found but still holding its loot, `-`
-is not found yet, and an untouched wreck lists its cargo without the checkbox,
-since that is the part you can still go and collect.
+game records it. `·` is a hull that holds nothing and says *empty hull*, `+` is
+stripped, `*` is found but still holding its loot, `-` is not found yet, and an
+untouched wreck lists its cargo without the checkbox, since that is the part you
+can still go and collect.
+
+Those 53 sit in four systems, and each of the four says so above its list:
+Omega-5 has 23 of its 27, Omicron Alpha 19 of 24, Omega-11 6 of 10 and
+Sigma-13 5 of 11. Everywhere else, every hull holds something. The line is
+there because an empty hull and one you have found but not opened used to draw
+identically, so a system of 24 hulls with 5 prizes in it read as 24 prizes.
 
 Systems are alphabetical inside their house. Two tabs once sorted by two
 different notions of progress, most bases left on one and fullest first on the
@@ -836,7 +845,7 @@ Collapse all and Expand all on the houses.
 *Fort Bush* `Police (LI)`, *Yanagi Depot* `Junkers`, *Ruiz Base* `Outcasts`.
 Hover for the full one. Revealed is the bucket where it matters, because those
 are the bases you have not been to yet and whether the trip is worth making is a
-reputation question before it is a distance one. All 164 dockable bases carry an
+reputation question before it is a distance one. All 163 dockable bases carry an
 owner; there are 46 of them.
 
 The house code appears only where the game's own short name is ambiguous. Four

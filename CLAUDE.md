@@ -147,7 +147,8 @@ what the file says rather than what it computes:
   paths resolve. The live one absorbed the useful half of the dead one's
   docstring.
 - A comment in `main()` said 167 dockable and 30 dropped. The real figures are
-  164 and 33, stale since the story-locked three were excluded.
+  164 and 33, stale since the story-locked three were excluded. (163 and 34
+  since 2026-09-13, when Planet Toledo became the fourth.)
 
 **Edited twice on 2026-09-07, after the freeze was lifted**, both times so that
 the bar rumors could be read at all:
@@ -186,13 +187,16 @@ reading catches that.
 - Denominator starts from the `[Base]` list in `universe.ini` (197), not the
   count of dockable space objects (250). A planet's mooring fixture is a second
   object pointing at the same base, so counting objects double counts every
-  planet. 197 then narrows to 181 reachable and 164 dockable; `bases.py` owns
-  that and says why. 164 instead of 167 because Tohoku's two and Alaska's one
-  are excluded by name: both systems are story-gated and nothing in the data
-  says so. That rests on the owner's knowledge of the game and on no evidence.
-  An earlier note here cited the saves, which was wrong: Tohoku is M09 and
-  Alaska is M11, the save is on Mission_05, so their absence means only that
-  he has not reached them. `bases.py` carries the correction.
+  planet. 197 then narrows to 181 reachable and 163 dockable; `bases.py` owns
+  that and says why. 163 instead of 167 because Tohoku's two, Alaska's one and
+  Omicron Minor's one are excluded by name: all three systems are story-gated.
+  For Tohoku and Alaska that rests on the owner's knowledge of the game and on
+  no evidence. An earlier note here cited the saves, which was wrong: Tohoku is
+  M09 and Alaska is M11, the save is on Mission_05, so their absence means only
+  that he has not reached them. `bases.py` carries the correction.
+  **Omicron Minor is the one the data backs up**: `st01` has no jump to
+  anywhere outside the five story Omicrons, and Planet Toledo was the only
+  dockable thing in it, so excluding it takes the system off the page.
 
 ## Known gaps, deliberately not fixed
 
@@ -233,13 +237,20 @@ their final flags, so the 25/17/17 reading survives only as the earlier entry in
 this document and is no longer re-checkable. If you want it on disk, note a
 wreck's flag, empty it, and keep that pair of saves.
 
-**An empty wreck counts as emptied the moment it is found.** 54 of the 157
+**An empty wreck counts as emptied the moment it is found.** 53 of the 157
 carry nothing at all, which is the game's own design and not a gap in the
-reader: the owner confirmed Sigma-13 alone is full of them. The game never sets
-bit 8 on those, because there was never anything to take, so they sat in the
-report as found-but-still-loaded forever and the stripped count could not reach
-157 however thoroughly they were searched. There is no second visit that would
-ever change one, so finding it is emptying it.
+reader. The game never sets bit 8 on those, because there was never anything to
+take, so they sat in the report as found-but-still-loaded forever and the
+stripped count could not reach 157 however thoroughly they were searched. There
+is no second visit that would ever change one, so finding it is emptying it.
+
+**Which hulls those are is not a guess and not a list**, it is the `holds`
+flag; the section *a hull that holds nothing is not a hull you have not opened*
+below has the rule, the count and what it is checked against. Two figures here
+were corrected by that work: it is 53 and not 54, because the Dallas Storage
+Container keeps its cargo on its archetype rather than in a loadout, and
+**Sigma-13 is not where they are**. That was the owner's recollection and it is
+5 of 11 there, against 23 of 27 in Omega-5 and 19 of 24 in Omicron Alpha.
 
 Do not chase this as a loot-parsing bug. It was, briefly, on the theory that
 `load_item_names` was dropping items with no display name; the first wreck
@@ -254,6 +265,102 @@ green for one already stripped, plus a "still loaded" tally. That way the number
 you are trying to drive to 157 never moves backwards, while the list still tells
 you where there is something left to collect. An untouched wreck also shows its
 loot without the checkbox, since that is cargo you can still go and get.
+
+## Settled: a hull that holds nothing is not a hull you have not opened
+
+Closed 2026-09-13, the second time the owner reported it: *"и в Омикрон гамме
+мы вроде правили ошибку, но она снова всплыла - куча обломков с лутом, которого
+нет"*.
+
+**SYMPTOM**: a pile of wrecks with loot that is not there.
+**EVIDENCE**: the wreck flags across every save on disk, set against what each
+object carries in the system files.
+
+### The system he was describing is Omicron Alpha, and Gamma is fine
+
+Every system holding a hull that can never hold anything, and there are only
+four of them:
+
+| | | hulls | of them scenery |
+|---|---|---|---|
+| Omega-5 | `bw02` | 27 | **23** |
+| Omicron Alpha | `hi01` | 24 | **19** |
+| Omega-11 | `bw04` | 10 | 6 |
+| Sigma-13 | `bw05` | 11 | 5 |
+| Omicron Gamma | `hi02` | 17 | **0** |
+
+His own description when asked, *"много обломков, но большинство из них пустые,
+и только в нескольких есть лут"*, is **Omicron Alpha line for line**. Omicron
+Gamma really is seventeen Corsair hulls with twenty Artifacts each: it is a
+cache, and being the one system where every hull is loaded is exactly what
+makes it look wrong beside everything else.
+
+### The flag he expected is real, and it is not a value
+
+It is **whether the object carries a `loadout` key at all**. A hull with none
+can never hold anything, and the game never sets bit 8 on it because there was
+never anything to take.
+
+Labelled against all 220 saves on disk, over the 109 wrecks some save has
+recorded:
+
+| the object | the game recorded the loot taken | count |
+|---|---|---|
+| has a `loadout` | yes | **75** |
+| has no `loadout` | no | **34** |
+| | disagreements | **0** |
+
+**That count grows as he plays and the ratio is the part that matters.** It was
+107 wrecks when this was first measured and 109 an hour later, because
+`AutoSave.fl` keeps recording; the classifier is in this repo's history, not in
+a file, and re-running it is cheap.
+
+### What was broken was the page, and it is the whole reason this came back
+
+`wreckLine` printed loot **only when there was loot**, so an empty-by-design
+hull and a found-but-unopened loaded one drew identically: Omicron Alpha's 19
+scenery hulls read as 19 unexplored prizes. Nothing in the data was wrong and
+no amount of re-reading the loot parser was ever going to help.
+
+So a wreck row has four states rather than three, and each system says its own
+tally once, above the list:
+
+| | mark | reads |
+|---|---|---|
+| scenery | `·` | `empty hull`, in the dim not-found colour |
+| not found | `-` | nothing |
+| found, emptied | `+` | its loot, as history |
+| found, still loaded | `*` | its loot, as something to go and collect |
+
+### The one exception, and it is now none
+
+`Li04_depot_superconductors_surprise`, the Dallas Storage Container, was the
+single hull the saves said was looted and the reader called empty. **A
+container names its cargo on its archetype where a ship names it in a
+loadout**: `surprise_superconductors` carries `loadout =
+surprise_superconductors`. One object in 157 is built that way.
+`wrecks.archetype_loadouts` is the fallback, it resolves to 40 Superconductors,
+and it moves the empty count from 54 to **53**.
+
+### Four theories that were wrong, in the order they were tried
+
+Written down because each one is plausible and somebody will walk back into it:
+
+  * **The names repeat, so the reader is confusing two hulls.** The owner's own
+    correction, *"у обломков бывают не уникальные имена - не туда копаешь"*.
+    They do repeat, hard: **68 distinct names over 157 wrecks**, with "Corsair
+    Fighter" on 31 of them. It is still not the cause, because every object has
+    its own nickname and the visit flags are keyed on the hash of that.
+  * **They sit in one tight cluster, so it is one object drawn many times.**
+    Omicron Alpha's are tighter still and are genuinely separate objects.
+  * **The loadout belongs to the ship rather than the wreck.** The loadout
+    named is identical to one on a wreck the owner had emptied himself.
+  * **A loadout shared by several hulls means scenery.** Refuted by New York:
+    `Li01_suprise_li_elite_badlands_01`, `_02` and `_03` are three Patrol 27s
+    sharing one loadout, and all three hold four Justice Mk III apiece.
+
+The rule that survived is the dull one, and it is the only one that was ever
+checked against the saves rather than against a hunch.
 
 ## Settled: the Asteroid Miners are not dockable, and the rule is in the data
 
@@ -739,10 +846,11 @@ and never what it can offer, and the difference is what the tab exists to show.
 So a board's ceiling is the money at its highest `max`, and its floor the money
 at its lowest `min`. Counted, never assumed:
 
-  * **160 of the 164 dockable bases run a live board.** Planet Primus, Planet
-    Gammu and Planet Toledo carry no offering faction at all; Planet Sprague
-    carries one and `num_offers = 0, 0`, so its board has no slots. `fl.py jobs
-    --all` lists the four.
+  * **160 of the 163 dockable bases run a live board.** Planet Primus and
+    Planet Gammu carry no offering faction at all; Planet Sprague carries one
+    and `num_offers = 0, 0`, so its board has no slots. `fl.py jobs --all`
+    lists the three. It was four until 2026-09-13: Planet Toledo was the
+    fourth, and it left the denominator with Omicron Minor.
   * **All 241 `mission_type` rows in the game are `DestroyMission`**, the only
     random mission type vanilla ships. The kind is carried through anyway, so a
     mod that adds one gets listed rather than silently counted as a bounty.
@@ -818,7 +926,15 @@ here rather than there:
     That is this whole bug, handed out by the operating system. So `serve.py`
     keeps the flag on Linux and turns it off on Windows.
 
-## Found 2026-09-12, not fixed: one base spells `Base` and falls out of the index
+## Found 2026-09-12: one base spells `Base` and falls out of the index
+
+**The symptom is gone as of 2026-09-13 and the bug is not.** That base is
+Planet Toledo, and Planet Toledo is now in `bases.STORY_LOCKED` because there
+is no way back to Omicron Minor after the campaign. So it is out of the
+denominator, which is the only place it was visible: a base that is not counted
+cannot sit uncounted for ever. **Nothing about `load_objects` changed**, and the
+next object anybody adds with a capital key falls out of the index exactly the
+same way. Read the rest of this section as live.
 
 `flvisits.load_objects` keeps an `[Object]` only when it carries both `nickname`
 and `base`, and it reads that key case-sensitively while `read_ini` preserves
@@ -829,19 +945,21 @@ What follows, measured rather than reasoned:
 
   * `load_objects` returns 247 objects where the files hold 248.
   * `bases.dockable_bases` uses `read_multi` plus a key-lowering helper, so it
-    sees the object and counts Planet Toledo among the 164. The two walks
-    disagree about the same base.
-  * Nothing can therefore resolve a visit to it: `common.read_state` maps a
-    visit hash through `game.objects`, which has no entry, so Planet Toledo sits
-    in `unknown` for ever even after docking. It is one of the 164 in the
-    denominator and can never move to the numerator.
+    saw the object and counted Planet Toledo among the 164. The two walks
+    disagreed about the same base.
+  * Nothing could therefore resolve a visit to it: `common.read_state` maps a
+    visit hash through `game.objects`, which has no entry, so Planet Toledo sat
+    in `unknown` for ever even after docking. It was one of the 164 in the
+    denominator and could never move to the numerator.
   * `market.base_index` cannot name it either, which is how this surfaced:
     `fl.py jobs --all` printed a bare nickname and an empty system.
 
-The Jobs tab is not affected, because Toledo's board is shut and never reaches
-it. This is left alone on purpose: it is a one-word change in `flvisits.py`,
-which has its own procedure (`check_frozen.py` before and after, and diff), and
-it moves a number the whole app is about. **The owner's call, not a tidy-up.**
+The Jobs tab was never affected, because Toledo's board is shut and never
+reaches it. **The spelling is still left alone on purpose**: it is a one-word
+change in `flvisits.py`, which has its own procedure (`check_frozen.py` before
+and after, and diff), and it moves a number the whole app is about. The owner's
+call, not a tidy-up. Excluding the base fixed what he could see; it did not fix
+this, and the two should not be confused for one another later.
 
 ## Settled: three commodities spoil, and the data says so twice
 

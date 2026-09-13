@@ -20,6 +20,10 @@ CSS = """
   .wreck.f .mark { color: var(--ok); }
   .wreck.o .mark, .wreck.o .nm { color: var(--revealed); }
   .wreck.m .mark { color: var(--unknown); }
+  /* Scenery: a hull the game never puts anything in. Dimmer than "not found",
+     because there is nothing here to go and get. */
+  .wreck.s .mark, .wreck.s .nm, .wreck.s .loot { color: var(--unknown); }
+  .scenerynote { color: var(--fainter); font-size: 11.5px; margin: .2rem 0 .4rem; }
   .wreck.m .nm { color: #6a899c; }
 
   /* The owning faction, dimmed and a size down so it reads as an annotation
@@ -61,15 +65,24 @@ function line(cls, tag, items, withAt, withFac) {
 }
 
 function wreckLine(w, found) {
-  // Three states, not two: a wreck you found but never opened still holds its
-  // loot, and the game says so in bit 8 of the visit flag.
-  const cls = !found ? 'm' : w.emptied ? 'f' : 'o';
-  const mark = !found ? '-' : w.emptied ? '+' : '*';
+  // Four states, not three. A wreck you found but never opened still holds its
+  // loot and the game says so in bit 8; and a hull that can never hold
+  // anything is its own thing, not a prize you have yet to reach.
+  //
+  // **Saying so is the whole point.** An empty hull and an unopened loaded one
+  // printed identically, because a row shows loot only when there is loot, so
+  // Omicron Alpha's 19 scenery hulls read as 19 unexplored prizes. That was
+  // reported twice as "wrecks with loot that isn't there".
+  const cls = !w.holds ? 's' : !found ? 'm' : w.emptied ? 'f' : 'o';
+  const mark = !w.holds ? '\u00b7' : !found ? '-' : w.emptied ? '+' : '*';
   // Untouched loot is what you would collect, so it shows without the box.
   // For an emptied wreck it is history.
   const show = w.loot.length && (extended.systems || (found && !w.emptied));
-  const loot = show
-    ? `<span class="loot">${w.loot.map(([i, n]) => `${n}x ${esc(i)}`).join(', ')}</span>` : '';
+  const loot = !w.holds
+    ? '<span class="loot">empty hull</span>'
+    : show
+      ? `<span class="loot">${w.loot.map(([i, n]) => `${n}x ${esc(i)}`).join(', ')}</span>`
+      : '';
   const where = [w.sector, w.spot].filter(Boolean).join(' ');
   return `<div class="wreck ${cls}"><span class="mark">${mark}</span>` +
          `<span class="cell">${esc(where)}</span>` +
@@ -80,10 +93,15 @@ function systemBody(s, ext) {
   const b = s.bases, w = s.wrecks;
   const hulls = w.found.map(x => wreckLine(x, true)).join('') +
                 (ext ? w.missing.map(x => wreckLine(x, false)).join('') : '');
+  // How many of this system's hulls are scenery, said once above the list
+  // rather than left to be counted off the dots.
+  const note = w.scenery
+    ? `<div class="scenerynote">${w.scenery} of ${w.total} hulls here hold ` +
+      'nothing at all, by the game\'s own design</div>' : '';
   return line('d', 'docked', b.docked) +
          line('r', 'revealed', b.revealed, false, true) +
          (ext ? line('u', 'unknown', b.unknown, true) : '') +
-         (hulls ? `<div class="hulls">${hulls}</div>` : '');
+         (hulls ? `<div class="hulls">${note}${hulls}</div>` : '');
 }
 
 VIEW.systems = {

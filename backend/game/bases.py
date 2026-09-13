@@ -74,6 +74,20 @@ STORY_LOCKED = {
     "ku07_01_base",  # Ryuku Base, Tohoku
     "ku07_02_base",  # Tekagi's Base, Tohoku
     "li05_01_base",  # Prison Station Mitchell, Alaska
+    # Planet Toledo, Omicron Minor. Added 2026-09-13 at the owner's word that
+    # there is no way back after the campaign, and **this one the data does
+    # back up**, unlike the three above: `st01` has no jump to anywhere outside
+    # the five story Omicrons, which join each other and nothing else.
+    #
+    # It is also the only base the system had left. The other four story
+    # Omicrons already carry no dockable base and no wreck, so excluding this
+    # one takes Omicron Minor off the page entirely.
+    #
+    # And it ends the "one base spells `Base`" note in CLAUDE.md as a visible
+    # thing: this is that base, so it could never resolve a visit and could
+    # never leave the unknown column. The spelling bug in
+    # `flvisits.load_objects` is untouched and still the owner's call.
+    "st01_01_base",
 }
 
 

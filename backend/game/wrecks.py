@@ -118,12 +118,46 @@ def load_loadouts(game_dir, data_dir, item_names):
     return out
 
 
+def archetype_loadouts(game_dir, data_dir):
+    """Solar archetype -> the loadout it names, for the ones that name one.
+
+    **A container keeps its cargo on the archetype, a ship on the object.**
+    `Li04_depot_superconductors_surprise`, the Dallas Storage Container, is the
+    one wreck in the game built that way: no `loadout` of its own, and its
+    `surprise_superconductors` archetype carries `loadout =
+    surprise_superconductors`. Without this it is the single hull the save says
+    was looted and the reader calls empty, out of 107 the saves can settle.
+    """
+    out = {}
+    for path in declared_files(game_dir, data_dir, "solar"):
+        for section, pairs in read_multi(path):
+            if section.lower() != "solar":
+                continue
+            entry = {}
+            for key, values in pairs:
+                entry.setdefault(key.lower(), values)
+            nick = entry.get("nickname")
+            load = entry.get("loadout")
+            if nick and load:
+                out[str(nick[0]).lower()] = str(load[0]).lower()
+    return out
+
+
 def load_wrecks(game_dir):
-    """Every secret object in a declared system, with its loot resolved."""
+    """Every secret object in a declared system, with its loot resolved.
+
+    **A hull with no loadout anywhere can never hold anything**, and that is
+    the `holds` flag rather than a guess. Checked against every save on disk:
+    of the 107 wrecks any save has ever recorded, 72 of 72 with a loadout were
+    looted and 34 of 35 without one were found and left, because the game never
+    sets the emptied bit on a hull there was nothing to take from. The one
+    exception was the container above, and `archetype_loadouts` is it.
+    """
     data_dir = fl.ipath(game_dir, "DATA")
     names = fl.load_names(game_dir)
     item_names = load_item_names(game_dir, data_dir, names)
     loadouts = load_loadouts(game_dir, data_dir, item_names)
+    arch_loadouts = archetype_loadouts(game_dir, data_dir)
     scales = bases.load_scales(data_dir, fl.read_ini, fl.ipath)
 
     out = []
@@ -136,6 +170,9 @@ def load_wrecks(game_dir):
             loadout = str(entry.get("loadout", [""])[0])
             if str(visit) != str(SECRET_VISIT) and not loadout.upper().startswith("SECRET"):
                 continue
+            if not loadout:
+                arch = str(entry.get("archetype", [""])[0]).lower()
+                loadout = arch_loadouts.get(arch, "")
             nick = str(entry.get("nickname", [""])[0])
             ids = entry.get("ids_name", [0])[0]
             try:
@@ -159,6 +196,10 @@ def load_wrecks(game_dir):
                 "name": label,
                 "sector": cell,
                 "spot": spot,
+                # Whether the game can ever put anything in this hull, which
+                # is not the same question as whether we resolved its contents:
+                # a loadout we cannot read would still be a hull worth opening.
+                "holds": bool(loadout),
                 "loot": [[item, n] for item, n in loadouts.get(loadout.lower(), [])],
             })
     return out
@@ -177,6 +218,12 @@ def group_by_system(wrecks, visits, system_label):
         flag = visits.get(hid)
         entry = {"name": wreck["name"], "sector": wreck["sector"],
                  "spot": wreck["spot"], "loot": wreck["loot"],
+                 # **Whether this hull can ever hold anything at all.** An
+                 # empty one and an unopened loaded one looked identical on the
+                 # page, because a row prints loot only when there is loot, so
+                 # Omicron Alpha's 19 scenery hulls read as 19 unexplored
+                 # prizes. That is what the owner reported twice.
+                 "holds": wreck["holds"],
                  # Bit 8 is the game's own record of the loot having been taken.
                  #
                  # 54 of the 157 wrecks carry nothing, which is the game's own
@@ -187,7 +234,7 @@ def group_by_system(wrecks, visits, system_label):
                  # searched. Finding an empty wreck *is* emptying it: there is
                  # no second visit that would ever change anything.
                  "emptied": bool(flag is not None
-                                 and (flag & LOOTED or not wreck["loot"]))}
+                                 and (flag & LOOTED or not wreck["holds"]))}
         rows[wreck["system"]]["found" if flag is not None else "missing"].append(entry)
 
     out = []
@@ -204,6 +251,10 @@ def group_by_system(wrecks, visits, system_label):
         # left loaded is the wreck equivalent of a base the story revealed:
         # on the map, not yet done.
         row["stripped"] = sum(1 for e in row["found"] if e["emptied"])
+        # How many of this system's hulls are scenery. Said out loud so a
+        # system of 24 with 5 prizes does not read as 24 prizes.
+        row["scenery"] = sum(1 for b in ("found", "missing")
+                             for e in row[b] if not e["holds"])
         row["found_open"] = len(row["found"]) - row["stripped"]
         row["percent"] = round(100 * row["stripped"] / row["total"]) if row["total"] else 0
         out.append(row)

@@ -266,8 +266,12 @@ def read_state(game, save_path, saved):
         found.update(_tally(len(found["docked"]),
                             sum(len(v) for v in found.values())))
         hulls = wrecks.get(nick, {"found": [], "missing": [], "stripped": 0,
-                                  "total": 0})
+                                  "total": 0, "scenery": 0})
         hulls = dict(found=hulls["found"], missing=hulls["missing"],
+                     # How many of them can never hold anything. The page says
+                     # it once per system, because an empty hull and an
+                     # unopened loaded one look the same in a list.
+                     scenery=hulls.get("scenery", 0),
                      **_tally(hulls["stripped"], hulls["total"]))
         out.append({
             "nickname": nick,
