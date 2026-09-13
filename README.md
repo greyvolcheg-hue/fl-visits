@@ -71,6 +71,28 @@ also sets how tough the world thinks you are. Stretching the ladder should make
 encounters harder as well as levels dearer. That is the name and the shape
 talking, not a measurement.
 
+### Killing Nomads
+
+```bash
+python3 fl.py empathy            # what one kill does to Sirius now
+python3 fl.py empathy -0.25      # make everyone who is not a Nomad approve
+python3 fl.py empathy --restore
+```
+
+Also a box in the Engine tab. Shipped, killing a Nomad moves **nobody**: their
+group in `empathy.ini` carries 54 rates and the only three that are not zero
+belong to the campaign's infiltrated navies, which take the full penalty. The
+other 51 factions are set to exactly 0.
+
+A negative rate is approval, which the game's own rows show: killing a Liberty
+Rogue is `-0.018` and Liberty Police sit at `-0.250` toward them, so the kill
+is worth `+0.0045` of Police standing. At `-0.25` a Nomad kill is worth
+`+0.0075` to every faction that is not a Nomad. The three doubles keep their
+`+1.000`, because they are Nomads.
+
+It is a data file read at startup, so it survives a restart with nothing to
+re-apply.
+
 ### What the bots call you
 
 ```bash

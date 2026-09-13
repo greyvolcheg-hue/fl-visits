@@ -61,6 +61,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/live/drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
 | `backend/live/levels.py` | the level ladder in `ptough.ini`, and how far it goes |
 | `backend/live/callsign.py` | what the bots call you: four words patched into `content.dll` |
+| `backend/live/empathy.py` | what killing a Nomad is worth to the other 51 factions |
 | `backend/live/newgame.py` | what a new game starts you in |
 | `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
 | `design/` | the visual design, as a Claude Design canvas. The source the page is built from, not a screenshot of it. |
@@ -1556,6 +1557,53 @@ answer if it will not start. And what else the curve drives: the game calls it
 `PlayerToughnessScale`, so it very likely also decides how tough the world
 thinks you are, which would mean a stretched ladder makes encounters harder.
 That is a reading of the name and the shape, not a measurement.
+
+## Settled: nobody in Sirius cares that you kill Nomads, and it is one number
+
+Closed 2026-09-13 on the owner's question: why does killing Nomads after the
+campaign not raise standing with everyone, since it would be logical.
+
+**SYMPTOM**: it raises nothing. **EVIDENCE**: `DATA/MISSIONS/empathy.ini`.
+
+Every faction there has an `object_destruction` value, what your standing with
+*them* does when you destroy one of their ships, and a list of `empathy_rate`
+entries that spread that change to everyone else. The Nomad group `fc_n_grp`
+carries 54 rates and **exactly three are non-zero**, all `+1.000`:
+`fc_ln_grp`, `fc_kn_grp` and `fc_rn_grp`, the campaign's infiltrated navies.
+Against an `object_destruction` of `-0.03` that means those three take the full
+penalty and **the other 51 factions move by zero.**
+
+**The sign is read off the game, not guessed.** Killing a Liberty Rogue is
+`-0.018`; Liberty Police sit at `-0.250` toward them, so the kill is worth
+`-0.018 * -0.250` = `+0.0045` of Police standing, while the Outcasts at
+`+0.350` lose `0.0063`. **A negative rate is approval.**
+
+**The kill lands on the right faction.** `fc_n_grp` owns `fc_n_no_fighter_d19`,
+the ordinary Nomad fighter, as against the `MSN`-prefixed ones the story
+spawns, so a kill in the open world fires that group's event.
+
+`fl.py empathy -0.25` sets the other 51 to a rate the game itself uses: rates
+across the file run `-0.45` to `+1.00`, and `-0.05`, `-0.10` and `-0.25` are
+its common negatives. At `-0.25` a Nomad kill is worth `+0.0075` to everyone,
+the same order as the game's own bounty work.
+
+**The three doubles keep their `+1.000`** because they are Nomads wearing a
+navy's colours, and keeping them is what makes the change honest: it is
+"everyone who is not a Nomad approves", not "every row in the file".
+
+It survives a reboot because it is a data file read at startup, so there is
+nothing to re-apply. **`empathy.ini` has one writer**, unlike `content.dll`, so
+rebuilding it from `.vanilla` every time is right here.
+
+### Found on the way: every file this project wrote was mode 0600
+
+`persist._save` created its temp with `mkstemp`, which is 0600, and
+`os.replace` carried that onto the game file. **161 files** were sitting at
+0600 instead of 0644, including every asteroid field, both route tables and
+`constants.ini`. It worked only because the game runs as the same user, and it
+would not have survived the install being shared, copied with `cp -p`, or read
+by anything running as somebody else. Both writers now stat the file first and
+put the mode back, and the 161 were repaired from their `.vanilla` siblings.
 
 ## Settled: how flhack survived a world load, and why we do not need to
 

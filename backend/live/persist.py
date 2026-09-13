@@ -127,6 +127,11 @@ def _save(path, sections):
 
     folder = os.path.dirname(path)
     try:
+        # The mode is read before the swap and put back after it. `mkstemp`
+        # creates 0600, and `os.replace` carries that onto the game file, so
+        # every file this ever wrote came out readable by nobody else. It
+        # worked only because the game runs as the same user.
+        mode = os.stat(path).st_mode & 0o777
         handle, temp = tempfile.mkstemp(dir=folder, suffix=".tmp")
     except PermissionError as exc:
         # **The common Windows case, and it reads as a bug if it is not named.**
@@ -140,6 +145,7 @@ def _save(path, sections):
     try:
         with os.fdopen(handle, "wb") as fh:
             fh.write(blob)
+        os.chmod(temp, mode)
         os.replace(temp, path)
     except PermissionError as exc:
         os.unlink(temp)

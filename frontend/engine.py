@@ -257,7 +257,37 @@ function engFiles() {
     '<code>.vanilla</code> the first time, and an existing backup is never ' +
     'overwritten.</span></div>' +
     `<div class="grid wrapgrid">${write}${rocks}${engCallsign()}` +
-    `${engPaths()}</div>`;
+    `${engPaths()}${engNomads()}</div>`;
+}
+
+// What killing a Nomad is worth to everyone who is not one. Shipped, the
+// answer is nothing: their group carries 54 empathy rates and the only three
+// that are not zero belong to the campaign's infiltrated navies.
+function engNomads() {
+  const n = eng.nomads;
+  if (!n || n.error) {
+    return '<div class="box file"><div class="lbl">KILLING NOMADS</div>' +
+      `<div class="why">${esc((n && n.error) || 'not read yet')}</div></div>`;
+  }
+  const per = n.per === null ? null : n.per;
+  return '<div class="box file"><div class="top">' +
+    '<span class="lbl">KILLING NOMADS</span>' +
+    `<span class="val">${per ? (per > 0 ? '+' : '') + per.toFixed(4)
+                             : 'nothing'}</span></div>` +
+    '<div class="why">' + (per
+      ? `Every faction that is not a Nomad gains ${per.toFixed(4)} standing ` +
+        'per kill. The three infiltrated navies from the campaign still lose ' +
+        'it, because they are Nomads.'
+      : 'Shipped, nobody in Sirius reacts: 51 of the 54 rates in their ' +
+        'group are zero.') + '</div>' +
+    '<div class="csacts">' +
+    n.choices.filter(r => r).map(r =>
+      `<button class="chip" data-nomad="${r}"` +
+      (r === n.rate ? ' disabled' : '') +
+      `>${(n.kill * r > 0 ? '+' : '') + (n.kill * r).toFixed(4)}</button>`
+    ).join('') +
+    '<button class="chip" id="nomad-off">VANILLA</button></div>' +
+    '<div class="from">read at startup, so restart the game</div></div>';
 }
 
 // Which route table Set Best Path reads. Two modes and they are not a
@@ -419,6 +449,10 @@ function wireEngine() {
     b.onclick = () => engPost('routetable', { mode: b.dataset.mode }));
   const pv = $('#paths-vanilla');
   if (pv) pv.onclick = () => engPost('routetable', { revert: 1 });
+  box.querySelectorAll('[data-nomad]').forEach(b =>
+    b.onclick = () => engPost('empathy', { rate: Number(b.dataset.nomad) }));
+  const no = $('#nomad-off');
+  if (no) no.onclick = () => engPost('empathy', { restore: 1 });
   const p = $('#persist');
   if (p) p.onclick = async () => {
     persistBusy = true; render();

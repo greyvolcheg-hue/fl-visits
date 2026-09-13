@@ -45,6 +45,7 @@ COMMANDS = {
     "callsign": "backend.live.callsign",
     "dockdist": "backend.live.dockdist",
     "drawdist": "backend.live.drawdist",
+    "empathy": "backend.live.empathy",
     "inject": "backend.live.inject",
     "levels": "backend.live.levels",
     "newgame": "backend.live.newgame",
@@ -56,8 +57,9 @@ COMMANDS = {
     "tradelane": "backend.live.tradelane",
 }
 
-WRITES = {"bestpath", "callsign", "dockdist", "drawdist", "inject", "levels",
-          "newgame", "persist", "routetable", "speed", "thrusters", "tradelane"}
+WRITES = {"bestpath", "callsign", "dockdist", "drawdist", "empathy", "inject",
+          "levels", "newgame", "persist", "routetable", "speed", "thrusters",
+          "tradelane"}
 
 
 def usage():

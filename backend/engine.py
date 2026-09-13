@@ -16,6 +16,7 @@ from .live import callsign as cs
 from .live import dockdist as dkd
 from .live import routetable as rt
 from .live import drawdist as dd
+from .live import empathy as em
 from .live import persist as pe
 from .live import speed as sp
 from .live import thrusters as th
@@ -157,6 +158,20 @@ def _routetable(ctx):
     return body
 
 
+def _empathy(ctx):
+    """What one Nomad kill does to everybody else's opinion of you."""
+    body = {"kill": None, "rate": None, "per": None, "n": 0,
+            "choices": list(em.RATES), "error": None}
+    try:
+        state = em.read(ctx.game.dir)
+        body.update(kill=state["kill"], rate=state["rate"], n=state["n"])
+        if state["rate"] is not None and state["kill"] is not None:
+            body["per"] = round(state["kill"] * state["rate"], 4)
+    except (em.WriteFailed, OSError, ValueError) as exc:
+        body["error"] = str(exc)
+    return body
+
+
 def _engine(ctx):
     """Every reading the strip shows, in one request and one pid lookup.
 
@@ -166,7 +181,7 @@ def _engine(ctx):
     """
     body = {"running": False, "error": None, "cruise": None, "lane": None,
             "thrusters": None, "draw": None, "call": None,
-            "paths": None}
+            "paths": None, "nomads": None}
     try:
         sp.find_pid()
         body["running"] = True
@@ -178,6 +193,7 @@ def _engine(ctx):
             body["draw"] = _drawdist(ctx)
             body["call"] = _callsign(ctx)
             body["paths"] = _routetable(ctx)
+            body["nomads"] = _empathy(ctx)
         return body
     body["cruise"] = _speed(ctx)
     body["lane"] = _tradelane(ctx)
@@ -186,6 +202,7 @@ def _engine(ctx):
         body["draw"] = _drawdist(ctx)
         body["call"] = _callsign(ctx)
         body["paths"] = _routetable(ctx)
+        body["nomads"] = _empathy(ctx)
     return body
 
 
@@ -196,7 +213,7 @@ def _engine(ctx):
 # `_table` raises on a repeat now rather than picking by import order.
 API = {"engine": _engine, "speed": _speed, "thrusters": _thrusters,
        "tradelane": _tradelane, "drawdist": _drawdist, "callsign": _callsign,
-       "routetable": _routetable}
+       "routetable": _routetable, "empathy": _empathy}
 
 def _set_speed(ctx, sent):
     # Re-located every time: common.dll moves between runs, and the game may
@@ -292,6 +309,21 @@ def _set_routetable(ctx, sent):
             f"{saved} jumps saved; load a save")
 
 
+def _set_empathy(ctx, sent):
+    """Set what a Nomad kill is worth to the other 51 factions."""
+    with ctx.lock:
+        if sent.get("restore"):
+            em.restore(ctx.game.dir)
+            return "empathy.ini back to shipped; nobody cares about Nomads again"
+        rate = float(sent["rate"])
+        touched, _kept = em.write(rate, ctx.game.dir)
+        state = em.read(ctx.game.dir)
+    if not rate:
+        return f"{touched} factions back to indifferent"
+    return (f"{touched} factions now gain {state['kill'] * rate:+.4f} "
+            f"per Nomad kill; it is read at startup, so restart the game")
+
+
 def _set_allhacks(ctx, _sent):
     """Every on/off patch at once, because they are always wanted together.
 
@@ -329,4 +361,5 @@ def _set_persist(ctx, _sent):
 POST = {"speed": _set_speed, "thrusters": _set_thrusters,
         "tradelane": _set_tradelane, "drawdist": _set_drawdist,
         "allhacks": _set_allhacks, "persist": _set_persist,
-        "callsign": _set_callsign, "routetable": _set_routetable}
+        "callsign": _set_callsign, "routetable": _set_routetable,
+        "empathy": _set_empathy}
