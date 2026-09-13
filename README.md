@@ -94,7 +94,8 @@ question it exists to pose is whether the grind is worth flying. At 400, that
 many Nomads takes you from neutral to friendly with everyone at once, which is
 meant to be an expensive alternative to the ordinary endgame rather than a
 shortcut past it. Type anything you like; under 100 it says so and writes it
-anyway.
+anyway, and a minus runs the whole thing backwards: that many Nomads from
+neutral to hostile, with Sirius mourning every one you shoot.
 
 It is a data file read at startup, so it survives a restart with nothing to
 re-apply.

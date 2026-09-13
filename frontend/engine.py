@@ -275,13 +275,15 @@ function engNomads() {
   }
   // Counted in ships, not in rep points: the question this setting exists to
   // pose is "is it worth flying", and nobody weighs that in thousandths.
+  const to = n.kills > 0 ? 'friendly' : 'hostile';
   return '<div class="box file"><div class="top">' +
     '<span class="lbl">KILLING NOMADS</span>' +
     `<span class="val">${n.kills ? n.kills : 'nothing'}</span></div>` +
     '<div class="why">' + (n.kills
-      ? `${n.kills} Nomads to go from neutral to friendly with everyone at ` +
-        'once. The three infiltrated navies from the campaign still hate you ' +
-        'for it, because they are Nomads.'
+      ? `${Math.abs(n.kills)} Nomads to go from neutral to ${to} with ` +
+        'everyone at once. The three infiltrated navies from the campaign ' +
+        'still hate you for it, because they are Nomads.' +
+        (n.kills < 0 ? ' Everybody else now mourns them too.' : '')
       : 'Shipped, nobody in Sirius reacts: 51 of the 54 rates in their ' +
         'group are zero.') + '</div>' +
     // A typed number, not a row of presets: the useful values are a continuum
@@ -289,17 +291,22 @@ function engNomads() {
     // being typed, because `paint` compares the markup it wrote and the `value`
     // attribute does not change while a field is edited.
     '<div class="reppick csrow">' +
-    // `step="1"`, not 10: with a step of ten and a minimum of one the field
-    // itself called 2 invalid, which is the control arguing with the setting.
-    `<input type="number" id="nomad-kills" min="1" step="1" ` +
+    // No `min`, and `step="1"`: the sign is the direction, so a negative count
+    // is a setting rather than a mistake, and a step of ten once made the
+    // field itself call 2 invalid.
+    `<input type="number" id="nomad-kills" step="1" ` +
     `value="${n.kills || 400}">` +
     `<span class="sys">Nomads</span>` +
-    `<span class="nag" id="nomad-nag" hidden>under ${n.floor} is cheap ` +
-    'enough that the ordinary endgame stops being worth flying</span></div>' +
+    `<span class="nag" id="nomad-nag" hidden>under ${n.floor} is fast ` +
+    'enough that the ordinary endgame stops being worth flying</span>' +
+    '<span class="nag" id="nomad-flip" hidden>a minus runs it backwards: ' +
+    'that many Nomads from neutral to <b>hostile</b>, with all of Sirius ' +
+    'mourning every one you shoot</span></div>' +
     '<div class="csacts">' +
     '<button class="chip" id="nomad-set">SET</button>' +
     '<button class="chip" id="nomad-off">VANILLA</button></div>' +
-    '<div class="from">kills to friendly; read at startup, so restart</div></div>';
+    `<div class="from">kills to ${n.kills ? to : 'friendly'}; read at ` +
+    'startup, so restart</div></div>';
 }
 
 // Which route table Set Best Path reads. Two modes and they are not a
@@ -461,18 +468,21 @@ function wireEngine() {
     b.onclick = () => engPost('routetable', { mode: b.dataset.mode }));
   const pv = $('#paths-vanilla');
   if (pv) pv.onclick = () => engPost('routetable', { revert: 1 });
-  const nk = $('#nomad-kills'), nag = $('#nomad-nag');
-  if (nk && nag) {
-    // Toggled on the node rather than through `render`, which would rebuild
+  const nk = $('#nomad-kills'), nag = $('#nomad-nag'), flip = $('#nomad-flip');
+  if (nk && nag && flip) {
+    // Toggled on the nodes rather than through `render`, which would rebuild
     // the field and take the cursor with it.
-    const check = () => { nag.hidden = !(Number(nk.value) > 0 &&
-                                         Number(nk.value) < eng.nomads.floor); };
+    const check = () => {
+      const v = Number(nk.value);
+      nag.hidden = !(v && Math.abs(v) < eng.nomads.floor);
+      flip.hidden = !(v < 0);
+    };
     nk.addEventListener('input', check);
     check();
     const set = $('#nomad-set');
     if (set) set.onclick = () => {
       const want = Number(nk.value);
-      if (!(want > 0)) { engSaid = 'a count above zero, or VANILLA'; render(); return; }
+      if (!want) { engSaid = 'a count, or VANILLA for none'; render(); return; }
       engPost('empathy', { kills: want });
     };
   }

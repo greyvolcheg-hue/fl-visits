@@ -323,12 +323,17 @@ def _set_empathy(ctx, sent):
         em.read(ctx.game.dir)
     if not kills:
         return f"{touched} factions back to indifferent"
-    said = (f"{touched} factions, {kills:.0f} Nomads from neutral to friendly; "
-            f"read at startup, so restart the game")
-    if kills < em.SOFT_FLOOR:
-        said += (f". That is under {em.SOFT_FLOOR}, which is cheap enough that "
-                 f"the ordinary endgame stops being worth flying. Your call.")
-    return said
+    # Assembled from whole sentences and joined once, because appending
+    # already-punctuated clauses is how a message grows a double full stop.
+    where = "friendly" if kills > 0 else "hostile"
+    said = [f"{touched} factions, {abs(kills):.0f} Nomads from neutral to "
+            f"{where}; read at startup, so restart the game"]
+    if kills < 0:
+        said.append("Sirius will mourn every one of them")
+    if abs(kills) < em.SOFT_FLOOR:
+        said.append(f"That is under {em.SOFT_FLOOR}, fast enough that the "
+                    f"ordinary endgame stops being worth flying, and your call")
+    return ". ".join(said)
 
 
 def _set_allhacks(ctx, _sent):

@@ -1609,6 +1609,18 @@ and becomes a button that hands out standing, which is the thing this is
 deliberately not. Anyone who wants that is allowed to have it. A refusal would
 only teach them to edit the file by hand, and it is their game.
 
+**It refused 2 for a while, and the guard was mine.** Anything outside `-1.0`
+to `0.0` was rejected, on the reasoning that the shipped rates stop at `-0.45`.
+That is a fact about the file and not a limit of the format, and it quietly
+made every count under ten impossible while the message talked about positive
+rates, which was not what it was rejecting. Two kills asks for `-8.33` and
+there is nothing wrong with it.
+
+**The sign is the direction and nothing is refused now**, at the owner's call,
+because a positive rate is both coherent and funny: `-400` is four hundred
+Nomads from neutral to **hostile**, with all of Sirius mourning every one you
+shoot. The only refusal left is a value that is not a number.
+
 The span comes from `reputation.GOALS`, which is `0.5`, rather than being typed
 here, so it cannot drift from the number the Reputation tab uses.
 

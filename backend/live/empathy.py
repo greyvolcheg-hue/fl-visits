@@ -82,11 +82,12 @@ DOUBLES = ("fc_ln_grp", "fc_kn_grp", "fc_rn_grp")
 # number he reasons in, and a wing is not a fixed thing anyway.
 KILLS = (100, 200, 400, 800, 1600)
 
-# **A nudge, not a rule.** Below this the grind stops being an alternative to
-# the ordinary endgame and becomes a button that hands out standing, which is
-# the thing this feature is deliberately not. Anyone who wants that anyway is
-# allowed to have it: it is their game, and a refusal here would only teach
-# them to edit the file by hand.
+# **A nudge, not a rule**, and it reads the magnitude, not the sign. Below this
+# the grind stops being an alternative to the ordinary endgame and becomes a
+# button that hands out standing, which is the thing this feature is
+# deliberately not. Anyone who wants that anyway is allowed to have it: it is
+# their game, and a refusal here would only teach them to edit the file by
+# hand. **Nothing at all is refused now except a value that is not a number.**
 SOFT_FLOOR = 100
 
 
@@ -100,15 +101,22 @@ def span():
 
 
 def rate_for(kills, kill):
-    """The empathy rate that makes `kills` ships the journey to friendly."""
+    """The empathy rate that makes `kills` ships the journey to friendly.
+
+    **The sign is the direction and the magnitude is the distance.** A negative
+    count runs the same journey the other way: 400 is four hundred Nomads from
+    neutral to friendly, and -400 is four hundred from neutral to hostile,
+    which is Sirius deciding it liked the Nomads after all. That is allowed on
+    purpose.
+    """
     if not kills or not kill:
         return 0.0
     return -(span() / kills) / abs(kill)
 
 
 def kills_for(rate, kill):
-    """How many ships that rate asks for, or None when it asks for none."""
-    per = abs(rate * kill)
+    """How many ships that rate asks for, signed, or None when it asks none."""
+    per = rate * kill
     return None if not per else span() / per
 
 
@@ -203,11 +211,12 @@ def write(kills=None, game_dir=None, rate=None):
     # and not a limit of the format, and it quietly made every count under ten
     # kills impossible while the message talked about positive rates. Two kills
     # asks for -8.33 and there is nothing wrong with it.
-    if rate > 0 or rate != rate or rate in (float("inf"), float("-inf")):
-        raise WriteFailed(
-            f"{rate:g} is not a rate this can use. It has to be zero or "
-            f"negative: a positive one would make every faction hate you for "
-            f"killing Nomads.")
+    # **Only what cannot be written is refused.** A positive rate is kept, at
+    # the owner's call, because it is funny and it is coherent: it makes all of
+    # Sirius mourn every Nomad you shoot. What is left to refuse is a number
+    # that is not a number.
+    if rate != rate or rate in (float("inf"), float("-inf")):
+        raise WriteFailed(f"{rate!r} is not a number this can write")
     sections = bini.decode(open(_shipped(game_dir), "rb").read())
     found = _group(sections)
     if not found:
@@ -269,8 +278,9 @@ def main():
         elif not rate:
             print("  every other faction moves by 0.0000: nobody cares")
         else:
-            print(f"  every other faction gains {kill * rate:+.5f}, so "
-                  f"{kills:.0f} Nomads from neutral to friendly")
+            where = "friendly" if kills > 0 else "hostile"
+            print(f"  every other faction moves {kill * rate:+.5f}, so "
+                  f"{abs(kills):.0f} Nomads from neutral to {where}")
         for who in DOUBLES:
             got = state["rates"].get(who, 0.0)
             print(f"  {who:<11} loses {kill * got:+.4f}, a story double, "
