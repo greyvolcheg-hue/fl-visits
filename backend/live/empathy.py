@@ -192,11 +192,22 @@ def write(kills=None, game_dir=None, rate=None):
         kill = read(game_dir)["kill"]
         rate = rate_for(float(kills), kill)
     rate = float(rate)
-    if not -1.0 <= rate <= 0.0:
+    # **Only what is actually wrong is refused.** A positive rate is the
+    # opposite of this feature: it would make everyone hate you for killing
+    # Nomads, which the game already arranges for the three story doubles. A
+    # steep negative rate is not wrong, it is only fast, and `SOFT_FLOOR` is
+    # where that gets said.
+    #
+    # The first version also refused anything below -1.0, on the reasoning that
+    # the game's own rates stop at -0.45. That is a fact about the shipped file
+    # and not a limit of the format, and it quietly made every count under ten
+    # kills impossible while the message talked about positive rates. Two kills
+    # asks for -8.33 and there is nothing wrong with it.
+    if rate > 0 or rate != rate or rate in (float("inf"), float("-inf")):
         raise WriteFailed(
-            f"{rate:g} is outside -1.0 to 0.0. A positive rate would make "
-            f"everyone hate you for killing Nomads, which the game already "
-            f"does for the three story doubles.")
+            f"{rate:g} is not a rate this can use. It has to be zero or "
+            f"negative: a positive one would make every faction hate you for "
+            f"killing Nomads.")
     sections = bini.decode(open(_shipped(game_dir), "rb").read())
     found = _group(sections)
     if not found:

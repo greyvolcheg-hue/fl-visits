@@ -289,7 +289,9 @@ function engNomads() {
     // being typed, because `paint` compares the markup it wrote and the `value`
     // attribute does not change while a field is edited.
     '<div class="reppick csrow">' +
-    `<input type="number" id="nomad-kills" min="1" step="10" ` +
+    // `step="1"`, not 10: with a step of ten and a minimum of one the field
+    // itself called 2 invalid, which is the control arguing with the setting.
+    `<input type="number" id="nomad-kills" min="1" step="1" ` +
     `value="${n.kills || 400}">` +
     `<span class="sys">Nomads</span>` +
     `<span class="nag" id="nomad-nag" hidden>under ${n.floor} is cheap ` +
