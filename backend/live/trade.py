@@ -84,6 +84,7 @@ import struct
 import sys
 import tempfile
 import threading
+import time
 
 from . import proc
 from ..game import flvisits as fl
@@ -115,14 +116,18 @@ SPAN = rep.GOALS["friend"] - rep.GOALS["neutral"]
 # his game.
 SOFT_FLOOR = 250_000
 
-# **The most one transaction may move the faction you traded with.** Without
-# it a single hold of something expensive swings a standing across the whole
-# range in one docking, which the owner asked for explicitly: *"чтобы за раз
-# не ебануть репу с минимума на максимум"*. A tenth of the neutral-to-friendly
-# span means at least ten separate trades to cross it however rich the cargo.
-# The whole spread is scaled by the same factor when it bites, so the ratios
-# between factions stay exactly as the empathy table says.
-MAX_STEP = SPAN / 10
+# **The most one transaction may move the faction you traded with, or None
+# for no limit.** It was `SPAN / 10` until the numbers were on the table:
+# the biggest hold a player can buy is a Dromedary's 275, the dearest cargo is
+# Alien Organisms at 2000, so the largest single trade in the game is 550,000
+# credits of value and asks for +0.0917, which is 18% of neutral-to-friendly.
+# The cap turned 5.5 maximum loads into 10 and did nothing at all below
+# 300,000, which is every ordinary run. The owner read that and took it off.
+#
+# `capped` still exists and still scales the whole spread by one factor rather
+# than clipping each faction, because a limit that reshapes the relationships
+# would be worse than none. Setting this to a number turns it back on.
+MAX_STEP = None
 
 
 class NotFound(Exception):
@@ -167,9 +172,11 @@ def capped(moves, doer):
     Scaling the whole dict by one factor rather than clipping each entry is
     what keeps the empathy ratios intact: a capped trade is a smaller trade,
     not a differently-shaped one.
+
+    `MAX_STEP` of None is no limit, which is where the owner left it.
     """
     step = abs(moves.get(doer, 0.0))
-    if step <= MAX_STEP or step == 0:
+    if MAX_STEP is None or step <= MAX_STEP or step == 0:
         return moves, 1.0
     factor = MAX_STEP / step
     return {k: v * factor for k, v in moves.items()}, factor
@@ -588,6 +595,7 @@ class Watcher:
         self.tables, self.anchor = [], None
         self.last_base, self.last_hold = None, None
         self.history = []
+        self.trace = []
         self.error = None
         self._stop = threading.Event()
         self._thread = None
@@ -601,6 +609,7 @@ class Watcher:
             # In space. Whatever the hold was at the last base is history, and
             # keeping it would bill the next dock for the journey.
             self.last_base, self.last_hold, self.anchor = None, None, None
+            self._note(None, None, {}, False, False)
             return None
         standings = rep.player_reps(saved)
 
@@ -611,22 +620,37 @@ class Watcher:
             self.tables = locate_standings(self.pid, standings,
                                            self.model.order)
 
-        # **The cargo array is found again on every tick, never cached.** It
-        # moves: the first version of this held one address from the first dock
-        # and saw nothing ever again, because a dead copy still answers reads
-        # and so never looked stale. A fresh locate is 0.68s and only runs
-        # while docked, which is a small slice of playing.
-        anchor = locate_hold(self.pid, save_cargo(saved))[0]
+        # **The anchor is chosen once per docking, and then left alone.**
+        # Both halves of that are paid for:
+        #
+        #   Caching it across dockings failed, because the array moves. One
+        #   address held from the first dock saw nothing ever again, since a
+        #   dead copy answers reads perfectly well and so never looks stale.
+        #
+        #   Re-choosing it every tick failed too, and more subtly. Candidates
+        #   are ranked against the save, the game rewrites the save when you
+        #   trade, so **the event being watched for is itself what changes the
+        #   ranking**. The anchor moved at the exact moment of the sale, the
+        #   tick saw a different address, re-baselined, and billed nothing.
+        #
+        # Docking is the moment when the save is fresh and the ranking is
+        # trustworthy, and it is the only moment the array is known to move.
+        if base != self.last_base or self.anchor is None:
+            self.anchor = locate_hold(self.pid, save_cargo(saved))[0]
+            self.last_hold = None
+        elif not _raw_entries(self.pid, self.anchor):
+            # It went away under us mid-docking. Re-find and start again rather
+            # than read whatever now lives there.
+            self.anchor = locate_hold(self.pid, save_cargo(saved))[0]
+            self.last_hold = None
+        anchor = self.anchor
         hold = read_hold(self.pid, anchor, self.names)
 
-        # **Only ever diff two reads of the same array.** If the anchor moved,
-        # or this is a new dock, the previous reading describes a different
-        # object and subtracting one from the other would invent a trade. The
-        # cost of re-baselining is one missed diff; the cost of not doing it is
-        # standing handed out for a trade nobody made.
+        # **Only ever diff two reads of the same array at the same base.** A
+        # fresh anchor has no predecessor, and the cost of re-baselining is one
+        # missed diff against standing handed out for a trade nobody made.
         done = None
-        same = (self.last_hold is not None and self.last_base == base
-                and self.anchor == anchor)
+        same = (self.last_hold is not None and self.last_base == base)
         if same:
             value, skipped = turnover(self.last_hold, hold,
                                       prices_at(self.rows, base))
@@ -640,7 +664,22 @@ class Watcher:
                 self.history.insert(0, done)
                 del self.history[8:]
         self.last_base, self.last_hold, self.anchor = base, hold, anchor
+        self._note(base, anchor, hold, same, done)
         return done
+
+    def _note(self, base, anchor, hold, diffed, billed):
+        """**A tick that does nothing has to be able to say why.**
+
+        Two rounds of debugging were spent guessing from an empty history,
+        which only ever reports the ticks that fired. This reports the ones
+        that did not, which is where both bugs were.
+        """
+        self.trace.insert(0, {
+            "at": time.strftime("%H:%M:%S"), "base": base,
+            "anchor": None if anchor is None else f"{anchor:#x}",
+            "hold": dict(hold), "diffed": bool(diffed),
+            "billed": bool(billed)})
+        del self.trace[12:]
 
     # -- the thread --------------------------------------------------------
 

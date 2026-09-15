@@ -247,16 +247,17 @@ def _trade(ctx):
     body["rate"] = td.rate_for(setting["credits"])
     body["cap"] = td.MAX_STEP
     body["floor"] = td.SOFT_FLOOR
-    body["least"] = round(td.SPAN / td.MAX_STEP)
+    body["least"] = None if td.MAX_STEP is None else round(td.SPAN / td.MAX_STEP)
     try:
         w = _watcher(ctx)
         body["running"] = w.running()
         body["error"] = w.error
         body["base"] = w.last_base
         body["history"] = w.history
+        body["trace"] = w.trace
     except Exception as exc:                               # noqa: BLE001
         body.update(running=False, error=f"{type(exc).__name__}: {exc}",
-                    base=None, history=[])
+                    base=None, history=[], trace=[])
     return body
 
 
@@ -376,9 +377,10 @@ def _set_trade(ctx, sent):
     else:
         w.stop()
 
-    said = [f"{setting['credits']:,} credits of trade from neutral to friendly",
-            f"one trade capped at {td.MAX_STEP:+.3f}, so "
-            f"{round(td.SPAN / td.MAX_STEP)} trades at least"]
+    said = [f"{setting['credits']:,} credits of trade from neutral to friendly"]
+    if td.MAX_STEP is not None:
+        said.append(f"one trade capped at {td.MAX_STEP:+.3f}, so "
+                    f"{round(td.SPAN / td.MAX_STEP)} trades at least")
     said.append("watching" if setting["on"] else "not watching")
     if setting["credits"] < td.SOFT_FLOOR:
         said.append(f"That is under {td.SOFT_FLOOR:,}, about one good run, "

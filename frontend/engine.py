@@ -294,8 +294,11 @@ function engTrade() {
     `<span class="nag" id="trade-nag" hidden>under ${t.floor.toLocaleString()}` +
     ' is about one good run, which is a handout rather than a grind</span>' +
     '</div>' +
-    `<div class="from">one trade is capped at ${t.cap.toFixed(3)}, so at ` +
-    `least ${t.least} separate trades to cross it however rich the cargo` +
+    '<div class="from">' + (t.cap
+      ? `one trade is capped at ${t.cap.toFixed(3)}, so at least ${t.least} ` +
+        'separate trades to cross it however rich the cargo'
+      : 'no cap on a single trade: the largest one the game allows, a full ' +
+        'Dromedary of Alien Organisms, is 550,000 credits of value') +
     (t.base ? `. Docked at ${esc(t.base)}` : '') + '</div>' +
     (last ? `<div class="from">last: ${esc(last.faction)} ` +
       `${last.step >= 0 ? '+' : ''}${last.step.toFixed(4)} for ` +
