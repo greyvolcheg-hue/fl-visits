@@ -12,8 +12,6 @@ surveys 153 files on disk and the strip is polled every five seconds whether
 or not anyone has opened the drawer.
 """
 
-import threading
-
 from .live import callsign as cs
 from .live import dockdist as dkd
 from .live import routetable as rt
@@ -221,25 +219,6 @@ def _engine(ctx):
 # `_table` raises on a repeat now rather than picking by import order.
 
 
-# **One watcher for the whole server, not one per request.** The hold only
-# exists in the running game between saves, so something has to be looking at
-# it continuously; a per-request object would see one frame and never a change.
-# It is built on first use because building it reads the game's data.
-_WATCH = {"it": None}
-_watch_lock = threading.Lock()
-
-
-def _watcher(ctx):
-    with _watch_lock:
-        if _WATCH["it"] is None:
-            _WATCH["it"] = td.Watcher(
-                ctx.game.dir, lambda: ctx.save, ctx.game.repmodel,
-                ctx.game.market[0], ctx.game.market[1], ctx.game.owners)
-            if td.load_setting()["on"]:
-                _WATCH["it"].start()
-        return _WATCH["it"]
-
-
 def _trade(ctx):
     """What trading is currently worth, and what it has done lately."""
     setting = td.load_setting()
@@ -249,7 +228,7 @@ def _trade(ctx):
     body["floor"] = td.SOFT_FLOOR
     body["least"] = None if td.MAX_STEP is None else round(td.SPAN / td.MAX_STEP)
     try:
-        w = _watcher(ctx)
+        w = td.watcher(ctx.game, lambda: ctx.save)
         body["running"] = w.running()
         body["error"] = w.error
         body["base"] = w.last_base
@@ -371,7 +350,7 @@ def _set_trade(ctx, sent):
         setting["on"] = bool(sent["on"])
     td.save_setting(setting)
 
-    w = _watcher(ctx)
+    w = td.watcher(ctx.game, lambda: ctx.save)
     if setting["on"]:
         w.start()
     else:

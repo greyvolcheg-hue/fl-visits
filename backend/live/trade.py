@@ -847,3 +847,28 @@ def base_owners(game_dir):
     than reaching into a `Ctx` it does not own.
     """
     return bases.base_owners(fl.ipath(game_dir, "DATA"), fl.system_files)
+
+
+# --- the one watcher this server runs -------------------------------------
+
+_WATCH = {"it": None}
+_watch_lock = threading.Lock()
+
+
+def watcher(game, save_for):
+    """The server's single watcher, built on first ask.
+
+    **One per server, not one per request.** The hold has to be followed
+    across ticks, and an object built per request would see one frame and
+    never a change. It lives here rather than in `backend/engine.py` because
+    `serve.py` starts it at boot, before any tab has been opened: a feature
+    that only begins working once you visit the right tab is a feature that
+    looks broken.
+    """
+    with _watch_lock:
+        if _WATCH["it"] is None:
+            _WATCH["it"] = Watcher(game.dir, save_for, game.repmodel,
+                                   game.market[0], game.market[1], game.owners)
+            if load_setting()["on"]:
+                _WATCH["it"].start()
+        return _WATCH["it"]

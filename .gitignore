@@ -14,3 +14,7 @@ m01a-backup-*.tar
 
 # The reader's own star and read marks. Personal state, not the tool.
 data/marks.json
+
+# Whether the trade watcher is on and how long the grind is. Personal state,
+# the same as the marks above.
+data/trade.json

@@ -47,6 +47,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/game/jumps.py` | every jump between systems, and the shortest way through them |
 | `data/story-states.txt` | the 42 story states in order. `MissionNum` in a save indexes this |
 | `data/marks.json` | which log entries are starred and read. **Untracked**: personal state |
+| `data/trade.json` | the credits-to-friendly figure and whether the watcher is on. **Untracked**: personal state |
 | `backend/live/proc.py` | the only code that touches another process. Picks its implementation at import |
 | `backend/live/proc_linux.py` | `/proc/<pid>/{maps,mem}` |
 | `backend/live/proc_windows.py` | `ReadProcessMemory` and friends. **Never run** |
@@ -62,6 +63,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/live/levels.py` | the level ladder in `ptough.ini`, and how far it goes |
 | `backend/live/callsign.py` | what the bots call you: four words patched into `content.dll` |
 | `backend/live/empathy.py` | what killing a Nomad is worth to the other 51 factions |
+| `backend/live/trade.py` | trading for standing: follows the hold, prices it, writes the result |
 | `backend/live/newgame.py` | what a new game starts you in |
 | `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
 | `design/` | the visual design, as a Claude Design canvas. The source the page is built from, not a screenshot of it. |
@@ -1756,6 +1758,132 @@ answer if it will not start. And what else the curve drives: the game calls it
 `PlayerToughnessScale`, so it very likely also decides how tough the world
 thinks you are, which would mean a stretched ladder makes encounters harder.
 That is a reading of the name and the shape, not a measurement.
+
+## Settled: trading moves reputation, and the engine could never have done it
+
+Closed 2026-09-15 on the owner's observation that hauling ten million credits
+through a Liberty station leaves everyone there indifferent.
+
+**It cannot be a data edit, and the binary says so.** The parser's own keyword
+pool for `[RepChangeEffects]` sits in `DLLS/BIN/content.dll` at file offset
+`0x11a860` and reads, in order: `MarketGood`, `FactionGood`,
+`random_mission_abortion`, `random_mission_failure`, `random_mission_success`,
+`object_destruction`, `event`, `group`, `empathy_rate`, `RepChangeEffects`.
+Four events, no fifth. A line added to `empathy.ini` would name a word the
+parser does not know.
+
+So `live/trade.py` does it from outside, the way the Engine tab does cruise
+speed, and writes no game file: standing lives in the save, so a value written
+into the running game is kept the next time the game saves.
+
+### The size of a trade is cargo times price, never the credit balance
+
+**The owner's correction, and it is what makes the feature honest.** One visit
+to a base can also sell a gun, pay for repairs and collect a bounty. Sizing a
+trade by what the balance did would count all of it, silently. So the balance is
+not used for the amount at all: the value is the units that moved times what
+that base pays for them. Both directions count, because being a customer is
+business either way.
+
+**A base pays for something it does not stock, and that is measured.** You can
+sell anything anywhere in Freelancer, just badly. Ten Superconductors sold at
+Planet New Berlin, which does not list them, moved the balance 301,186 to
+302,186: 100.00 a unit, exactly the price `goods.ini` carries and exactly a
+seventh of the 700 Oder Shipyard pays two jumps away. `market.base_prices` is
+that walk, lifted out of `load_market` rather than repeated.
+
+### What is in memory, and the order that nearly ruined it
+
+The standings are 55 entries of 8 bytes, the `float32` first, in **the order
+`initialworld.ini` declares its groups**. Many copies exist, 0x1b8 apart.
+
+**Not `empathy.ini`'s order.** The two files open with the same factions and
+diverge about a quarter of the way down, so a wrong reading looks right for
+twenty slots. Measured against the running game: `initialworld.ini` agrees with
+55 of 55, `empathy.ini` with 23. It would not have failed, it would have
+written a correct number onto the wrong faction. `rep.Model` carries `order`
+from the pass it already made.
+
+**Clamp a write at the engine's limit, ±1.0, and never at `reputation.BOUND`.**
+That constant is 0.9 because it is the Reputation tab's planning bound. Across
+the 224 saves on this disk the range runs the full ±1.0 and **172 standings sit
+above 0.9**, so clamping a write there drags every one of them down. It did: a
+52,500 credit trade asking the Junkers for +0.00875 set four factions to exactly
+0.9, a loss six times the intended gain, pointing the wrong way.
+
+**Which copy is authoritative is unknown and does not matter.** All of them are
+written and the game reads one: of 21 live copies after a verified write, 18
+matched the save exactly and 3 were stale.
+
+### The hold comes from the save, and getting there cost three wrong answers
+
+The plan said to watch memory, on the assumption that a save is written only on
+docking. **Freelancer writes it on the transaction**, four times out of four.
+
+Reading the hold from memory failed three times, and all three are the same
+mistake in different clothes, worth writing down because each looked like the
+fix for the last:
+
+  * **a cached address.** The cargo array moves between dockings, and a dead
+    copy answers reads perfectly well, so it never looked stale;
+  * **re-ranking every tick.** Candidates are scored against the save, the game
+    rewrites the save when you trade, so the event being watched for is itself
+    what changes the ranking;
+  * **taking the vote of every copy.** Better, and still wrong, because the
+    candidate set was pinned when the cargo was still aboard and the stale
+    copies keep it.
+
+Ranking copies by how well they match the save picks the worst one for this job
+**by construction**: a copy that has stopped updating matches a save written
+before the trade exactly. The save has one copy and the game keeps it correct.
+
+**But no save is written on docking**, so the hold is tracked continuously,
+across flight as well, and the base only decides whether a change may be
+billed rather than when the count starts.
+
+### Salvage, decay and loot are not trade, and the balance says which
+
+Tracking through flight means a hold that grew from a wreck looks like one that
+grew from a purchase. A purchase costs credits and salvage does not, and the
+save carries the balance beside the cargo. A change the money does not account
+for moves the baseline and bills nothing. The same guard catches perishable
+cargo rotting: the owner's Alien Organisms lost a unit every few minutes and
+every loss would otherwise have read as a sale.
+
+### Two traps when checking it, both of which read as bugs
+
+**The change lands in the next save, not the one that caused it.** This reacts
+to the file, so the write is a second later than the save that triggered it.
+Diffing the two saves either side of a trade shows nothing moved. That is
+correct behaviour and it was reported as a failure first.
+
+**Compare standings at 1e-6, never tighter.** They are `float32` in memory and
+`float64` out of a save, so an exact comparison calls 47 of 55 different when
+every difference prints as `+0.00000`.
+
+### Verified end to end
+
+Sixty Superconductors at Oder Shipyard for the 42,000 the base lists:
+
+    Rheinland Military   +0.01456 -> +0.02156    +0.00700   the billed step
+    Rheinland Police     +0.01467 -> +0.01712    +0.00245
+    Red Hessians         -0.61762 -> -0.62007    -0.00245
+    Bundschuh            -0.28254 -> -0.28534    -0.00280
+
+Rheinland and its corporations up, the pirates down, 47 of 55 factions moved,
+all of it out of the empathy table, and the step is exactly what the rate asks.
+
+**There is no cap on a single trade**, removed at the owner's call once the
+numbers were on the table: the biggest hold a player can buy is a Dromedary's
+275 and the dearest cargo is Alien Organisms at 2000, so the largest trade the
+game allows is 550,000 credits and asks for +0.0917, 18% of neutral to
+friendly. A cap at a tenth of the span turned 5.5 maximum loads into 10 and did
+nothing below 300,000, which is every ordinary run. `MAX_STEP` is `None` and
+setting it to a number turns it back on.
+
+**It only counts while the server is running**, which `serve.py` starts at boot
+rather than on the first request: a feature that begins working only once you
+open the right tab is a feature that looks broken.
 
 ## Settled: nobody in Sirius cares that you kill Nomads, and it is one number
 

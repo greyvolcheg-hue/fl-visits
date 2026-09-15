@@ -37,6 +37,7 @@ import frontend  # noqa: E402
 import tabs  # noqa: E402
 from backend.common import Ctx, GameData  # noqa: E402
 from backend.game import flvisits as fl  # noqa: E402
+from backend.live import trade as td  # noqa: E402
 
 SAVE_TAIL = os.path.join(
     "drive_c", "users", "*", "Documents", "My Games",
@@ -279,6 +280,13 @@ def main():
     print(f"following {save}")
     url = f"http://{args.host}:{args.port}/"
     print(url)
+
+    # **Start the trade watcher here, not on the first request.** It follows
+    # the hold across ticks to bill a trade, so it has to be running while the
+    # game is played rather than while a particular tab is open. Costs nothing
+    # when the setting is off: it is built and left stopped.
+    watching = td.watcher(game, lambda: save)
+    print("trade watcher: " + ("watching" if watching.running() else "off"))
 
     server.RequestHandlerClass = make_handler(game, save)
     if args.open:
