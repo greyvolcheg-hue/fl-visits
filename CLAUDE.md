@@ -1623,25 +1623,36 @@ memory and needs no file change at all. The only thing this file would still
 affect is how quickly the ring itself spins up, which is a separate complaint
 and has `spin_accel` and `secs_before_enter` beside it if it ever comes up.
 
-**`DATA/MISSIONS/M13/m13.ini` has the end-of-campaign reputation reset zeroed,
-and this is the second time it has been applied.** The `[Trigger]` named
-`enter_bar` fires on walking into the bar at the end of M13 and hard-sets 47
-reputations: Liberty 0.91, a band of factions 0.65, pirates -0.3 and -0.65, and
-17 already at 0. That is the game overwriting every relationship you spent the
-campaign building. All 47 now read 0.0, so the story ends on neutral.
+**`DATA/MISSIONS/M13/m13.ini` is back to vanilla as of 2026-09-15**, at the
+owner's call: *"нейтраль со всеми после окончания игры это скучно"*. The
+`[Trigger]` named `enter_bar` fires on walking into the bar at the end of M13
+and hard-sets 47 reputations: Liberty Navy and LSF 0.91, seven factions 0.65,
+twelve at -0.3, eight at -0.65 and seventeen already at 0. Read back after the
+restore, that is exactly what the file says again.
 
-**It was applied once before and vanished without trace.** On 2026-09-02 the
-file was written back to vanilla content, mtime 21:31, later than the `.vanilla`
-copy taken on 09-01, and nothing in this repo records what did it. There is no
-module for this edit: it was a one-off then and a one-off again on 2026-09-09 at
-the owner's call, which is why it gets a paragraph here instead. **If the
-reputations come back at the end of a campaign, check this file first** rather
-than looking for a bug in the reputation model.
+**It had been zeroed twice, so that the story ended on neutral**, on 2026-09-02
+and again on 2026-09-09. The reasoning was that the trigger overwrites every
+relationship you spent the campaign building. Played, it turned out to make the
+endgame flat: with nobody liking or hating you there is nothing to trade off,
+which is the whole texture of the post-campaign game.
 
-Re-applying it is a decode, zero every numeric third field of `Act_SetRep` in
-that one trigger, re-encode through `persist._save`, which refuses to write
-unless the round trip is identical. Leave the `Act_SetRep` entries in the other
-triggers alone: theirs are symbols like `REP_FRIEND_THRESHOLD`, not numbers.
+**The zeroed version is parked as `m13.ini.neutral` beside the file.** There is
+no module for this edit and it exists nowhere else; the first time it was
+applied it vanished without trace, mtime 21:31 on 09-02 against a `.vanilla`
+taken on 09-01, with nothing in this repo recording what did it. A third
+hand-application would have been a third reconstruction, so the bytes are kept.
+Restoring either direction is a copy, through `persist.write_raw` so the mode
+survives.
+
+**If the reputations behave unexpectedly at the end of a campaign, check which
+of the three files is in place first** (`m13.ini`, `.vanilla`, `.neutral`)
+rather than looking for a bug in the reputation model.
+
+Making it neutral again is a decode, zero every numeric third field of
+`Act_SetRep` in that one trigger, re-encode through `persist._save`, which
+refuses to write unless the round trip is identical. Leave the `Act_SetRep`
+entries in the other triggers alone: theirs are symbols like
+`REP_FRIEND_THRESHOLD`, not numbers.
 
 Also worth knowing when reading these files: `CRUISING_SPEED` in
 `constants.ini` currently says 5000.0, written by the Engine tab's persist
@@ -1814,9 +1825,19 @@ here, so it cannot drift from the number the Reputation tab uses.
 
 **Measured against the owner's own save, which is what made the size real.**
 Fifty of his 55 standings sit at exactly `0.0000`, because the end-of-campaign
-reputation reset in `m13.ini` was zeroed (see *Changes made to this install by
-hand*). So `0 -> +0.5 for fifty factions at once` is not a hypothetical span,
-it is precisely his position, and it is what the wings are counted against.
+reputation reset in `m13.ini` was zeroed at the time (see *Changes made to this
+install by hand*). So `0 -> +0.5 for fifty factions at once` is not a
+hypothetical span, it is precisely his position, and it is what the kill count
+is measured against.
+
+**`m13.ini` went back to vanilla on 2026-09-15, which changes the calibration
+for any campaign finished after that and not for the save above.** A vanilla
+ending leaves Liberty at 0.91 and eight factions at -0.65, so the journey to
+friendly is shorter for some and much longer for others, and there is no single
+span any more. The count this feature asks for is still the honest control; it
+just stops being one number for everybody. Nothing in `empathy.py` needs
+changing, because it derives the span from `reputation.GOALS` rather than from
+where the player happens to stand.
 
 **The three doubles keep their `+1.000`** because they are Nomads wearing a
 navy's colours, and keeping them is what makes the change honest: it is
