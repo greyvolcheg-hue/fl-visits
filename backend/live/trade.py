@@ -404,6 +404,34 @@ def _raw_entries(pid, anchor):
     return out
 
 
+def read_consensus(pid, anchors, goods):
+    """The hold most of the candidate arrays agree on, and how many agreed.
+
+    **No single array is trusted, because picking one is what failed twice.**
+    The game keeps many copies of a hold and some of them are dead snapshots.
+    Ranking them by how well they match the save picks the *worst* one for
+    this job by construction: a snapshot that stopped updating matches a save
+    written before the trade exactly, which is precisely the tick where it
+    must not be believed. That is not a theory, it is what happened at
+    `li03_01_base` on 2026-09-15: the chosen array read an empty hold for
+    fifteen seconds across a purchase, while every other copy had the cargo.
+
+    A dead copy cannot outvote seventeen live ones, so the answer is the one
+    the most arrays give. Ties go to the best-ranked, which keeps it
+    deterministic.
+    """
+    tally, first = {}, {}
+    for a in anchors:
+        got = read_hold(pid, a, goods)
+        key = tuple(sorted(got.items()))
+        tally[key] = tally.get(key, 0) + 1
+        first.setdefault(key, len(first))
+    if not tally:
+        return {}, 0
+    key = max(tally, key=lambda k: (tally[k], -first[k]))
+    return dict(key), tally[key]
+
+
 def read_hold(pid, anchor, goods):
     """{commodity: units} from the cargo array around `anchor`.
 
@@ -592,7 +620,7 @@ class Watcher:
         # static, so it is handed in rather than repeated in this thread.
         self.owners = owners
         self.pid = None
-        self.tables, self.anchor = [], None
+        self.tables, self.anchors = [], []
         self.last_base, self.last_hold = None, None
         self.history = []
         self.trace = []
@@ -608,8 +636,8 @@ class Watcher:
         if not base:
             # In space. Whatever the hold was at the last base is history, and
             # keeping it would bill the next dock for the journey.
-            self.last_base, self.last_hold, self.anchor = None, None, None
-            self._note(None, None, {}, False, False)
+            self.last_base, self.last_hold, self.anchors = None, None, []
+            self._note(None, None, {}, False, False, 0)
             return None
         standings = rep.player_reps(saved)
 
@@ -635,16 +663,17 @@ class Watcher:
         #
         # Docking is the moment when the save is fresh and the ranking is
         # trustworthy, and it is the only moment the array is known to move.
-        if base != self.last_base or self.anchor is None:
-            self.anchor = locate_hold(self.pid, save_cargo(saved))[0]
+        # **The candidate set is found once per docking; the answer is the
+        # vote of all of them on every tick.** Docking is when the save is
+        # fresh and the ranking can be trusted to find the arrays at all, and
+        # it is the only moment they are known to move. Which one is live is
+        # then never decided, because deciding it is what failed: see
+        # `read_consensus`.
+        if base != self.last_base or not self.anchors:
+            self.anchors = locate_hold(self.pid, save_cargo(saved))
             self.last_hold = None
-        elif not _raw_entries(self.pid, self.anchor):
-            # It went away under us mid-docking. Re-find and start again rather
-            # than read whatever now lives there.
-            self.anchor = locate_hold(self.pid, save_cargo(saved))[0]
-            self.last_hold = None
-        anchor = self.anchor
-        hold = read_hold(self.pid, anchor, self.names)
+        hold, agreed = read_consensus(self.pid, self.anchors, self.names)
+        anchor = self.anchors[0]
 
         # **Only ever diff two reads of the same array at the same base.** A
         # fresh anchor has no predecessor, and the cost of re-baselining is one
@@ -663,11 +692,11 @@ class Watcher:
                 done["base"], done["skipped"] = base, skipped
                 self.history.insert(0, done)
                 del self.history[8:]
-        self.last_base, self.last_hold, self.anchor = base, hold, anchor
-        self._note(base, anchor, hold, same, done)
+        self.last_base, self.last_hold = base, hold
+        self._note(base, anchor, hold, same, done, agreed)
         return done
 
-    def _note(self, base, anchor, hold, diffed, billed):
+    def _note(self, base, anchor, hold, diffed, billed, agreed=0):
         """**A tick that does nothing has to be able to say why.**
 
         Two rounds of debugging were spent guessing from an empty history,
@@ -678,7 +707,8 @@ class Watcher:
             "at": time.strftime("%H:%M:%S"), "base": base,
             "anchor": None if anchor is None else f"{anchor:#x}",
             "hold": dict(hold), "diffed": bool(diffed),
-            "billed": bool(billed)})
+            "billed": bool(billed), "agreed": agreed,
+            "of": len(self.anchors)})
         del self.trace[12:]
 
     # -- the thread --------------------------------------------------------
@@ -707,7 +737,7 @@ class Watcher:
                 # and keep waiting rather than killing the thread, because the
                 # next dock is the whole point.
                 self.error = str(exc)
-                self.pid, self.tables, self.anchor = None, [], None
+                self.pid, self.tables, self.anchors = None, [], []
             except Exception as exc:                      # noqa: BLE001
                 self.error = f"{type(exc).__name__}: {exc}"
 
