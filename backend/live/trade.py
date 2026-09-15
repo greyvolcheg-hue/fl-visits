@@ -295,12 +295,23 @@ def read_standings(pid, base, order):
             for i, nick in enumerate(order)}
 
 
+# The game's own limit on a standing, and **not `reputation.BOUND`**, which is
+# 0.9 and is the Reputation tab's planning bound rather than the engine's.
+# Writing with the wrong one is not a rounding difference, it is silent damage:
+# across the 224 saves on this disk the range runs the full -1.0 to +1.0 and
+# **172 standings sit above 0.9**, so clamping a write to 0.9 drags every one
+# of them down. It did, on 2026-09-15: a trade asking the Junkers for +0.00875
+# set four factions to exactly 0.9, which for one already at 0.95 is a loss six
+# times the size of the intended gain, in the opposite direction.
+LIMIT = 1.0
+
+
 def write_standings(pid, base, order, moves, current=None):
     """Add `moves` to the table at `base`. Returns what each faction became.
 
-    Read, add, clamp, write, and only the entries that actually move. The
-    game writes this table too, so touching a faction nobody traded with
-    would be this tool picking a fight it does not need to.
+    Read, add, clamp to what the engine allows, write, and only the entries
+    that actually move. The game writes this table too, so touching a faction
+    nobody traded with would be picking a fight this tool does not need.
     """
     now = current if current is not None else read_standings(pid, base, order)
     became = {}
@@ -308,7 +319,7 @@ def write_standings(pid, base, order, moves, current=None):
         delta = moves.get(nick)
         if not delta:
             continue
-        value = rep.clamp(now[nick] + delta)
+        value = max(-LIMIT, min(LIMIT, now[nick] + delta))
         proc.write(pid, base + i * ENTRY, struct.pack("<f", value))
         became[nick] = value
     return became
