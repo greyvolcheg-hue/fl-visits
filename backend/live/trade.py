@@ -72,8 +72,35 @@ a file this tool reads every five seconds would be work for nothing.
 for some factions and small integers for others. Nothing here reads or writes
 it.
 
-**Which of the four standing tables is authoritative is not known.** Until it
-is measured, `locate_standings` returns all of them and the caller decides.
+**Which standing table is authoritative is still not known, and no longer
+matters.** Every copy found is written, and the game reads one of them: proved
+on 2026-09-15 by a save taken after a write, which carried the change. Of the
+21 copies live at that moment, 18 matched the save exactly and 3 were stale.
+
+## Verified end to end on 2026-09-15
+
+Sixty Superconductors sold at Oder Shipyard for 42,000 credits, which is the
+60 x 700 the base lists:
+
+    Rheinland Military   +0.01456 -> +0.02156    +0.00700   the billed step
+    Rheinland Police     +0.01467 -> +0.01712    +0.00245
+    Red Hessians         -0.61762 -> -0.62007    -0.00245
+    Bundschuh            -0.28254 -> -0.28534    -0.00280
+
+Rheinland and its corporations up, the pirates down, all of it out of the
+empathy table. 47 of 55 factions moved and the step is exactly what the rate
+asks for.
+
+**The change lands in the next save, not the one that caused it.** This reacts
+to the file, so the write is a second later than the save that triggered it.
+Quitting immediately after a sale without saving again loses that trade's
+standing. Said here because it looks like a bug the first time you diff the
+two saves either side of a trade and find nothing, which is what happened.
+
+**Compare standings with a tolerance of 1e-6, never tighter.** They are float32
+in memory and float64 once parsed out of a save, so an exact comparison reports
+47 of 55 "differences" that are all `+0.00000`. That was briefly read as a
+second billing.
 """
 
 import argparse
