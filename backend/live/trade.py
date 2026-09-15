@@ -191,28 +191,38 @@ def prices_at(rows, base_id):
             if r["base"]["id"].lower() == key}
 
 
-def turnover(before, after, prices):
+def turnover(before, after, prices, fallback=None):
     """What moved, valued at this base's own prices.
 
     Bought and sold both count and both count positive: the owner asked for
     *"за каждый купленный или проданный кредит"*, and being a customer is
     business either way.
 
-    A commodity this base does not trade is skipped rather than guessed at. It
-    cannot have been bought or sold here, so units of it moving means something
-    else happened to the hold, and inventing a price for it would be inventing
-    a trade.
+    **A commodity the base does not list still sells, at the commodity's own
+    price.** This skipped those at first, on the reasoning that a good absent
+    from a base's market cannot have been traded there. That is not how the
+    game works, and the owner said so from playing it: *"я тебе и так могу
+    сказать что даст, просто по невыгодной цене"*. Skipping it meant a real
+    sale billing nothing, which is the same silence as a bug.
+
+    `fallback` is `market.base_prices`, the figure before any base multiplier,
+    and 100 against a listed 700 for Superconductors is exactly the bad price
+    he described. `skipped` now reports what was valued that way rather than
+    what was dropped, because a caller still wants to know the trade was priced
+    off the list.
     """
-    moved, skipped = 0, []
+    fallback = fallback or {}
+    moved, guessed = 0, []
     for nick in set(before) | set(after):
         units = abs(after.get(nick, 0) - before.get(nick, 0))
         if not units:
             continue
-        if nick not in prices:
-            skipped.append(nick)
-            continue
-        moved += units * prices[nick]
-    return moved, skipped
+        if nick in prices:
+            moved += units * prices[nick]
+        elif nick in fallback:
+            moved += units * fallback[nick]
+            guessed.append(nick)
+    return moved, guessed
 
 
 # --- finding things in the running game ------------------------------------
@@ -639,6 +649,9 @@ class Watcher:
         # `GameData` already walked every system for these and the walk is
         # static, so it is handed in rather than repeated in this thread.
         self.owners = owners
+        # What a base pays for something it does not stock. Read once: it is
+        # the same file the market itself is built from.
+        self.base_price = market.base_prices(game_dir)
         self.pid = None
         self.tables = []
         self.stamp = None
@@ -709,9 +722,10 @@ class Watcher:
 
     def _bill(self, saved, base, hold, money):
         """Charge the hold change to this base, or say why not."""
-        value, skipped = turnover(self.last_hold, hold, prices_at(self.rows, base))
+        value, skipped = turnover(self.last_hold, hold,
+                                  prices_at(self.rows, base), self.base_price)
         if not value:
-            return "nothing this base trades"
+            return "nothing priceable moved"
         owner = self.owners.get(base)
         if not owner:
             return "nobody owns this base"

@@ -158,20 +158,25 @@ def _int(value):
         return 0
 
 
-def load_market(game_dir=None):
-    """(commodities, rows).
+def base_prices(game_dir=None):
+    """commodity nickname -> its price before any base's multiplier.
 
-    `commodities` is nickname -> display name. Each row is a dict with the
-    base, the commodity, the price, and which way the trade runs.
+    **This is what a base pays for something it does not trade.** You can sell
+    any commodity anywhere in Freelancer; a base that does not list it simply
+    gives you a poor price rather than refusing. The owner said so from playing
+    it, and without this `live/trade.py` would skip a real sale as if it had
+    not happened.
+
+    Pulled out of `load_market`, which needs the same walk to multiply against,
+    rather than read a second time here: two readers of `goods.ini` would be
+    two answers to what a commodity costs.
+
+    Only `category = commodity` counts; the same file prices every gun and ship
+    in the game.
     """
     game_dir = game_dir or fl.DEFAULT_GAME
-    data_dir = fl.ipath(game_dir, "DATA")
-    equip_dir = fl.ipath(data_dir, "EQUIPMENT")
-    strings = fl.load_names(game_dir)
-
-    # Base price per unit. Only `category = commodity` counts; the same file
-    # also prices every gun and ship in the game.
-    price = {}
+    equip_dir = fl.ipath(fl.ipath(game_dir, "DATA"), "EQUIPMENT")
+    out = {}
     for section, pairs in wr.read_multi(fl.ipath(equip_dir, "goods.ini")):
         if section.lower() != "good":
             continue
@@ -186,9 +191,24 @@ def load_market(game_dir=None):
         if str(cat).lower() != "commodity":
             continue
         try:
-            price[str(nick).lower()] = float(cost)
+            out[str(nick).lower()] = float(cost)
         except (TypeError, ValueError):
             continue
+    return out
+
+
+def load_market(game_dir=None):
+    """(commodities, rows).
+
+    `commodities` is nickname -> display name. Each row is a dict with the
+    base, the commodity, the price, and which way the trade runs.
+    """
+    game_dir = game_dir or fl.DEFAULT_GAME
+    data_dir = fl.ipath(game_dir, "DATA")
+    equip_dir = fl.ipath(data_dir, "EQUIPMENT")
+    strings = fl.load_names(game_dir)
+
+    price = base_prices(game_dir)
 
     # Display names live in select_equip.ini, not in goods.ini.
     names = {}
