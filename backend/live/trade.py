@@ -206,8 +206,11 @@ def turnover(before, after, prices, fallback=None):
     sale billing nothing, which is the same silence as a bug.
 
     `fallback` is `market.base_prices`, the figure before any base multiplier,
-    and 100 against a listed 700 for Superconductors is exactly the bad price
-    he described. `skipped` now reports what was valued that way rather than
+    and it is **measured, not assumed**: on 2026-09-15 the owner sold ten
+    Superconductors at Planet New Berlin, which does not list them, and the
+    save's balance moved 301,186 to 302,186. That is 100.00 a unit against the
+    100.00 `goods.ini` carries and the 700 Oder Shipyard pays two jumps away,
+    so the off-list price is the commodity's own price, to the credit. `skipped` now reports what was valued that way rather than
     what was dropped, because a caller still wants to know the trade was priced
     off the list.
     """
