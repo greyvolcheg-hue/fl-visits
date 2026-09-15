@@ -54,12 +54,13 @@ COMMANDS = {
     "routetable": "backend.live.routetable",
     "speed": "backend.live.speed",
     "thrusters": "backend.live.thrusters",
+    "trade": "backend.live.trade",
     "tradelane": "backend.live.tradelane",
 }
 
 WRITES = {"bestpath", "callsign", "dockdist", "drawdist", "empathy", "inject",
           "levels", "newgame", "persist", "routetable", "speed", "thrusters",
-          "tradelane"}
+          "trade", "tradelane"}
 
 
 def usage():

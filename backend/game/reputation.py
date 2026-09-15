@@ -133,6 +133,18 @@ class Model(NamedTuple):
     shorts: dict
     legality: dict
     bribes: dict
+    # The groups in the order **`initialworld.ini`** declares them, which is
+    # the order the running game keeps its standings in. `live/trade.py` needs
+    # it to read that table and the dicts above throw it away, so it is carried
+    # here rather than read out of the file a second time.
+    #
+    # **Not `empathy.ini`'s order, which it is easy to mistake for this.** The
+    # two files open with the same factions and diverge about a quarter of the
+    # way down. Checked against the running game on 2026-09-15: this order
+    # agrees with all 55 slots, `empathy.ini`'s with 23. Getting it wrong would
+    # not have failed, it would have written the right number onto the wrong
+    # faction.
+    order: tuple
 
 
 def load_model(game_dir=None):
@@ -199,7 +211,7 @@ def load_model(game_dir=None):
                for k, v in empathy.items() if k in present}
 
     # initialworld.ini is plain text, not BINI. read_multi sniffs the magic.
-    names, shorts = {}, {}
+    names, shorts, order = {}, {}, []
     for section, pairs in wr.read_multi(fl.ipath(data_dir, "initialworld.ini")):
         if section.lower() != "group":
             continue
@@ -208,6 +220,7 @@ def load_model(game_dir=None):
         if not nick:
             continue
         key = str(nick[0][0]).lower()
+        order.append(key)
 
         def text(field, entry=entry):
             ids = entry.get(field)
@@ -251,7 +264,7 @@ def load_model(game_dir=None):
         if aff and legal:
             legality[str(aff[0][0]).lower()] = str(legal[0][0]).lower()
 
-    return Model(events, empathy, names, shorts, legality, bribes)
+    return Model(events, empathy, names, shorts, legality, bribes, tuple(order))
 
 
 def load_bar(data_dir):
