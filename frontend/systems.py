@@ -20,9 +20,12 @@ CSS = """
   .wreck.f .mark { color: var(--ok); }
   .wreck.o .mark, .wreck.o .nm { color: var(--revealed); }
   .wreck.m .mark { color: var(--unknown); }
-  /* Scenery: a hull the game never puts anything in. Dimmer than "not found",
-     because there is nothing here to go and get. */
-  .wreck.s .mark, .wreck.s .nm, .wreck.s .loot { color: var(--unknown); }
+  /* Scenery is an annotation on the loot, never a state of its own. Giving it
+     its own row colour cost the found/not-found distinction: a hull you had
+     flown to drew exactly like one you had never seen, and the card then said
+     11 of 11 beside five rows that looked unvisited. Regression from the
+     commit that added the flag, reported by the owner, reverted 2026-09-15. */
+  .loot.empty { color: var(--unknown); font-style: italic; }
   .scenerynote { color: var(--fainter); font-size: 11.5px; margin: .2rem 0 .4rem; }
   .wreck.m .nm { color: #6a899c; }
 
@@ -65,21 +68,29 @@ function line(cls, tag, items, withAt, withFac) {
 }
 
 function wreckLine(w, found) {
-  // Four states, not three. A wreck you found but never opened still holds its
-  // loot and the game says so in bit 8; and a hull that can never hold
-  // anything is its own thing, not a prize you have yet to reach.
+  // **Three states on the row, and `holds` is not one of them.** The mark and
+  // the colour answer "where am I with this one": not found, found and
+  // stripped, found and still loaded. That is the axis the card's count is
+  // built on, so it is the axis the row has to show.
   //
-  // **Saying so is the whole point.** An empty hull and an unopened loaded one
-  // printed identically, because a row shows loot only when there is loot, so
-  // Omicron Alpha's 19 scenery hulls read as 19 unexplored prizes. That was
-  // reported twice as "wrecks with loot that isn't there".
-  const cls = !w.holds ? 's' : !found ? 'm' : w.emptied ? 'f' : 'o';
-  const mark = !w.holds ? '\u00b7' : !found ? '-' : w.emptied ? '+' : '*';
+  // `holds` was briefly a fourth state here and it broke exactly that. Tested
+  // first, it swallowed the other three: a scenery hull you had flown to drew
+  // in the not-found colour, identical to one you had never seen, and Sigma-13
+  // then read "12 / 14" above five rows that looked unvisited. The owner asked
+  // what state an empty wreck has to be in to count, which is the question a
+  // row should never provoke. Reverted 2026-09-15 to what stood before.
+  //
+  // It still has to be said, because that was a real bug too: a hull the game
+  // never puts anything in used to print nothing at all, so Omicron Alpha's 19
+  // of them read as 19 unopened prizes. It is said where it belongs, in the
+  // loot column, which is the thing it is actually about.
+  const cls = !found ? 'm' : w.emptied ? 'f' : 'o';
+  const mark = !found ? '-' : w.emptied ? '+' : '*';
   // Untouched loot is what you would collect, so it shows without the box.
   // For an emptied wreck it is history.
   const show = w.loot.length && (extended.systems || (found && !w.emptied));
   const loot = !w.holds
-    ? '<span class="loot">empty hull</span>'
+    ? '<span class="loot empty">empty hull</span>'
     : show
       ? `<span class="loot">${w.loot.map(([i, n]) => `${n}x ${esc(i)}`).join(', ')}</span>`
       : '';
