@@ -620,7 +620,8 @@ class Watcher:
         # static, so it is handed in rather than repeated in this thread.
         self.owners = owners
         self.pid = None
-        self.tables, self.anchors = [], []
+        self.tables = []
+        self.stamp = None
         self.last_base, self.last_hold = None, None
         self.history = []
         self.trace = []
@@ -631,61 +632,66 @@ class Watcher:
     # -- the one step, exposed so it can be driven by hand in a test --------
 
     def tick(self):
-        saved = fl.decode_save(self.save_for())
+        """One look at the save. Returns what it billed, or None.
+
+        **The hold comes from the save, not from memory, and that reverses a
+        decision.** The plan said to watch memory because a save was assumed
+        to be written only on docking, so a trade made while docked would not
+        show up until you left. That assumption was wrong: Freelancer rewrites
+        the save on the transaction itself, measured four times out of four on
+        2026-09-15, the clearest being a sale at 11:36:11 that reached the file
+        while every copy of the hold still in memory read the pre-sale figure.
+
+        Reading it from memory cost three rounds of debugging and three
+        different wrong answers, all of them the same mistake in different
+        clothes: the game keeps many copies of a hold, some of them stop
+        updating, and no rule for picking one survived contact with a trade.
+        The save has exactly one copy and the game keeps it correct.
+
+        **Cargo picked up in space is not billed**, which is the first thing
+        the owner asked about the new source and the reason the base is
+        checked before anything else. Two readings are only ever compared when
+        both were taken at the same base, and being in space clears the
+        baseline, so docking with a looted hold always starts a fresh count
+        rather than looking like a purchase. Proved by scripting a life: dock
+        empty, undock, loot 40 gold, dock again, sit, then buy ten more. Only
+        the last step bills.
+
+        The gap that remains, stated rather than hidden: a mission that hands
+        over cargo while you are standing on a base reads as a purchase.
+        """
+        path = self.save_for()
+        try:
+            stamp = os.path.getmtime(path)
+        except OSError:
+            return None
+        if stamp == self.stamp:
+            # Nothing has happened. The file is the event, so there is no
+            # reason to decode 200KB again to be told so.
+            return None
+        self.stamp = stamp
+        saved = fl.decode_save(path)
         base = current_base(saved)
         if not base:
-            # In space. Whatever the hold was at the last base is history, and
-            # keeping it would bill the next dock for the journey.
-            self.last_base, self.last_hold, self.anchors = None, None, []
-            self._note(None, None, {}, False, False, 0)
+            self.last_base, self.last_hold = None, None
+            self._note(None, {}, False, False)
             return None
-        standings = rep.player_reps(saved)
 
-        if self.pid is None:
-            self.pid = proc.find_pid()
-        if not self.tables or not validate(self.pid, self.tables[0],
-                                           standings, self.model.order):
-            self.tables = locate_standings(self.pid, standings,
-                                           self.model.order)
-
-        # **The anchor is chosen once per docking, and then left alone.**
-        # Both halves of that are paid for:
-        #
-        #   Caching it across dockings failed, because the array moves. One
-        #   address held from the first dock saw nothing ever again, since a
-        #   dead copy answers reads perfectly well and so never looks stale.
-        #
-        #   Re-choosing it every tick failed too, and more subtly. Candidates
-        #   are ranked against the save, the game rewrites the save when you
-        #   trade, so **the event being watched for is itself what changes the
-        #   ranking**. The anchor moved at the exact moment of the sale, the
-        #   tick saw a different address, re-baselined, and billed nothing.
-        #
-        # Docking is the moment when the save is fresh and the ranking is
-        # trustworthy, and it is the only moment the array is known to move.
-        # **The candidate set is found once per docking; the answer is the
-        # vote of all of them on every tick.** Docking is when the save is
-        # fresh and the ranking can be trusted to find the arrays at all, and
-        # it is the only moment they are known to move. Which one is live is
-        # then never decided, because deciding it is what failed: see
-        # `read_consensus`.
-        if base != self.last_base or not self.anchors:
-            self.anchors = locate_hold(self.pid, save_cargo(saved))
-            self.last_hold = None
-        hold, agreed = read_consensus(self.pid, self.anchors, self.names)
-        anchor = self.anchors[0]
-
-        # **Only ever diff two reads of the same array at the same base.** A
-        # fresh anchor has no predecessor, and the cost of re-baselining is one
-        # missed diff against standing handed out for a trade nobody made.
+        hold = market.hold(saved, self.names)
         done = None
-        same = (self.last_hold is not None and self.last_base == base)
-        if same:
+        same = self.last_hold is not None and self.last_base == base
+        if same and hold != self.last_hold:
             value, skipped = turnover(self.last_hold, hold,
                                       prices_at(self.rows, base))
             owner = self.owners.get(base)
-            if value and owner and validate(self.pid, self.tables[0],
-                                            standings, self.model.order):
+            if value and owner:
+                standings = rep.player_reps(saved)
+                if self.pid is None:
+                    self.pid = proc.find_pid()
+                if not self.tables or not validate(self.pid, self.tables[0],
+                                                   standings, self.model.order):
+                    self.tables = locate_standings(self.pid, standings,
+                                                   self.model.order)
                 done = apply_trade(self.pid, self.tables, self.model.order,
                                    self.model.empathy, owner, value,
                                    load_setting()["credits"])
@@ -693,10 +699,10 @@ class Watcher:
                 self.history.insert(0, done)
                 del self.history[8:]
         self.last_base, self.last_hold = base, hold
-        self._note(base, anchor, hold, same, done, agreed)
+        self._note(base, hold, same, done)
         return done
 
-    def _note(self, base, anchor, hold, diffed, billed, agreed=0):
+    def _note(self, base, hold, diffed, billed):
         """**A tick that does nothing has to be able to say why.**
 
         Two rounds of debugging were spent guessing from an empty history,
@@ -705,10 +711,8 @@ class Watcher:
         """
         self.trace.insert(0, {
             "at": time.strftime("%H:%M:%S"), "base": base,
-            "anchor": None if anchor is None else f"{anchor:#x}",
             "hold": dict(hold), "diffed": bool(diffed),
-            "billed": bool(billed), "agreed": agreed,
-            "of": len(self.anchors)})
+            "billed": bool(billed)})
         del self.trace[12:]
 
     # -- the thread --------------------------------------------------------
@@ -737,7 +741,7 @@ class Watcher:
                 # and keep waiting rather than killing the thread, because the
                 # next dock is the whole point.
                 self.error = str(exc)
-                self.pid, self.tables, self.anchors = None, [], []
+                self.pid, self.tables, self.stamp = None, [], None
             except Exception as exc:                      # noqa: BLE001
                 self.error = f"{type(exc).__name__}: {exc}"
 
