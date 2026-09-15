@@ -77,10 +77,13 @@ is measured, `locate_standings` returns all of them and the caller decides.
 """
 
 import argparse
+import json
 import os
 import re
 import struct
 import sys
+import tempfile
+import threading
 
 from . import proc
 from ..game import flvisits as fl
@@ -304,31 +307,94 @@ def write_standings(pid, base, order, moves, current=None):
     return became
 
 
-def locate_hold(pid, held, goods):
-    """Base addresses of every copy of the cargo array the save agrees with.
+CARGO_LINE = re.compile(r"^\s*cargo\s*=\s*(\d+)\s*,\s*(\d+)", re.I | re.M)
 
-    A site counts only when a commodity's hash and its exact unit count sit 16
-    bytes apart, which is what separates a real hold entry from the hundreds of
-    places a commodity hash appears in the loaded market tables: for the one
-    commodity aboard when this was written, 286 sites held the hash and 8 held
-    the count as well.
+
+def save_cargo(saved):
+    """Every `cargo` line in the save as {hash: units}, commodity or not.
+
+    **Equipment counts here and is filtered out later.** The anchor for the
+    cargo array has to exist even when you are carrying no freight at all, and
+    the nanobots, batteries and countermeasures always aboard sit in the same
+    array as the cargo. Anchoring only on commodities would leave the watcher
+    blind exactly when it matters most, on the run out to buy the first load.
     """
-    live = {n: u for n, u in held.items() if n in goods}
-    if not live:
-        raise NotFound("the save says the hold is empty, so there is nothing "
+    out = {}
+    for token, units in CARGO_LINE.findall(saved):
+        out[int(token)] = out.get(int(token), 0) + int(units)
+    return out
+
+
+def locate_hold(pid, cargo):
+    """Base addresses of every cargo-array entry the save agrees with.
+
+    `cargo` is `save_cargo`'s mapping. A site counts only when an item's hash
+    and its exact unit count sit 16 bytes apart, which is what separates a real
+    hold entry from the hundreds of places an item hash appears in the loaded
+    market tables: for the one commodity aboard when this was written, 286
+    sites held the hash and 8 held the count as well.
+
+    The anchor is the entry with the largest count, because a count of 1 is
+    worth very little as a discriminator.
+    """
+    if not cargo:
+        raise NotFound("the save lists no cargo at all, so there is nothing "
                        "to anchor the cargo array on")
-    nick, units = max(live.items(), key=lambda kv: kv[1])
+    key, units = max(cargo.items(), key=lambda kv: kv[1])
+
+    # **One entry is not a signature, and measuring that was the lesson.** The
+    # first version anchored on the single largest count and found 218 sites:
+    # the game keeps a pool of NPC loadouts that carry the same ordinary items
+    # in the same shape, so "an item with this count" describes hundreds of
+    # ships. What is unique to the player is carrying **this whole set at
+    # once**, so a candidate is scored by how much of the save's cargo list
+    # appears in its own array.
+    want = min(len(cargo), 3)
     found = []
-    for hit in _scan(pid, struct.pack("<I", fl.fl_hash(nick))):
+    for hit in _scan(pid, struct.pack("<I", key)):
         try:
             got = proc.read(pid, hit + CARGO_COUNT_AT, 4)
         except OSError:
             continue
-        if len(got) == 4 and struct.unpack("<I", got)[0] == units:
-            found.append(hit)
+        if len(got) != 4 or struct.unpack("<I", got)[0] != units:
+            continue
+        seen = _raw_entries(pid, hit)
+        hits = sum(1 for k, u in cargo.items() if seen.get(k) == u)
+        if hits >= want:
+            found.append((hits, -sum(1 for k in seen if k not in cargo), hit))
     if not found:
-        raise NotFound(f"no cargo entry in the game holds {units} of {nick}")
-    return sorted(found)
+        raise NotFound(
+            f"no cargo array in the game carries the {len(cargo)} items this "
+            f"save lists. The save being followed is probably not the game "
+            f"that is running.")
+    # **Best first, and "best" is fewest leftovers.** Several arrays carry the
+    # save's whole list, because the game keeps more than one view of a hold.
+    # The stale ones keep what you were carrying before: on the run this was
+    # written, the save listed four items and no freight, and the array with
+    # nine extra entries still held 70 sidearms that had already been sold.
+    # The live one is the one that says what the save says and nothing else.
+    found.sort(reverse=True)
+    return [hit for _h, _e, hit in found]
+
+
+def _raw_entries(pid, anchor):
+    """{item hash: units} straight out of the array around `anchor`."""
+    lo = anchor - CARGO_SPAN * CARGO_STRIDE
+    span = (2 * CARGO_SPAN + 1) * CARGO_STRIDE
+    try:
+        buf = proc.read(pid, lo, span)
+    except OSError:
+        try:
+            buf = proc.read(pid, anchor, CARGO_SPAN * CARGO_STRIDE)
+        except OSError:
+            return {}
+    out = {}
+    for off in range(0, len(buf) - CARGO_COUNT_AT - 4, CARGO_STRIDE):
+        key = struct.unpack_from("<I", buf, off)[0]
+        units = struct.unpack_from("<I", buf, off + CARGO_COUNT_AT)[0]
+        if key and 0 < units < 100000:
+            out[key] = out.get(key, 0) + units
+    return out
 
 
 def read_hold(pid, anchor, goods):
@@ -340,22 +406,8 @@ def read_hold(pid, anchor, goods):
     newly bought commodity be seen.
     """
     by_hash = {fl.fl_hash(n): n for n in goods}
-    lo = anchor - CARGO_SPAN * CARGO_STRIDE
-    span = (2 * CARGO_SPAN + 1) * CARGO_STRIDE
-    try:
-        buf = proc.read(pid, lo, span)
-    except OSError:
-        buf = proc.read(pid, anchor, CARGO_SPAN * CARGO_STRIDE)
-        lo = anchor
-    out = {}
-    for off in range(0, len(buf) - CARGO_COUNT_AT - 4, CARGO_STRIDE):
-        nick = by_hash.get(struct.unpack_from("<I", buf, off)[0])
-        if not nick:
-            continue
-        units = struct.unpack_from("<I", buf, off + CARGO_COUNT_AT)[0]
-        if 0 < units < 100000:
-            out[nick] = out.get(nick, 0) + units
-    return out
+    return {by_hash[k]: u for k, u in _raw_entries(pid, anchor).items()
+            if k in by_hash}
 
 
 def current_base(saved):
@@ -411,10 +463,219 @@ def main():
     tables = locate_standings(pid, rep.player_reps(saved), model.order)
     print(f"\nstanding tables found: {len(tables)} "
           f"{[hex(t) for t in tables]}")
-    if held:
-        holds = locate_hold(pid, held, names)
+    cargo = save_cargo(saved)
+    if cargo:
+        holds = locate_hold(pid, save_cargo(saved))
         print(f"cargo arrays found:    {len(holds)} {[hex(h) for h in holds]}")
         print(f"hold read from memory: {read_hold(pid, holds[0], names)}")
     if base_id:
         p = prices_at(rows, base_id)
         print(f"prices at this base:   {len(p)} commodities")
+
+
+# --- the setting -----------------------------------------------------------
+
+SETTINGS = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), "data", "trade.json")
+
+DEFAULTS = {"credits": 3_000_000, "on": False}
+
+
+def load_setting(path=SETTINGS):
+    """What the owner asked for. A missing or broken file reads as the default.
+
+    Same bargain as `common.load_marks`: unreadable is not an error, because a
+    corrupt file should cost the setting rather than the Engine tab.
+    """
+    out = dict(DEFAULTS)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            held = json.load(fh)
+    except (OSError, ValueError):
+        return out
+    if isinstance(held.get("credits"), int) and held["credits"] > 0:
+        out["credits"] = held["credits"]
+    out["on"] = bool(held.get("on"))
+    return out
+
+
+def save_setting(setting, path=SETTINGS):
+    """Replace the file in one step. `common._write_marks`'s idiom, and why."""
+    folder = os.path.dirname(path)
+    os.makedirs(folder, exist_ok=True)
+    handle, temp = tempfile.mkstemp(dir=folder, prefix=".trade-", suffix=".json")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+            json.dump(setting, fh, ensure_ascii=False, sort_keys=True)
+        os.replace(temp, path)
+    except BaseException:
+        try:
+            os.unlink(temp)
+        except OSError:
+            pass
+        raise
+    return setting
+
+
+# --- applying it -----------------------------------------------------------
+
+def validate(pid, base, standings, order, tol=0.05, need=50):
+    """Does the table at `base` still look like the standing table?
+
+    **Every write is preceded by this.** The cached address survives a world
+    load only by luck, and the cost of being wrong is writing floats into
+    whatever now lives there. It is one 440-byte read, so there is no reason
+    to skip it and every reason not to.
+    """
+    try:
+        buf = proc.read(pid, base, len(order) * ENTRY)
+    except OSError:
+        return False
+    if len(buf) < len(order) * ENTRY:
+        return False
+    ok = 0
+    for i, nick in enumerate(order):
+        v = struct.unpack_from("<f", buf, i * ENTRY)[0]
+        if not -1.0 <= v <= 1.0:
+            return False
+        if nick in standings and abs(v - standings[nick]) <= tol:
+            ok += 1
+    return ok >= need
+
+
+def apply_trade(pid, tables, order, empathy, doer, value, credits):
+    """Move standings for `value` credits of trade with `doer`.
+
+    Returns what happened, in the shape the page shows: the faction dealt with,
+    the credits, the raw and capped step, and what every moved faction became.
+
+    **Every copy of the table is written.** Which one the engine reads is not
+    established, they agree with each other to the bit, and writing one while
+    leaving three behind would be a guess whose failure mode is a change that
+    seems to work and then reverts.
+    """
+    raw = value * rate_for(credits)
+    moves, factor = capped(spread(empathy, doer, raw), doer)
+    became = {}
+    for base in tables:
+        became = write_standings(pid, base, order, moves)
+    return {"faction": doer, "credits": value, "step": moves.get(doer, 0.0),
+            "uncapped": raw, "capped": factor < 1.0, "moved": became}
+
+
+# --- watching --------------------------------------------------------------
+
+class Watcher:
+    """Follows the hold while you are docked and bills the difference.
+
+    **It only counts while something is watching.** The hold lives in the
+    running game and nowhere else between saves, so a trade made with this
+    stopped is a trade nobody saw. That is stated on the page rather than
+    hidden, because the alternative is a player who thinks the feature is
+    broken when it was simply not running.
+    """
+
+    POLL = 3.0
+
+    def __init__(self, game_dir, save_for, model, names, rows, owners):
+        self.game_dir = game_dir
+        self.save_for = save_for          # callable -> current save path
+        self.model, self.names, self.rows = model, names, rows
+        # `GameData` already walked every system for these and the walk is
+        # static, so it is handed in rather than repeated in this thread.
+        self.owners = owners
+        self.pid = None
+        self.tables, self.anchor = [], None
+        self.last_base, self.last_hold = None, None
+        self.history = []
+        self.error = None
+        self._stop = threading.Event()
+        self._thread = None
+
+    # -- the one step, exposed so it can be driven by hand in a test --------
+
+    def tick(self):
+        saved = fl.decode_save(self.save_for())
+        base = current_base(saved)
+        if not base:
+            # In space. Whatever the hold was at the last base is history, and
+            # keeping it would bill the next dock for a journey.
+            self.last_base, self.last_hold = None, None
+            return None
+        standings = rep.player_reps(saved)
+        cargo = save_cargo(saved)
+        self._ensure(standings, cargo)
+        hold = read_hold(self.pid, self.anchor, self.names)
+        done = None
+        if self.last_hold is not None and self.last_base == base:
+            value, skipped = turnover(self.last_hold, hold,
+                                      prices_at(self.rows, base))
+            if value:
+                owner = self.owners.get(base)
+                if owner and validate(self.pid, self.tables[0], standings,
+                                      self.model.order):
+                    done = apply_trade(self.pid, self.tables, self.model.order,
+                                       self.model.empathy, owner, value,
+                                       load_setting()["credits"])
+                    done["base"], done["skipped"] = base, skipped
+                    self.history.insert(0, done)
+                    del self.history[8:]
+        self.last_base, self.last_hold = base, hold
+        return done
+
+    def _ensure(self, standings, cargo):
+        """Find what is missing, and only what is missing.
+
+        A full scan takes seconds, so the addresses are cached and re-found
+        only when they stop answering. `validate` is what decides that for the
+        standing table, and an empty read decides it for the cargo array.
+        """
+        if self.pid is None:
+            self.pid = proc.find_pid()
+        if not self.tables or not validate(self.pid, self.tables[0],
+                                           standings, self.model.order):
+            self.tables = locate_standings(self.pid, standings,
+                                           self.model.order)
+        if self.anchor is None or not _raw_entries(self.pid, self.anchor):
+            self.anchor = locate_hold(self.pid, cargo)[0]
+
+    # -- the thread --------------------------------------------------------
+
+    def start(self):
+        if self._thread and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._stop.set()
+
+    def running(self):
+        return bool(self._thread and self._thread.is_alive()
+                    and not self._stop.is_set())
+
+    def _run(self):
+        while not self._stop.wait(self.POLL):
+            try:
+                self.tick()
+                self.error = None
+            except (NotFound, proc.NotRunning) as exc:
+                # Expected: the game is closed, or between world loads. Say so
+                # and keep waiting rather than killing the thread, because the
+                # next dock is the whole point.
+                self.error = str(exc)
+                self.pid, self.tables, self.anchor = None, [], None
+            except Exception as exc:                      # noqa: BLE001
+                self.error = f"{type(exc).__name__}: {exc}"
+
+
+def base_owners(game_dir):
+    """base nickname -> owning faction, from the reader that already has it.
+
+    `bases.base_owners` is the one walk that answers this and `common.Ctx`
+    already builds it for the badges on every tab. The watcher runs beside the
+    server rather than inside a request, so it takes its own copy once rather
+    than reaching into a `Ctx` it does not own.
+    """
+    return bases.base_owners(fl.ipath(game_dir, "DATA"), fl.system_files)

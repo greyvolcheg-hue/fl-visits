@@ -261,12 +261,55 @@ function engFiles() {
     '<code>.vanilla</code> the first time, and an existing backup is never ' +
     'overwritten.</span></div>' +
     `<div class="grid wrapgrid">${write}${rocks}${engCallsign()}` +
-    `${engPaths()}${engNomads()}</div>`;
+    `${engPaths()}${engNomads()}${engTrade()}</div>`;
 }
 
 // What killing a Nomad is worth to everyone who is not one. Shipped, the
 // answer is nothing: their group carries 54 empathy rates and the only three
 // that are not zero belong to the campaign's infiltrated navies.
+// Trading for standing. **The figure is credits of traded value, not profit
+// and not the credit balance**: one visit to a base can also sell a gun, pay
+// for repairs and collect a bounty, and sizing a trade by what the balance did
+// would count all of it. The watcher reads the hold instead and values what
+// moved at this base's own prices.
+function engTrade() {
+  const t = eng.trade;
+  if (!t) {
+    return '<div class="box file"><div class="lbl">TRADING FOR STANDING</div>' +
+      '<div class="why">not read yet</div></div>';
+  }
+  const last = (t.history && t.history[0]) || null;
+  return '<div class="box file"><div class="top">' +
+    '<span class="lbl">TRADING FOR STANDING</span>' +
+    `<span class="val">${t.running ? 'watching' : 'off'}</span></div>` +
+    '<div class="why">Vanilla Freelancer does not care how much you haul: ' +
+    'the engine knows four reputation events and none of them is trade. This ' +
+    'watches the hold while you are docked and values what moved at this ' +
+    "base's own prices, so equipment, repairs and mission pay are not in it." +
+    '</div>' +
+    '<div class="reppick csrow">' +
+    `<input type="number" id="trade-credits" step="100000" min="1" ` +
+    `value="${t.credits}">` +
+    '<span class="sys">credits to friendly</span>' +
+    `<span class="nag" id="trade-nag" hidden>under ${t.floor.toLocaleString()}` +
+    ' is about one good run, which is a handout rather than a grind</span>' +
+    '</div>' +
+    `<div class="from">one trade is capped at ${t.cap.toFixed(3)}, so at ` +
+    `least ${t.least} separate trades to cross it however rich the cargo` +
+    (t.base ? `. Docked at ${esc(t.base)}` : '') + '</div>' +
+    (last ? `<div class="from">last: ${esc(last.faction)} ` +
+      `${last.step >= 0 ? '+' : ''}${last.step.toFixed(4)} for ` +
+      `${last.credits.toLocaleString()} credits` +
+      (last.capped ? ', capped' : '') + '</div>' : '') +
+    (t.error ? `<div class="why">${esc(t.error)}</div>` : '') +
+    '<div class="csacts">' +
+    `<button class="chip" id="trade-on">${t.on ? 'STOP' : 'WATCH'}</button>` +
+    '<button class="chip" id="trade-set">SET</button></div>' +
+    '<div class="from">it only counts while this is watching: the hold lives ' +
+    'in the running game and nobody else is looking at it</div></div>';
+}
+
+
 function engNomads() {
   const n = eng.nomads;
   if (!n || n.error) {
@@ -488,6 +531,22 @@ function wireEngine() {
   }
   const no = $('#nomad-off');
   if (no) no.onclick = () => engPost('empathy', { restore: 1 });
+  const tc = $('#trade-credits');
+  if (tc && eng.trade) {
+    const tnag = $('#trade-nag');
+    const look = () => { tnag.hidden = !(Number(tc.value) > 0 &&
+                                         Number(tc.value) < eng.trade.floor); };
+    tc.addEventListener('input', look);
+    look();
+    const ts = $('#trade-set');
+    if (ts) ts.onclick = () => {
+      const want = Number(tc.value);
+      if (!(want > 0)) { engSaid = 'a positive number of credits'; render(); return; }
+      engPost('trade', { credits: want });
+    };
+  }
+  const tw = $('#trade-on');
+  if (tw && eng.trade) tw.onclick = () => engPost('trade', { on: !eng.trade.on });
   const p = $('#persist');
   if (p) p.onclick = async () => {
     persistBusy = true; render();

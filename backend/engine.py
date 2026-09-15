@@ -12,11 +12,14 @@ surveys 153 files on disk and the strip is polled every five seconds whether
 or not anyone has opened the drawer.
 """
 
+import threading
+
 from .live import callsign as cs
 from .live import dockdist as dkd
 from .live import routetable as rt
 from .live import drawdist as dd
 from .live import empathy as em
+from .live import trade as td
 from .live import persist as pe
 from .live import speed as sp
 from .live import thrusters as th
@@ -184,7 +187,7 @@ def _engine(ctx):
     """
     body = {"running": False, "error": None, "cruise": None, "lane": None,
             "thrusters": None, "draw": None, "call": None,
-            "paths": None, "nomads": None}
+            "paths": None, "nomads": None, "trade": None}
     try:
         sp.find_pid()
         body["running"] = True
@@ -197,6 +200,7 @@ def _engine(ctx):
             body["call"] = _callsign(ctx)
             body["paths"] = _routetable(ctx)
             body["nomads"] = _empathy(ctx)
+            body["trade"] = _trade(ctx)
         return body
     body["cruise"] = _speed(ctx)
     body["lane"] = _tradelane(ctx)
@@ -206,6 +210,7 @@ def _engine(ctx):
         body["call"] = _callsign(ctx)
         body["paths"] = _routetable(ctx)
         body["nomads"] = _empathy(ctx)
+        body["trade"] = _trade(ctx)
     return body
 
 
@@ -214,7 +219,48 @@ def _engine(ctx):
 # `tabs.py` builds one table with `dict.update`, so the later module silently
 # won and this one was unreachable. Two tabs cannot share an endpoint name;
 # `_table` raises on a repeat now rather than picking by import order.
-API = {"engine": _engine, "speed": _speed, "thrusters": _thrusters,
+
+
+# **One watcher for the whole server, not one per request.** The hold only
+# exists in the running game between saves, so something has to be looking at
+# it continuously; a per-request object would see one frame and never a change.
+# It is built on first use because building it reads the game's data.
+_WATCH = {"it": None}
+_watch_lock = threading.Lock()
+
+
+def _watcher(ctx):
+    with _watch_lock:
+        if _WATCH["it"] is None:
+            _WATCH["it"] = td.Watcher(
+                ctx.game.dir, lambda: ctx.save, ctx.game.repmodel,
+                ctx.game.market[0], ctx.game.market[1], ctx.game.owners)
+            if td.load_setting()["on"]:
+                _WATCH["it"].start()
+        return _WATCH["it"]
+
+
+def _trade(ctx):
+    """What trading is currently worth, and what it has done lately."""
+    setting = td.load_setting()
+    body = dict(setting)
+    body["rate"] = td.rate_for(setting["credits"])
+    body["cap"] = td.MAX_STEP
+    body["floor"] = td.SOFT_FLOOR
+    body["least"] = round(td.SPAN / td.MAX_STEP)
+    try:
+        w = _watcher(ctx)
+        body["running"] = w.running()
+        body["error"] = w.error
+        body["base"] = w.last_base
+        body["history"] = w.history
+    except Exception as exc:                               # noqa: BLE001
+        body.update(running=False, error=f"{type(exc).__name__}: {exc}",
+                    base=None, history=[])
+    return body
+
+
+API = {"engine": _engine, "trade": _trade, "speed": _speed, "thrusters": _thrusters,
        "tradelane": _tradelane, "drawdist": _drawdist, "callsign": _callsign,
        "routetable": _routetable, "empathy": _empathy}
 
@@ -312,6 +358,34 @@ def _set_routetable(ctx, sent):
             f"{saved} jumps saved; load a save")
 
 
+def _set_trade(ctx, sent):
+    """Set the credits-to-friendly figure, and switch the watcher on or off."""
+    setting = td.load_setting()
+    if "credits" in sent:
+        credits = int(sent["credits"])
+        if credits <= 0:
+            raise ValueError("credits to friendly must be a positive number")
+        setting["credits"] = credits
+    if "on" in sent:
+        setting["on"] = bool(sent["on"])
+    td.save_setting(setting)
+
+    w = _watcher(ctx)
+    if setting["on"]:
+        w.start()
+    else:
+        w.stop()
+
+    said = [f"{setting['credits']:,} credits of trade from neutral to friendly",
+            f"one trade capped at {td.MAX_STEP:+.3f}, so "
+            f"{round(td.SPAN / td.MAX_STEP)} trades at least"]
+    said.append("watching" if setting["on"] else "not watching")
+    if setting["credits"] < td.SOFT_FLOOR:
+        said.append(f"That is under {td.SOFT_FLOOR:,}, about one good run, "
+                    f"which is a handout rather than a grind, and your call")
+    return ". ".join(said)
+
+
 def _set_empathy(ctx, sent):
     """Set what a Nomad kill is worth to the other 51 factions."""
     with ctx.lock:
@@ -374,4 +448,4 @@ POST = {"speed": _set_speed, "thrusters": _set_thrusters,
         "tradelane": _set_tradelane, "drawdist": _set_drawdist,
         "allhacks": _set_allhacks, "persist": _set_persist,
         "callsign": _set_callsign, "routetable": _set_routetable,
-        "empathy": _set_empathy}
+        "empathy": _set_empathy, "trade": _set_trade}
