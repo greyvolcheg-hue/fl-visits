@@ -314,6 +314,15 @@ def write_standings(pid, base, order, moves, current=None):
     return became
 
 
+MONEY = re.compile(r"^\s*money\s*=\s*(\d+)", re.M)
+
+
+def current_money(saved):
+    """The credit balance the save records, or None."""
+    m = MONEY.search(saved)
+    return int(m.group(1)) if m else None
+
+
 CARGO_LINE = re.compile(r"^\s*cargo\s*=\s*(\d+)\s*,\s*(\d+)", re.I | re.M)
 
 
@@ -622,6 +631,7 @@ class Watcher:
         self.pid = None
         self.tables = []
         self.stamp = None
+        self.last_money = None
         self.last_base, self.last_hold = None, None
         self.history = []
         self.trace = []
@@ -634,31 +644,30 @@ class Watcher:
     def tick(self):
         """One look at the save. Returns what it billed, or None.
 
-        **The hold comes from the save, not from memory, and that reverses a
-        decision.** The plan said to watch memory because a save was assumed
-        to be written only on docking, so a trade made while docked would not
-        show up until you left. That assumption was wrong: Freelancer rewrites
-        the save on the transaction itself, measured four times out of four on
-        2026-09-15, the clearest being a sale at 11:36:11 that reached the file
+        **The hold comes from the save, and the credit balance is what tells a
+        purchase from a salvage.** Both were arrived at by being wrong first.
+
+        The plan read the hold from memory, on the assumption that a save is
+        written only on docking. Freelancer writes it on the *transaction*,
+        four times out of four, the clearest being a sale that reached the file
         while every copy of the hold still in memory read the pre-sale figure.
+        Reading memory cost three rounds and three wrong rules for choosing
+        among the game's many copies of a hold, some of which stop updating.
 
-        Reading it from memory cost three rounds of debugging and three
-        different wrong answers, all of them the same mistake in different
-        clothes: the game keeps many copies of a hold, some of them stop
-        updating, and no rule for picking one survived contact with a trade.
-        The save has exactly one copy and the game keeps it correct.
+        **But it does not write one on docking**, which broke the next
+        attempt: undock, fly, dock, buy, and the only save written is the one
+        that already has the cargo, so there is no "before" at that base and
+        the first trade of every docking was swallowed as a baseline. So the
+        hold is tracked continuously instead, across flight as well, and the
+        base only decides whether a change may be billed.
 
-        **Cargo picked up in space is not billed**, which is the first thing
-        the owner asked about the new source and the reason the base is
-        checked before anything else. Two readings are only ever compared when
-        both were taken at the same base, and being in space clears the
-        baseline, so docking with a looted hold always starts a fresh count
-        rather than looking like a purchase. Proved by scripting a life: dock
-        empty, undock, loot 40 gold, dock again, sit, then buy ten more. Only
-        the last step bills.
-
-        The gap that remains, stated rather than hidden: a mission that hands
-        over cargo while you are standing on a base reads as a purchase.
+        **That reopens the question the owner asked, and the money closes it.**
+        Tracking through flight means a hold that grew from a wreck looks like
+        a hold that grew from a purchase. A purchase costs credits and salvage
+        does not, and the save carries the balance beside the cargo, so the two
+        are told apart by the game's own bookkeeping rather than by a guess.
+        A change the money does not account for is salvage: it moves the
+        baseline and bills nothing.
         """
         path = self.save_for()
         try:
@@ -666,43 +675,71 @@ class Watcher:
         except OSError:
             return None
         if stamp == self.stamp:
-            # Nothing has happened. The file is the event, so there is no
-            # reason to decode 200KB again to be told so.
+            # The file is the event. Nothing written, nothing happened.
             return None
         self.stamp = stamp
         saved = fl.decode_save(path)
         base = current_base(saved)
-        if not base:
-            self.last_base, self.last_hold = None, None
-            self._note(None, {}, False, False)
-            return None
-
         hold = market.hold(saved, self.names)
-        done = None
-        same = self.last_hold is not None and self.last_base == base
-        if same and hold != self.last_hold:
-            value, skipped = turnover(self.last_hold, hold,
-                                      prices_at(self.rows, base))
-            owner = self.owners.get(base)
-            if value and owner:
-                standings = rep.player_reps(saved)
-                if self.pid is None:
-                    self.pid = proc.find_pid()
-                if not self.tables or not validate(self.pid, self.tables[0],
-                                                   standings, self.model.order):
-                    self.tables = locate_standings(self.pid, standings,
-                                                   self.model.order)
-                done = apply_trade(self.pid, self.tables, self.model.order,
-                                   self.model.empathy, owner, value,
-                                   load_setting()["credits"])
-                done["base"], done["skipped"] = base, skipped
-                self.history.insert(0, done)
-                del self.history[8:]
-        self.last_base, self.last_hold = base, hold
-        self._note(base, hold, same, done)
+        money = current_money(saved)
+
+        done, why = None, None
+        if self.last_hold is not None and hold != self.last_hold:
+            if not base:
+                why = "in space"
+            else:
+                why = self._bill(saved, base, hold, money)
+                done = why if isinstance(why, dict) else None
+                why = None if done else why
+        self.last_hold, self.last_money = hold, money
+        self.last_base = base
+        self._note(base, hold, self.last_hold is not None, done, why)
         return done
 
-    def _note(self, base, hold, diffed, billed):
+    def _bill(self, saved, base, hold, money):
+        """Charge the hold change to this base, or say why not."""
+        value, skipped = turnover(self.last_hold, hold, prices_at(self.rows, base))
+        if not value:
+            return "nothing this base trades"
+        owner = self.owners.get(base)
+        if not owner:
+            return "nobody owns this base"
+
+        # **The money has to account for it.** Expected and actual are compared
+        # loosely on purpose: the base's listed price is what a unit is worth,
+        # not necessarily what was paid to the last credit, and the same visit
+        # may have bought a nanobot or paid for a repair. What this is really
+        # asking is whether any money changed hands at all, which is what
+        # separates a purchase from a wreck.
+        if money is None or self.last_money is None:
+            return "no balance in the save to check against"
+        moved = abs(money - self.last_money)
+        if moved < value * 0.4:
+            return (f"the balance moved {moved:,} against {value:,} of cargo, "
+                    f"so this was salvage rather than trade")
+
+        done = apply_trade(self.pid_now(), self.tables_now(saved),
+                           self.model.order, self.model.empathy, owner, value,
+                           load_setting()["credits"])
+        done["base"], done["skipped"] = base, skipped
+        self.history.insert(0, done)
+        del self.history[8:]
+        return done
+
+    def pid_now(self):
+        if self.pid is None:
+            self.pid = proc.find_pid()
+        return self.pid
+
+    def tables_now(self, saved):
+        standings = rep.player_reps(saved)
+        if not self.tables or not validate(self.pid_now(), self.tables[0],
+                                           standings, self.model.order):
+            self.tables = locate_standings(self.pid_now(), standings,
+                                           self.model.order)
+        return self.tables
+
+    def _note(self, base, hold, diffed, billed, why=None):
         """**A tick that does nothing has to be able to say why.**
 
         Two rounds of debugging were spent guessing from an empty history,
@@ -712,7 +749,7 @@ class Watcher:
         self.trace.insert(0, {
             "at": time.strftime("%H:%M:%S"), "base": base,
             "hold": dict(hold), "diffed": bool(diffed),
-            "billed": bool(billed)})
+            "billed": bool(billed), "why": why})
         del self.trace[12:]
 
     # -- the thread --------------------------------------------------------
