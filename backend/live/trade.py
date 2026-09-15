@@ -599,45 +599,48 @@ class Watcher:
         base = current_base(saved)
         if not base:
             # In space. Whatever the hold was at the last base is history, and
-            # keeping it would bill the next dock for a journey.
-            self.last_base, self.last_hold = None, None
+            # keeping it would bill the next dock for the journey.
+            self.last_base, self.last_hold, self.anchor = None, None, None
             return None
         standings = rep.player_reps(saved)
-        cargo = save_cargo(saved)
-        self._ensure(standings, cargo)
-        hold = read_hold(self.pid, self.anchor, self.names)
-        done = None
-        if self.last_hold is not None and self.last_base == base:
-            value, skipped = turnover(self.last_hold, hold,
-                                      prices_at(self.rows, base))
-            if value:
-                owner = self.owners.get(base)
-                if owner and validate(self.pid, self.tables[0], standings,
-                                      self.model.order):
-                    done = apply_trade(self.pid, self.tables, self.model.order,
-                                       self.model.empathy, owner, value,
-                                       load_setting()["credits"])
-                    done["base"], done["skipped"] = base, skipped
-                    self.history.insert(0, done)
-                    del self.history[8:]
-        self.last_base, self.last_hold = base, hold
-        return done
 
-    def _ensure(self, standings, cargo):
-        """Find what is missing, and only what is missing.
-
-        A full scan takes seconds, so the addresses are cached and re-found
-        only when they stop answering. `validate` is what decides that for the
-        standing table, and an empty read decides it for the cargo array.
-        """
         if self.pid is None:
             self.pid = proc.find_pid()
         if not self.tables or not validate(self.pid, self.tables[0],
                                            standings, self.model.order):
             self.tables = locate_standings(self.pid, standings,
                                            self.model.order)
-        if self.anchor is None or not _raw_entries(self.pid, self.anchor):
-            self.anchor = locate_hold(self.pid, cargo)[0]
+
+        # **The cargo array is found again on every tick, never cached.** It
+        # moves: the first version of this held one address from the first dock
+        # and saw nothing ever again, because a dead copy still answers reads
+        # and so never looked stale. A fresh locate is 0.68s and only runs
+        # while docked, which is a small slice of playing.
+        anchor = locate_hold(self.pid, save_cargo(saved))[0]
+        hold = read_hold(self.pid, anchor, self.names)
+
+        # **Only ever diff two reads of the same array.** If the anchor moved,
+        # or this is a new dock, the previous reading describes a different
+        # object and subtracting one from the other would invent a trade. The
+        # cost of re-baselining is one missed diff; the cost of not doing it is
+        # standing handed out for a trade nobody made.
+        done = None
+        same = (self.last_hold is not None and self.last_base == base
+                and self.anchor == anchor)
+        if same:
+            value, skipped = turnover(self.last_hold, hold,
+                                      prices_at(self.rows, base))
+            owner = self.owners.get(base)
+            if value and owner and validate(self.pid, self.tables[0],
+                                            standings, self.model.order):
+                done = apply_trade(self.pid, self.tables, self.model.order,
+                                   self.model.empathy, owner, value,
+                                   load_setting()["credits"])
+                done["base"], done["skipped"] = base, skipped
+                self.history.insert(0, done)
+                del self.history[8:]
+        self.last_base, self.last_hold, self.anchor = base, hold, anchor
+        return done
 
     # -- the thread --------------------------------------------------------
 
