@@ -18,6 +18,7 @@ Indexing is the same arithmetic `load_names` uses: `dll index * 65536 + id`,
 with the dll order taken from `[Resources]` in `freelancer.ini` and
 `resources.dll` implicitly first.
 """
+# Measured facts and open questions: docs/game-data.md
 
 import argparse
 import os

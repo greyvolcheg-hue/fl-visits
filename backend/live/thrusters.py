@@ -29,6 +29,7 @@ The process plumbing is imported rather than copied: same game, same
 technique, and a second copy of the region scan would be a second thing to keep
 right. It lives in `proc.py`, which is also where the Windows version of it is.
 """
+# Measured facts and open questions: docs/patching-memory.md
 
 import struct
 import sys

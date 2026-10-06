@@ -74,6 +74,7 @@ The three rules from `persist.py` are not restated here because this module
 uses that module's own `_backup` and `_save`: round trip before replacing, swap
 atomically, and never overwrite an existing `.vanilla`.
 """
+# Measured facts and open questions: docs/patching-files.md
 
 import argparse
 import os

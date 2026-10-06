@@ -28,6 +28,7 @@ The `No_Mission` row is the one worth keeping: the states between two missions
 are real states with their own name, and a reading that only understood
 `Mission_NN` would have called that save "nowhere".
 """
+# Measured facts and open questions: docs/saves.md
 
 import argparse
 import os

@@ -40,6 +40,7 @@ It exists because the game's own `mov` into a read-only page faults, which is
 the game's problem and not ours. Being able to lift the protection from outside
 does not make `.text` padding a safe place for the game to write.
 """
+# Measured facts and open questions: docs/windows.md
 
 import ctypes
 from ctypes import wintypes

@@ -917,5 +917,5 @@ The game's data files are BINI, a binary INI format, decoded by `bini.py` in
 `../scripts/`. Display names come out of the string tables in the game's
 resource DLLs.
 
-`CLAUDE.md` in this folder holds the rest: what the flags mean, what is still
-unknown, and what not to touch.
+`CLAUDE.md` and `docs/` in this folder hold the rest: what the flags mean, what
+is still unknown, and what not to touch.

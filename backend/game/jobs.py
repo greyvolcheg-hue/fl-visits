@@ -42,9 +42,10 @@ difficulty number, so the game plainly inverts it to choose your enemy, and a
 "rank 9, four ships" column would be worth having. The direction of that
 inversion is nowhere in the files. Same for "what the best of N offers comes
 to": how the draw is distributed inside a band is not written down either. This
-is the `decay_per_second` rule in CLAUDE.md, and it applies here for the same
+is the `decay_per_second` rule in docs/game-data.md, and it applies here for the same
 reason: a number on the page implies a model, and neither model is proven.
 """
+# Measured facts and open questions: docs/game-data.md
 
 import argparse
 import bisect

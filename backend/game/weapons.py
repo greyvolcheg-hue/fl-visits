@@ -40,6 +40,7 @@ types over Graviton, Molecular and Positron shields with multipliers of 0.8,
 depend on what the target is flying, and the owner asked for the number that
 follows from the weapon's own stats. Do not add it back.
 """
+# Measured facts and open questions: docs/game-data.md
 
 import argparse
 import os

@@ -39,6 +39,7 @@ the moment the log grows, and anything keyed to it (the read and interesting
 marks the page keeps) silently slides onto the wrong line. Counted from the
 bottom, existing keys never move. Hence `key_from_end`.
 """
+# Measured facts and open questions: docs/saves.md
 
 import argparse
 import os

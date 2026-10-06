@@ -23,6 +23,7 @@ hours on 2026-09-07 and that is exactly what went wrong with it: it polled the
 game from every page, and it was rebuilt on every tick whatever you were
 reading.
 """
+# Measured facts and open questions: docs/page.md
 
 import os
 

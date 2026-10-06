@@ -51,6 +51,7 @@ whether it is still standing, which the data does not settle. The figure here is
 raw flying in the game's own metres. Same rule as the perishable cargo in
 `market.py`.
 """
+# Measured facts and open questions: docs/routes.md
 
 import argparse
 import heapq

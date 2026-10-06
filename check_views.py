@@ -24,6 +24,7 @@ because a headless browser has no other way to tell you anything.
 
 Needs `firefox` and a running server.
 """
+# Measured facts and open questions: docs/page.md
 
 import json
 import os

@@ -47,6 +47,7 @@ is nothing to re-apply.
 shipped copy every time is right here: twice is the same as once, and no other
 feature has bytes in it to lose.
 """
+# Measured facts and open questions: docs/patching-files.md
 
 import argparse
 import os

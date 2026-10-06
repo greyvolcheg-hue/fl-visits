@@ -31,8 +31,9 @@ resolve, none missing.
 
 `rumorknowdb` is not read here. 564 lines over 112 targets name the hidden jump
 hole or wreck a speaker knows about, which would tie this to the Systems tree.
-Deliberately out of scope; see CLAUDE.md.
+Deliberately out of scope; see docs/game-data.md.
 """
+# Measured facts and open questions: docs/game-data.md
 
 import argparse
 

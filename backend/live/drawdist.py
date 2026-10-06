@@ -33,6 +33,7 @@ no way to tell from the file which had happened. The `.vanilla` backup is the
 reference, so the setting is absolute rather than cumulative and `--restore`
 always has somewhere to go back to.
 """
+# Measured facts and open questions: docs/patching-files.md
 
 import argparse
 import os

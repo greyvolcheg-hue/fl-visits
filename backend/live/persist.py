@@ -30,6 +30,7 @@ that will not start:
     the pristine copy; overwriting it with already-modded content destroys the
     only way back.
 """
+# Measured facts and open questions: docs/patching-files.md
 
 import argparse
 import os

@@ -22,6 +22,7 @@ Every control appears exactly once. The strip carried best path and the docking
 takeover twice, in the strip and again in the drawer, which is two places to
 read one setting.
 """
+# Measured facts and open questions: docs/page.md
 
 ID, LABEL = "engine", "Engine"
 

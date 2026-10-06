@@ -24,6 +24,7 @@ Bases the player cannot dock at are dropped, the same 164 the rest of the tool
 counts. 18 of the 178 markets belong to those: the mining platforms, Tohoku and
 Alaska, and the cutscene copies. A price you can never reach is not information.
 """
+# Measured facts and open questions: docs/game-data.md
 
 import argparse
 import os

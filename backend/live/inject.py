@@ -31,6 +31,7 @@ garbage into a live process.
 Everything reverts on the next launch regardless, because nothing on disk is
 touched.
 """
+# Measured facts and open questions: docs/patching-memory.md
 
 import struct
 import sys

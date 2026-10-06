@@ -35,6 +35,7 @@ The `.vanilla` copy is kept before the first write and `--restore` puts it
 back, so the test is cheap: extend, launch, look at the info screen. If the
 game will not start, restore.
 """
+# Measured facts and open questions: docs/patching-files.md
 
 import argparse
 import os

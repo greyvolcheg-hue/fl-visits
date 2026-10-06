@@ -27,6 +27,7 @@ What this does **not** check is whether the Win32 calls do what the module
 thinks they do. Only Windows can answer that, and `fl.py proc` is the command
 that asks it.
 """
+# Measured facts and open questions: docs/windows.md
 
 import ctypes
 import os

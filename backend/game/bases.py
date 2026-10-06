@@ -47,6 +47,7 @@ module existed only to turn a base's world position into the cell the map
 draws, and this file was its only caller: two files for one question, "where is
 this base". `MAP_SIZE` and the fitting behind it are documented at that section.
 """
+# Measured facts and open questions: docs/bases-and-wrecks.md
 
 import os
 import sys
@@ -83,7 +84,7 @@ STORY_LOCKED = {
     # Omicrons already carry no dockable base and no wreck, so excluding this
     # one takes Omicron Minor off the page entirely.
     #
-    # And it ends the "one base spells `Base`" note in CLAUDE.md as a visible
+    # And it ends the "one base spells `Base`" note in docs/bases-and-wrecks.md as a visible
     # thing: this is that base, so it could never resolve a visit and could
     # never leave the unknown column. The spelling bug in
     # `flvisits.load_objects` is untouched and still the owner's call.

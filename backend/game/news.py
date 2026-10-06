@@ -29,6 +29,7 @@ is still open and `past` once the story has moved beyond it.
 Bar rumors are the counter-example and are in `rumors.py`: all 7803 of them
 carry the same wide-open gate and never move at all.
 """
+# Measured facts and open questions: docs/game-data.md
 
 import argparse
 

@@ -7,11 +7,12 @@ A wreck is a space object the game marks with `visit = 16` and gives a
 the same mechanism the base tracker already uses, so "found" is simply
 "the object's hash is in the save".
 
-Kept separate from flvisits.py, which is frozen (see CLAUDE.md). It also needs
+Kept separate from flvisits.py, whose edit rule is in CLAUDE.md. It also needs
 something that module cannot give it: a loadout lists its contents as repeated
 `equip` and `cargo` keys, and `flvisits.read_ini` collapses repeats into one
 value. `read_multi` below keeps them.
 """
+# Measured facts and open questions: docs/bases-and-wrecks.md
 
 import argparse
 import os
@@ -157,7 +158,7 @@ def load_wrecks(game_dir):
     `fuse_suprise_drop_loot` on its Solar archetype, which knocks equipment off
     22 named hardpoints and dumps the hold at `HpMount`. No loadout means
     nothing on the hardpoints and nothing in the hold, so there is nothing for
-    the fuse to drop. CLAUDE.md has the detail.
+    the fuse to drop. docs/bases-and-wrecks.md has the detail.
     """
     data_dir = fl.ipath(game_dir, "DATA")
     names = fl.load_names(game_dir)

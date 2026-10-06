@@ -27,6 +27,7 @@ module's, and the two names re-exported below are here because half the
 project already imports them from this file. `proc` is where they live now,
 and it is where the Windows implementation of them lives too.
 """
+# Measured facts and open questions: docs/patching-memory.md
 
 import struct
 import sys

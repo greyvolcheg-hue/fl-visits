@@ -7,13 +7,14 @@
 
 `flvisits.py` unpicks three undocumented formats and resolves a one-way hash by
 brute force. Its failure mode is not a crash: it keeps running, keeps printing a
-report, and the report is wrong. That is why the file is frozen, and it is the
-only reason a thaw needs this.
+report, and the report is wrong. That is why every edit to it is checked with
+this, before and after.
 
 So the check is not "does it run". It is every value the module derives, over
 every save on disk, printed in a stable order and compared byte for byte. The
 two earlier thaws were cleared exactly this way.
 """
+# Measured facts and open questions: docs/saves.md
 
 import glob
 import hashlib

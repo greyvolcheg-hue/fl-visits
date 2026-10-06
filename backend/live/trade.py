@@ -19,8 +19,8 @@ to switch on**, so a line added to `empathy.ini` would name a word the parser
 does not know.
 
 It fits what was measured on 2026-09-15: the engine's dispatch is selective and
-`random_mission_abortion` does not reach the empathy table at all. See
-*cancelling a mission hits the giver and nobody else* in CLAUDE.md.
+`random_mission_abortion` does not reach the empathy table at all. That
+measurement was never written down; see the open question in docs/game-data.md.
 
 So standing is moved from outside, the way the Engine tab moves cruise speed,
 and **nothing here writes to a game file**. Standing lives in the save, so a
@@ -102,6 +102,7 @@ in memory and float64 once parsed out of a save, so an exact comparison reports
 47 of 55 "differences" that are all `+0.00000`. That was briefly read as a
 second billing.
 """
+# Measured facts and open questions: docs/patching-memory.md
 
 import argparse
 import json

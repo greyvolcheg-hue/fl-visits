@@ -38,6 +38,7 @@ working unchanged.
 **Never import `proc_linux` or `proc_windows` directly.** Doing so from a cold
 start begins the cycle at the wrong end and leaves this module half built.
 """
+# Measured facts and open questions: docs/windows.md
 
 import sys
 

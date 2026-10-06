@@ -44,6 +44,7 @@ which is the one place the two platforms genuinely differ here.
 Everything here is memory only. No file is touched and the game reverts to its
 own numbers on the next launch.
 """
+# Measured facts and open questions: docs/patching-memory.md
 
 import argparse
 import struct

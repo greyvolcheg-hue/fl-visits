@@ -39,6 +39,7 @@ Bribes are in too, as a one-purchase row with a price instead of a repeat
 count. A bribe *sets* your standing to 0.6 rather than adding to it, so it is
 worth nothing above that and buying a second changes nothing. See BRIBE_TO.
 """
+# Measured facts and open questions: docs/game-data.md
 
 import argparse
 import math

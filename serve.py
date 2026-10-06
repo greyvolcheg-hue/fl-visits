@@ -12,6 +12,7 @@ data and the per-request save live in `backend/common.py`, because more than
 one tab needs them and none of them should have to import a web server to get
 at the game.
 """
+# Measured facts and open questions: docs/page.md
 
 import argparse
 import errno

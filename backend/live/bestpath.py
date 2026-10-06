@@ -42,6 +42,7 @@ very one the patch changes, from 0x0A to 0x03. That is not a coincidence to
 work around: it means "already patched" and "wrong build" are the same check,
 read from the same place, and neither can be mistaken for the other.
 """
+# Measured facts and open questions: docs/routes.md
 
 import argparse
 import os

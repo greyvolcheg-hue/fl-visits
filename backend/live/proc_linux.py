@@ -14,6 +14,7 @@ Needs no privileges beyond being the same user, provided
 permission error, which is the honest outcome and must not be "fixed" by
 loosening the setting for the whole machine.
 """
+# Measured facts and open questions: docs/windows.md
 
 import os
 

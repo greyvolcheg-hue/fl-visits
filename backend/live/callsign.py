@@ -63,10 +63,11 @@ will occasionally turn up on somebody else's radio.** That is the cost and
 there is no version of this without it.
 
 **`content.dll` is reloaded whenever a save loads**, which is recorded in
-`CLAUDE.md` under the best-path work, so a write here lands on the next load
+`docs/routes.md`, so a write here lands on the next load
 and not even a relaunch is needed. `os.replace` over a file Wine has mapped is
 safe: the running process keeps the old inode.
 """
+# Measured facts and open questions: docs/patching-files.md
 
 import argparse
 import os

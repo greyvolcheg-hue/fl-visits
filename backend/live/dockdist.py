@@ -57,6 +57,7 @@ Changed 750/500 to 100/50 by hand, no effect, restored.
 field holding the same 1000.0, and was flown at 100, 1000, 5000 and 10000 with
 no difference to a lane approach. Its knob was removed. Do not look again.
 """
+# Measured facts and open questions: docs/patching-memory.md
 
 import argparse
 import struct

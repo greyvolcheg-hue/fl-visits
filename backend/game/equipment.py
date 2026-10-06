@@ -34,6 +34,7 @@ saying which: `sold`, `wreck`, `loot`, `none`. See `npc_carried`.
 Guns come from `weapons.load_weapons`, which already reads both the `[Gun]` and
 its `[Munition]`. Shields are parsed here because nothing else needed them yet.
 """
+# Measured facts and open questions: docs/game-data.md
 
 import argparse
 import os

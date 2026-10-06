@@ -28,6 +28,7 @@ on `HpWeapon01` to `04` and caps at class 9 on `05` and `06`. Nomad guns are
 class 10 and the Salamanca Mk II is class 9, so four Nomads forward and two
 Salamancas outboard is the only arrangement that mounts at all.
 """
+# Measured facts and open questions: docs/patching-files.md
 
 import argparse
 import os
