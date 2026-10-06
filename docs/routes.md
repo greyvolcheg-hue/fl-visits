@@ -66,9 +66,7 @@ because after `routetable.py` wrote the table it reported 2079 equal.
 
 ## What `routetable.py` writes: two modes
 
-The table and the five bytes move together; either alone is broken. The module
-docstring still describes the gates-only version and is stale; the `MODES`
-comment and the code are current.
+The table and the five bytes move together; either alone is broken.
 
 | mode | the game reads | table | the five bytes |
 |---|---|---|---|

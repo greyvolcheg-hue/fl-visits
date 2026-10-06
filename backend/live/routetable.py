@@ -1,63 +1,62 @@
-"""Put shorter routes into the table Set Best Path actually reads.
+"""Put shorter routes into the table Set Best Path reads, in one of two modes.
 
-    fl.py routetable            # what would change, change nothing
-    fl.py routetable --write
-    fl.py routetable --revert   # back to the shipped table
+    fl.py routetable                  # what would change, in the mode the engine is in
+    fl.py routetable --mode holes     # the same for the other mode
+    fl.py routetable --write [--mode gates|holes] [--flying]
+    fl.py routetable --revert         # shipped tables and shipped bytes
 
 Freelancer answers Set Best Path out of a precomputed table, and it is not
 shortest paths. `game/jumps.py` builds the real graph from the system files and
-this writes the answers back.
+this writes the answers back. The full account is in docs/routes.md.
 
-## Gates only, and the reason is a star
+## Two modes, and the table and the bytes move together
 
-**The first version of this wrote hole routes into the file the game reads, and
-it flew the owner into the sun.** Settled 2026-09-13, from Battleship Matsumoto
-to Ohashi Border Station, which is Hokkaido to Shikoku:
+    gates   the router reads `shortest_legal_path.ini` and cannot make a
+            waypoint from a jump hole, so every hop needs a gate. Written:
+            gates-only shortest paths, over its 1225 rows 136 shorter and 0
+            longer.
+    holes   flhack's five bytes in `server.dll` and `content.dll` make the
+            router read `systems_shortest_path.ini` and treat a hole as a gate.
+            Written: hole-inclusive routes, 1170 of them, 648 jumps saved.
 
-    what was written   Hokkaido > Kyushu > Shikoku    2 jumps, 93 km of flying
-    what the game did  pointed the course at 0,0,0, where `Ku05_Sun` sits
+`write` sets the bytes through `bestpath.file_write` in the same call, because
+either half alone is broken. A hole route without the bytes points the course
+at the system origin, which is usually a star: on 2026-09-13 Hokkaido to Kyushu,
+a hole-only hop, sent the owner into `Ku05_Sun`. The bytes without the table
+leave the router reading a table nobody wrote.
 
-**The engine can only follow a hop that has a jump gate.** Hokkaido to Kyushu
-exists only as a hole, the router could not turn that hop into a waypoint, and
-it fell back to the system origin, which in Hokkaido is a red dwarf.
-
-The three shipped tables say the same thing by their own shape, and this is the
-measurement that should have been made first:
+The shipped tables show the contract by their shape:
 
     shortest_legal_path.ini      35 systems, 1225 rows, **0** rows with a gateless hop
     shortest_illegal_path.ini    46 systems, 2071 rows
     systems_shortest_path.ini    50 systems, 2079 rows, 1440 rows with a gateless hop
 
-`shortest_legal_path.ini` is gates-only **by construction**, and it is the one
-Set Best Path reads. That is not an accident of content, it is the contract the
-router relies on. The 15 systems no gate can reach are simply absent from it,
-which is why Chugoku answers "no best path" in a stock game and is right to.
+The 15 systems no gate can reach are absent from the legal table, which is why
+Chugoku answers "no best path" in a stock game. Alaska and Omicron Minor are out
+of it too; Alaska is story-locked by the designers.
 
-## What is written now
+## Two refusals, and each file keeps its own width
 
-Gates-only shortest paths, into `shortest_legal_path.ini` alone, at that file's
-own width. Measured over its 1225 rows: **136 shorter, 0 longer, 0 with no
-gates-only route at all, and 0 naming a system the file does not already
-list.** The last number is the one that matters, because with holes allowed it
-is 234, and widening the file to fit them is exactly what broke it.
+`content` counts rows with a hop no gate can make (`holed`, in gates mode) and
+rows naming a system the target file does not list (`outside`). `write` refuses
+unless both are zero. Allowing holes in the legal table would put 234 rows
+outside it, and widening that file to fit them is what broke the first version.
+A pair the graph cannot join keeps the shipped row.
 
-**The headline win never needed a hole.** New York to New London is four jumps
-in the shipped table, `li01 > li02 > iw04 > br02 > br01`, and three through
-Magellan, `li01 > iw03 > br02 > br01`. Every one of those is a gate. The hole
-routes were never where the improvement was.
+**The headline win needs no hole.** New York to New London is four jumps in the
+shipped table, `li01 > li02 > iw04 > br02 > br01`, and three through Magellan,
+`li01 > iw03 > br02 > br01`, every one a gate.
 
-**`systems_shortest_path.ini` is not touched at all.** The game does not read
-it, and the byte patch that made it read it cannot work: `content.dll` and
-`server.dll` are reloaded by the same world load that reads the table, so a
-patch applied afterwards is too late by construction. Hole routes live in
-`Map -> Best Path`, which is a reader and needs no engine.
+## It lands at the next world load
 
-Alaska and Omicron Minor stay out, because they are out of the shipped table:
-Alaska is story-locked and that exclusion is the designers' own.
+The table is read once per world load, and that load also reloads `content.dll`
+and `server.dll`. A memory patch of the bytes is wiped by it; the files are read
+by it. So a write applies when a save is loaded.
 
-The three rules from `persist.py` are not restated here because this file uses
-that module's own `_backup` and `_save`: round trip before replacing, swap
-atomically, and never overwrite an existing `.vanilla`.
+`--revert` puts back every target that has a `.vanilla` and takes the bytes out.
+The rules from `persist.py` are not restated here because this module uses its
+`_backup` and `_save`: round trip before replacing, swap atomically, and never
+overwrite an existing `.vanilla`.
 """
 # Measured facts and open questions: docs/routes.md
 

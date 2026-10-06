@@ -1,8 +1,11 @@
 """Make killing a Nomad mean something to everybody else.
 
     fl.py empathy               what one Nomad kill does to Sirius now
-    fl.py empathy -0.25
-    fl.py empathy --restore
+    fl.py empathy 400           400 Nomads take every other faction to friendly
+    fl.py empathy -400          the same distance toward hostile
+    fl.py empathy 0             back to the shipped indifference
+    fl.py empathy --rate -0.25  the same thing in the file's own units
+    fl.py empathy --restore     the .vanilla copy
 
 **Nobody in Sirius cares that you kill Nomads, and that is in the data.**
 `DATA/MISSIONS/empathy.ini` gives every faction an `object_destruction` value,
@@ -15,26 +18,31 @@ Nomad group carries 54 rates and **exactly three of them are non-zero**:
     fc_rn_grp  +1.000    Rheinland Military    story double
 
 Those three are the infiltrated navies from the campaign, and +1.000 against an
-`object_destruction` of -0.03 means they take the full penalty: killing a Nomad
-makes them hate you. The other 51 factions move by zero.
+`object_destruction` of -0.03 means they take the full penalty. The other 51
+factions move by zero.
 
 ## The sign, read off the game rather than guessed
 
-A negative rate means that faction **approves**. Two of the game's own rows say
-so plainly: killing a Liberty Rogue is `-0.018`, Liberty Police sit at `-0.250`
-toward them, and `-0.018 * -0.250` is `+0.0045` of Police standing. The same
-kill moves the Outcasts by `-0.0063`, because their rate is `+0.350`.
+A negative rate means that faction **approves**. Killing a Liberty Rogue is
+`-0.018`, Liberty Police sit at `-0.250` toward them, and `-0.018 * -0.250` is
+`+0.0045` of Police standing. The same kill moves the Outcasts by `-0.0063`,
+because their rate is `+0.350`.
 
-So the change is one number in 51 places, and it is a number the game already
-uses: rates run `-0.45` to `+1.00`, and `-0.05`, `-0.10` and `-0.25` are the
-common ones. At `-0.25` a Nomad kill is worth `+0.0075` to every faction that
-is not a Nomad, which is the same order as the game's own bounties.
+## The setting is a body count
 
-## The three story doubles keep their +1.000
+The argument is how many Nomads take every non-Nomad faction from neutral to
+friendly at once, and the rate is derived:
 
-They are Nomads wearing a navy's colours, so a Nomad kill should still count
-against them. Leaving them alone is also what keeps this honest: the mod is
-"everyone who is not a Nomad approves", not "every row in the file".
+    rate = -(friend - neutral) / kills / |object_destruction|
+
+The span comes from `reputation.GOALS`, so it cannot drift from the Reputation
+tab. A negative count runs the same distance toward hostile. Below `SOFT_FLOOR`
+the page warns and writes anyway; the only value refused is one that is not a
+number. Why it is a count and not a rate: see `KILLS`.
+
+The three story doubles keep their +1.000: they are Nomads wearing a navy's
+colours, so the change reads "everyone who is not a Nomad approves", not "every
+row in the file".
 
 ## It survives a reboot because it is a file
 
@@ -201,17 +209,13 @@ def write(kills=None, game_dir=None, rate=None):
         kill = read(game_dir)["kill"]
         rate = rate_for(float(kills), kill)
     rate = float(rate)
-    # **Only what is actually wrong is refused.** A positive rate is the
-    # opposite of this feature: it would make everyone hate you for killing
-    # Nomads, which the game already arranges for the three story doubles. A
-    # steep negative rate is not wrong, it is only fast, and `SOFT_FLOOR` is
-    # where that gets said.
+    # A steep rate is not wrong, it is only fast, and `SOFT_FLOOR` is where that
+    # gets said. The first version refused anything outside -1.0..0.0, on the
+    # reasoning that the game's own rates stop at -0.45. That is a fact about
+    # the shipped file and not a limit of the format, and it quietly made every
+    # count under ten kills impossible while the message talked about positive
+    # rates. Two kills asks for -8.33 and there is nothing wrong with it.
     #
-    # The first version also refused anything below -1.0, on the reasoning that
-    # the game's own rates stop at -0.45. That is a fact about the shipped file
-    # and not a limit of the format, and it quietly made every count under ten
-    # kills impossible while the message talked about positive rates. Two kills
-    # asks for -8.33 and there is nothing wrong with it.
     # **Only what cannot be written is refused.** A positive rate is kept, at
     # the owner's call, because it is funny and it is coherent: it makes all of
     # Sirius mourn every Nomad you shoot. What is left to refuse is a number

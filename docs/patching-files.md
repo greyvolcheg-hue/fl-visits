@@ -85,10 +85,6 @@ and ambush archetypes, and why the change applies at the next launch. Not there:
 
 ## Killing Nomads (`fl.py empathy`, 2026-09-13)
 
-The `empathy.py` docstring describes the first version (a rate argument,
-`fl.py empathy -0.25`) and is stale; `rate_for`, `kills_for` and this section
-are current.
-
 Killing Nomads after the campaign raised nobody's standing. In
 `DATA/MISSIONS/empathy.ini` each faction has an `object_destruction` value (what
 destroying one of its ships does to your standing with it) and `empathy_rate`
