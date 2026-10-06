@@ -2,7 +2,9 @@
 
 Reads a Freelancer save and reports what the player has found, grouped by
 system; further tabs read the game's data and patch the game. Own git repo,
-mirrored to GitHub: the history is the undo button. The game runs on `volkface`.
+mirrored to GitHub: the history is the undo button. The game ran on `volkface`
+and was uninstalled by 2026-10-06; the open questions in `docs/` wait for a
+reinstall.
 
 ## Working rules
 
