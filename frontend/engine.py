@@ -260,8 +260,43 @@ function engFiles() {
     '<span class="say">Touches files on disk. Each one is backed up to ' +
     '<code>.vanilla</code> the first time, and an existing backup is never ' +
     'overwritten.</span></div>' +
-    `<div class="grid wrapgrid">${write}${rocks}${engCallsign()}` +
+    `<div class="grid wrapgrid">${write}${rocks}${engSolar()}${engCallsign()}` +
     `${engPaths()}${engNomads()}${engTrade()}</div>`;
+}
+
+// How far a station is still drawn. Half of what was asked for turned out to
+// be true already: planets and jump holes ship with no LODranges at all, so
+// they are never culled. Stations are the whole problem, and the worst of them
+// stops being drawn at 3 km while a jump gate is visible at 50.
+function engSolar() {
+  const s = eng.solar;
+  if (!s || s.error) {
+    return '<div class="box file"><div class="lbl">STATION DRAW DISTANCE</div>' +
+      `<div class="why">${esc((s && s.error) || 'not read yet')}</div></div>`;
+  }
+  const chips = ['<button data-solar="0"' + (s.floor ? '' : ' class="on"') +
+    '>VANILLA</button>'].concat(s.choices.map(v =>
+      `<button data-solar="${v}"${s.floor === v ? ' class="on"' : ''}>` +
+      `${Math.round(v / 1000)} km</button>`)).join('');
+  return '<div class="box file"><div class="top">' +
+    '<span class="lbl">STATION DRAW DISTANCE</span>' +
+    `<span class="val" id="v-solar">${s.floor ? money(s.floor) : 'stock'}</span>` +
+    `</div><div class="presets">${chips}</div>` +
+    `<div class="why">The last number in <code>LODranges</code> is where the ` +
+    `renderer stops drawing a thing at all. This puts a floor under it across ` +
+    `${s.kinds} archetypes in <code>solararch.ini</code>, raising only that ` +
+    'last number, so the detail ladder below it is left where it was tuned.' +
+    '</div>' +
+    '<div class="why">Planets and jump holes need nothing: they ship with no ' +
+    `<code>LODranges</code> and are never culled. Stations are the problem, and ` +
+    `the closest station shipped at ${money(s.was)} against a jump gate's ` +
+    '50,000. ' +
+    `Yours is ${money(s.closest)}, with ${s.raised} raised.</div>` +
+    `<div class="why">${s.held} archetypes are left alone on purpose: two the ` +
+    'designers hid, and the ambush spawns, which drawn early would show you ' +
+    'the trap before it springs.</div>' +
+    '<div class="from">lands on the next launch; this file is read once at ' +
+    'startup</div></div>';
 }
 
 // What killing a Nomad is worth to everyone who is not one. Shipped, the
@@ -467,6 +502,7 @@ const KNOB = {
   lane: v => engPost('tradelane', { value: v }),
   takeover: v => engPost('tradelane', { takeover: v }),
   draw: v => engPost('drawdist', { factor: v }),
+  solar: v => engPost('solardist', v ? { floor: v } : { restore: true }),
 };
 
 const FLIP = {
@@ -495,6 +531,8 @@ function wireEngine() {
   });
   box.querySelectorAll('[data-cruise]').forEach(b =>
     b.onclick = () => KNOB.cruise(Number(b.dataset.cruise)));
+  box.querySelectorAll('[data-solar]').forEach(b =>
+    b.onclick = () => KNOB.solar(Number(b.dataset.solar)));
   box.querySelectorAll('[data-flip]').forEach(b =>
     b.onclick = () => { const f = FLIP[b.dataset.flip]; if (f) f(); });
   // One POST, not three from here: three would race through `engPost`'s busy

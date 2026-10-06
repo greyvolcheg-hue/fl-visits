@@ -189,5 +189,14 @@
   .engine .box.file button.chip { background: rgba(255, 179, 71, .12);
                                   border-color: rgba(255, 179, 71, .45);
                                   color: var(--amber-hi); }
+  /* A file box is amber, so its presets are too. Without this the row of
+     distances comes out cyan, which on this page means "live memory" and
+     would say the opposite of what the box does. */
+  .engine .box.file .presets button { background: rgba(255, 179, 71, .06);
+                                      border-color: rgba(255, 179, 71, .3);
+                                      color: var(--amber-dim); }
+  .engine .box.file .presets button.on { background: rgba(255, 179, 71, .2);
+                                         border-color: rgba(255, 179, 71, .6);
+                                         color: var(--amber-hi); }
   .engine .said { font-size: 11px; color: var(--dim); }
   .engine .said.bad { color: var(--amber-hi); }

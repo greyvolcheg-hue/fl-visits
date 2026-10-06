@@ -19,6 +19,7 @@ from .live import drawdist as dd
 from .live import empathy as em
 from .live import trade as td
 from .live import persist as pe
+from .live import solardist as sd
 from .live import speed as sp
 from .live import thrusters as th
 from .live import tradelane as tl
@@ -35,6 +36,10 @@ TAKEOVER_RANGE = [100, 1000, 50]
 # A multiple of each field's own vanilla value. Geometry grows with the cube of
 # the radius, so 2x is roughly 8x the rocks.
 DRAWDIST_CHOICES = [1, 2, 3, 4]
+# Where a station stops being drawn. Not evenly spaced and not a multiple of
+# anything, because the shipped values are not: they run from 3000 to 150000.
+# The top of the list is what vanilla itself ships on `space_arch`.
+SOLARDIST_CHOICES = [25000, 40000, 60000, 100000]
 
 
 def _speed(ctx):
@@ -121,6 +126,31 @@ def _drawdist(ctx):
     return body
 
 
+def _solardist(ctx):
+    """How far a station is still drawn, against how far it shipped."""
+    body = {"choices": SOLARDIST_CHOICES, "floor": None, "kinds": 0,
+            "raised": 0, "closest": None, "was": None, "held": 0,
+            "error": None}
+    try:
+        rows = sd.survey(ctx.game.dir)
+        live = [r for r in rows if r[4]]
+        if live:
+            body["kinds"] = len(live)
+            body["held"] = len(rows) - len(live)
+            body["raised"] = sum(1 for r in live if r[3] > r[2])
+            body["floor"] = sd.setting(rows)
+            # The two headline numbers are stations only. Over every raisable
+            # archetype the closest is a piece of debris at 1000, which is a
+            # true number about the wrong thing: what the owner notices
+            # vanishing is a base.
+            near = [r for r in live if r[1] == "STATION"] or live
+            body["closest"] = round(min(r[3] for r in near))
+            body["was"] = round(min(r[2] for r in near))
+    except (sd.WriteFailed, OSError) as exc:
+        body["error"] = str(exc)
+    return body
+
+
 def _callsign(ctx):
     """What the bots call you, and every word they are able to say.
 
@@ -184,7 +214,7 @@ def _engine(ctx):
     than repeating any of them.
     """
     body = {"running": False, "error": None, "cruise": None, "lane": None,
-            "thrusters": None, "draw": None, "call": None,
+            "thrusters": None, "draw": None, "solar": None, "call": None,
             "paths": None, "nomads": None, "trade": None}
     try:
         sp.find_pid()
@@ -195,6 +225,7 @@ def _engine(ctx):
         # the game shut and is the one thing worth answering here.
         if ctx.one("all"):
             body["draw"] = _drawdist(ctx)
+            body["solar"] = _solardist(ctx)
             body["call"] = _callsign(ctx)
             body["paths"] = _routetable(ctx)
             body["nomads"] = _empathy(ctx)
@@ -205,6 +236,7 @@ def _engine(ctx):
     if ctx.one("all"):
         body["thrusters"] = _thrusters(ctx)
         body["draw"] = _drawdist(ctx)
+        body["solar"] = _solardist(ctx)
         body["call"] = _callsign(ctx)
         body["paths"] = _routetable(ctx)
         body["nomads"] = _empathy(ctx)
@@ -241,7 +273,8 @@ def _trade(ctx):
 
 
 API = {"engine": _engine, "trade": _trade, "speed": _speed, "thrusters": _thrusters,
-       "tradelane": _tradelane, "drawdist": _drawdist, "callsign": _callsign,
+       "tradelane": _tradelane, "drawdist": _drawdist,
+       "solardist": _solardist, "callsign": _callsign,
        "routetable": _routetable, "empathy": _empathy}
 
 def _set_speed(ctx, sent):
@@ -295,6 +328,17 @@ def _set_drawdist(ctx, sent):
         n = dd.apply(factor, ctx.game.dir)
     return (f"{n} fields scaled to {factor:g}x; takes effect the next time a "
             "system loads")
+
+
+def _set_solardist(ctx, sent):
+    with ctx.lock:
+        if sent.get("restore"):
+            return ("solararch.ini back to vanilla" if sd.restore(ctx.game.dir)
+                    else "nothing to restore: no .vanilla copy was ever made")
+        floor = float(sent["floor"])
+        n = sd.apply(floor, ctx.game.dir)
+    return (f"{n} archetypes now cull no closer than {floor:g}; relaunch the "
+            "game, solararch.ini is read once at startup")
 
 
 def _set_callsign(ctx, sent):
@@ -427,6 +471,7 @@ def _set_persist(ctx, _sent):
 
 POST = {"speed": _set_speed, "thrusters": _set_thrusters,
         "tradelane": _set_tradelane, "drawdist": _set_drawdist,
+        "solardist": _set_solardist,
         "allhacks": _set_allhacks, "persist": _set_persist,
         "callsign": _set_callsign, "routetable": _set_routetable,
         "empathy": _set_empathy, "trade": _set_trade}

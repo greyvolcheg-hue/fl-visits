@@ -52,6 +52,7 @@ COMMANDS = {
     "persist": "backend.live.persist",
     "proc": "backend.live.proc",
     "routetable": "backend.live.routetable",
+    "solardist": "backend.live.solardist",
     "speed": "backend.live.speed",
     "thrusters": "backend.live.thrusters",
     "trade": "backend.live.trade",
@@ -59,8 +60,8 @@ COMMANDS = {
 }
 
 WRITES = {"bestpath", "callsign", "dockdist", "drawdist", "empathy", "inject",
-          "levels", "newgame", "persist", "routetable", "speed", "thrusters",
-          "trade", "tradelane"}
+          "levels", "newgame", "persist", "routetable", "solardist", "speed",
+          "thrusters", "trade", "tradelane"}
 
 
 def usage():

@@ -60,6 +60,7 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/live/persist.py` | writes the live speeds back into the game's files |
 | `backend/live/routetable.py` | writes the shortest routes into the game's own route tables |
 | `backend/live/drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
+| `backend/live/solardist.py` | puts a floor under the cull distance in `solararch.ini`, so stations stop vanishing |
 | `backend/live/levels.py` | the level ladder in `ptough.ini`, and how far it goes |
 | `backend/live/callsign.py` | what the bots call you: four words patched into `content.dll` |
 | `backend/live/empathy.py` | what killing a Nomad is worth to the other 51 factions |
@@ -1658,8 +1659,9 @@ entries in the other triggers alone: theirs are symbols like
 
 Also worth knowing when reading these files: `CRUISING_SPEED` in
 `constants.ini` currently says 5000.0, written by the Engine tab's persist
-button, and 153 asteroid field files carry a scaled `fill_dist` from
-`drawdist.py`. Both have `.vanilla` backups.
+button, 153 asteroid field files carry a scaled `fill_dist` from `drawdist.py`,
+and `solararch.ini` carries a 40000 cull floor from `solardist.py`. All three
+have `.vanilla` backups.
 
 ## Settled: an RTC is not a cutscene, and the first mission cannot be trimmed
 
@@ -1758,6 +1760,94 @@ answer if it will not start. And what else the curve drives: the game calls it
 `PlayerToughnessScale`, so it very likely also decides how tough the world
 thinks you are, which would mean a stretched ladder makes encounters harder.
 That is a reading of the name and the shape, not a measurement.
+
+## Settled: half of "draw everything" was already true, and stations were the rest
+
+The tracker asked to see every base, gate, planet and jump hole, and to raise
+the draw distance. Asked which of the three levers the game actually offers,
+the owner picked `LODranges` and put the map reveal and the scanner range out
+of scope. `backend/live/solardist.py` is the result, 2026-09-15.
+
+**The first thing the measurement did was delete half the request.** Planets
+and jump holes are never culled in a stock game: 54 of 55 `PLANET` archetypes
+and all 5 `JUMP_HOLE` ones ship with no `LODranges` at all, which covers 172 of
+the 511 placed base and jump objects. Jump gates already reach 50000, the Nomad
+gate 60000. Nothing to build for any of them.
+
+**Stations were the whole complaint.**
+
+| archetype | placed | shipped cull |
+|---|---|---|
+| `miningbase_badlands`, `miningbase_nomad` | 3 | 3000 |
+| `docking_fixture`, the mooring you dock at on a planet | 21 | 6000 |
+| six `miningbase_*` | 15 | 7000 |
+| `roid_miner2`, `space_port_dmg` | 32 | 12000 |
+| `trade_lane_ring` | 1059 | 13000 |
+| most stations | ~120 | 15000 |
+| `outpost`, `smallstation1`, the battleships | ~40 | 20000 |
+
+A mining base stops being drawn at 3 km while a jump gate is visible at 50.
+
+### Where the numbers live
+
+`LODranges` is in `solararch.ini` and nowhere else: 255 of its 321 `[Solar]`
+sections carry one, and `stararch.ini` and `asteroidarch.ini` carry none. All
+836 shipped values are ints. The values before the last are the switch points
+between detail meshes; **the last one is where the object stops being drawn at
+all**.
+
+### A floor, not a multiplier, and only the last value
+
+The control is one absolute distance, applied as `last = max(last, floor)`.
+
+A multiplier was the obvious shape because `drawdist` is one, and it is wrong
+here. The shipped spread is two orders of magnitude wide, so 3x takes
+`miningbase_badlands` from 3000 to 9000, still too close, while taking
+`space_arch` from 150000 to 450000, which buys nothing. A floor also makes the
+setting idempotent, which is the property `drawdist` needed a paragraph to
+defend.
+
+Only the last value moves. The earlier ones are tuned to apparent size, so
+stretching them keeps a high-poly mesh on screen while the object is a few
+pixels across: it costs and shows nothing. The count never changes, so the
+ladder cannot fall out of step with the model's own LODs.
+
+The ceiling is 150000 because that is the largest value vanilla itself ships,
+on `space_arch` and `space_arch_asteroid`, and both are placed in a system.
+
+### Two archetypes are invisible on purpose, and 37 are traps
+
+`fuchu_core` ships `0, 1` and `planet_storm_5000` ships `0, 1, 2, 3, 4, 5`.
+Both are placed in a system and both are meant never to be drawn. The next
+value up anywhere in the file is 1000, so the `HIDDEN = 100` cut sits in a
+clear gap rather than on a judgement call. Raising these would put an object on
+screen that the designers hid, which reads as a broken game rather than a mod.
+
+`suprise_*`, the game's own spelling, is the ambush set: 35 `MISSION_SATELLITE`
+archetypes at 1000 and 2 `surprise_*` `DESTROYABLE_DEPOT` baits at 1800.
+Drawing those early shows you the trap before it springs.
+
+That is 39 held back out of 255. Everything else is raised, the 23 `rm_*`
+random-mission props included, whose battleships have a 4000 radius and vanish
+at 15 to 20 km in a stock game.
+
+### It lands on the next launch, not the next system load
+
+`EXE/freelancer.ini` reads `solar = solar\solararch.ini` once at startup and,
+by its own comment, before the universe, because the universe inspects solar
+`OBJECT_TYPE` values. `drawdist`'s "next time a system loads" is true of
+asteroid files and false of this one, so the wording is not shared.
+
+### What was measured, at a 40000 floor
+
+195 of the 216 raisable archetypes moved, only their last value changed, every
+ladder still ascends, all 836 values are still ints, and the 39 held back are
+byte-for-byte what they were. A set-restore-set round trip through the page put
+the closest station back to 3000 and then to 40000 again.
+
+**The one thing to watch is the trade lanes.** 1059 lane rings move from 13000
+to the floor and a long lane is the densest thing this touches. If the frame
+rate suffers, `TRADELANE_RING` is the first type to put on the held-back list.
 
 ## Settled: trading moves reputation, and the engine could never have done it
 
