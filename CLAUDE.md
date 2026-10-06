@@ -1,13 +1,46 @@
 # fl-visits
 
-Reads a Freelancer save game and reports what the player has found, grouped by
-system. Own git repo; the history in this folder is the undo button.
+Reads a Freelancer save and reports what the player has found, grouped by
+system; further tabs read the game's data and patch the game. Own git repo,
+mirrored to GitHub: the history is the undo button. The game runs on `volkface`.
+
+## Working rules
+
+Each rule comes from an incident recorded further down.
+
+- **The owner is the instrument for what the files cannot settle**: what a bot
+  says, where a course points, what floats in a system. The tool is the
+  hypothesis. On 2026-09-13 his report was treated as something to disprove
+  three times (route table, Omicron Gamma, callsign), and he was right twice.
+- **An ambiguous report gets one question**: which reading he means. Not a page
+  of evidence aimed at the wrong reading.
+- **Measure, then state, with the date.** The saves grow as he plays: re-measure
+  instead of quoting a count.
+- **A check must not read what the tool wrote.** `fl.py jumps --check` once
+  compared the graph with a table `routetable.py` had just written and reported
+  2079 equal. A check that passes silently is this project's worst failure mode.
+- **Key case in Freelancer INI files carries no meaning.** A reader that matches
+  `base` and misses `Base` returns fewer rows and no error (Planet Toledo; 23
+  wrecks spelling `Archetype`). Case-fold keys.
+- **A display string is not a key.** System and faction names repeat.
+- **One decision, one place.** The dockable rule is in `bases.py`, process
+  access in `proc.py`, opening a folder in one function in `common.py`. In August
+  `flvisits.py` and `serve.py` each held a copy of the base filter and disagreed,
+  167 against 181.
+- **Do not print a number that implies a model the files do not prove**
+  (spoilage cost, job opposition).
+- **Every game-file writer** keeps `<file>.vanilla`, builds from it so running
+  twice equals running once, writes atomically and restores the file mode
+  (`persist._save` for BINI, `persist.write_raw` for raw bytes), and in a file
+  with two writers touches only its own bytes.
+- **Find addresses and patch sites by signature**, never by a hardcoded offset.
+- **A five-second poll compares, never rebuilds** (see *The page*).
 
 ## Where things live
 
-Three folders, one per layer, settled 2026-09-07 to the owner's own spec in
-`bug-and-feature-tracker.md`. **The folder a file sits in says what it may do**,
-and that is the whole point of the split:
+Three folders, one per layer, settled 2026-09-07 to the owner's spec in
+`bug-and-feature-tracker.md` (his own notes, untracked). The folder says what a
+file may do:
 
 | Folder | Holds | May |
 |---|---|---|
@@ -17,9 +50,9 @@ and that is the whole point of the split:
 | `backend/live/` | the patchers | **write**: process memory, or a game file with a `.vanilla` beside it |
 | `frontend/` | one `<tab>.py` per tab, plus the shell | style and behaviour, nothing else |
 
-`tabs.py` at the root is the site map and the only place the shape of the page
-can be read at once. It is neither backend nor frontend because the shape is
-neither. `fl.py` is the one entry point for every command line.
+`tabs.py` at the root is the site map, the one place the shape of the page reads
+at once; it is neither backend nor frontend. `fl.py` is the one entry point for
+every command line.
 
 | File | What |
 |---|---|
@@ -42,11 +75,11 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/game/story.py` | how far through the campaign a save is, and what that state is called |
 | `backend/game/news.py` | the 403 news items and the story window each one runs in |
 | `backend/game/rumors.py` | what the people in every bar say, and who is saying it |
-| `backend/game/infocards.py` | the RT_HTML half of the resource DLLs, which is where rumor text lives |
-| `backend/game/jobs.py` | what the job board at every base is capable of paying |
+| `backend/game/infocards.py` | the RT_HTML half of the resource DLLs, where rumor text lives |
+| `backend/game/jobs.py` | what the job board at every base can pay |
 | `backend/game/jumps.py` | every jump between systems, and the shortest way through them |
 | `data/story-states.txt` | the 42 story states in order. `MissionNum` in a save indexes this |
-| `data/marks.json` | which log entries are starred and read. **Untracked**: personal state |
+| `data/marks.json` | which log entries are starred and read, and the favourite guns. **Untracked**: personal state |
 | `data/trade.json` | the credits-to-friendly figure and whether the watcher is on. **Untracked**: personal state |
 | `backend/live/proc.py` | the only code that touches another process. Picks its implementation at import |
 | `backend/live/proc_linux.py` | `/proc/<pid>/{maps,mem}` |
@@ -55,988 +88,335 @@ neither. `fl.py` is the one entry point for every command line.
 | `backend/live/thrusters.py` | the same for the six thruster bonuses |
 | `backend/live/tradelane.py` | trade lane speed and the 999 cap on the HUD readout |
 | `backend/live/dockdist.py` | when the autopilot cruises to a dock, and where it takes over |
-| `backend/live/bestpath.py` | let Set Best Path route through jump holes |
+| `backend/live/bestpath.py` | flhack's five route bytes, in memory or in the DLL files |
 | `backend/live/inject.py` | the code cave, and how a stub gets into it |
-| `backend/live/persist.py` | writes the live speeds back into the game's files |
+| `backend/live/persist.py` | writes the live speeds back into the game's files; `write_raw`, the atomic byte writer |
 | `backend/live/routetable.py` | writes the shortest routes into the game's own route tables |
 | `backend/live/drawdist.py` | scales asteroid `fill_dist` across the 153 field files |
 | `backend/live/solardist.py` | puts a floor under the cull distance in `solararch.ini`, so stations stop vanishing |
 | `backend/live/levels.py` | the level ladder in `ptough.ini`, and how far it goes |
-| `backend/live/callsign.py` | what the bots call you: four words patched into `content.dll` |
+| `backend/live/callsign.py` | what the bots call you: four sites patched in `content.dll` |
 | `backend/live/empathy.py` | what killing a Nomad is worth to the other 51 factions |
 | `backend/live/trade.py` | trading for standing: follows the hold, prices it, writes the result |
 | `backend/live/newgame.py` | what a new game starts you in |
-| `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made and not ours to redistribute. Drop your own copy in. |
-| `design/` | the visual design, as a Claude Design canvas. The source the page is built from, not a screenshot of it. |
+| `data/freelancer-map.jpg` | the sector chart, served at `/map.jpg`. **Untracked**: fan-made, not ours to redistribute. Drop your own copy in |
+| `design/` | the visual design, a Claude Design canvas: the source the page is built from |
 | `run.sh` | start the server and open a browser on it |
 | `run.cmd` | the same three lines for Windows. **Never run** |
 
-**A tab is a pair of files with the same name**, `backend/<name>.py` and
-`frontend/<name>.py`, and either half may be absent: a tab that only draws what
-`/api/state` already carries has no endpoints of its own. Adding one is a row in
-`tabs.py` plus the file or two it names.
-
-**Modules under `backend/` have no `if __name__ == "__main__"` block.** Inside a
-package a relative import has no parent, so `python3 backend/live/dockdist.py`
-cannot work and an entry point that cannot run is worse than none. Every one of
-them still has its `main()`, reached through `fl.py`.
-
-Everything new goes in its own file. `flvisits.py` supplies the primitives;
-`wrecks.py` adds its own INI reader because loadouts repeat their `equip` and
-`cargo` keys and the one in `flvisits.py` collapses repeats.
-
-## `flvisits.py` is no longer frozen. `check_frozen.py` is the guard instead.
-
-**Unfrozen 2026-09-07, permanently, at the owner's request.** The freeze was
-the right call in August and the ceremony around it had stopped paying: three
-thaws in five weeks, each one obviously correct, each one costing a round trip.
-What made every one of those safe was never the rule. It was the check.
-
-The reason for the caution has not changed, so read this before editing:
-
-It unpicks three undocumented formats in a row. FLS1 save encryption, BINI
-binary INI, and PE resource tables in the DLLs. On top of that it resolves a
-**one-way** hash by brute force, hashing every nickname in the game data and
-looking the result up, because the mapping cannot be inverted.
-
-None of that is re-derivable by reading the code. The constants were found by
-searching, then confirmed empirically against real saves, and several plausible
-alternatives were tried and scored zero. A tidy-looking edit can therefore break
-it silently: the script will still run, still print a report, and the report
-will be wrong. That is the worst failure mode there is, because it looks like
-success.
-
-**So the rule is now one line: run `check_frozen.py` before and after, and diff.**
-Not "read the diff and think about it". The one save that legitimately moves is
-`AutoSave.fl`, because the game rewrites it while you play; everything else must
-be identical byte for byte. If you cannot produce that diff, do not commit the
-edit.
-
-Everything below is the record of what was changed and why. Keep adding to it.
-
-**Thawed once, 2026-08-31, with the owner's explicit go.** The denominator
-counted all 197 `[Base]` entries in `universe.ini`, including 15 that no space
-object points at. Three of those are intro-cutscene copies of Manhattan sharing
-one `strid_name`, so the report printed "Planet Manhattan" three times as
-unvisited. Left alone the two programs here would have disagreed with each
-other on the same data, 197 against 182, which reads as a bug in whichever one
-you check second. The freeze stands; this is the precedent for what clears it,
-not for how easily it clears.
-
-**Thawed a second time, 2026-09-01, with the owner's explicit go.** The
-Asteroid Miners turned out to be undockable (see below), which changes the
-denominator, and the denominator filter sat in both `flvisits.py` and
-`serve.py`. Editing only one would have left them disagreeing, 167 against 181,
-the same failure the first thaw was for.
-
-The edit was kept to the smallest shape that removes the duplicate instead of
-adding a third copy of it: the rule moved to `bases.py` and both callers now
-ask that. Eight lines changed in the frozen file, all of them in `main()`, none
-in the decoding, the hash or the loaders.
-
-Checked afterwards, against the same save, with the committed version of the
-file and the thawed one side by side: 3430 object nicknames, 2188 visit
-entries, **486 resolved by both**. Identical. That is the check that matters
-here, because it is the one that would have gone quietly wrong.
-
-**Thawed a third time, 2026-09-06, with the owner's explicit go**, to run the
-file through the same cleanup as the rest of the repo. Two changes, both in
-what the file says rather than what it computes:
-
-- **`ipath` was defined twice**, at lines 47 and 121, and the second shadowed
-  the first. Nineteen lines of dead code carrying a docstring that described
-  behaviour nothing ran. That is worse than clutter in a file people are told
-  not to touch: whoever read the first definition was reading a lie about how
-  paths resolve. The live one absorbed the useful half of the dead one's
-  docstring.
-- A comment in `main()` said 167 dockable and 30 dropped. The real figures are
-  164 and 33, stale since the story-locked three were excluded. (163 and 34
-  since 2026-09-13, when Planet Toledo became the fourth.)
-
-**Edited twice on 2026-09-07, after the freeze was lifted**, both times so that
-the bar rumors could be read at all:
-
-- `read_string_table(path)` became `read_string_table(path, rtype=RT_STRING)`.
-  Rumor text is RT_HTML (type 23) and names are RT_STRING (type 6); the PE
-  resource walk is identical and only the type constant and the indexing differ.
-  The alternative was a second copy of that walk in `infocards.py`.
-- `resource_dlls()` came out of `load_names()`. `infocards.py` reads the same
-  seven DLLs in the same order, and a second copy of that loop would have been
-  a second answer to "which DLL is index 2".
-
-`check_frozen.py` identical on both, across all 123 stable lines.
-
-**`check_frozen.py` is what made every one of these safe.**
-It fingerprints everything the module decides, across every save on disk, and
-prints it in a stable order: the hash table, the string tables, the system
-walk, the dockable set, and each save's resolved visits with their flags. Run
-it before, run it after, diff. On the 2026-08-31 thaw that was **96 saves,
-219,634 visit entries, 7,372 resolved, and every digest identical**.
-
-Use it rather than reasoning about whether an edit was safe. This file's
-failure mode is a report that is wrong while looking right, and no amount of
-reading catches that.
-
-## What it was verified against
-
-- Every one of the 301 hashes in a live save resolved to a nickname in the game
-  data. Zero unresolved.
-- The same brute force without lowercasing the nickname scores 40 of 301, so the
-  match is not coincidence.
-- The flag model held across a play session: flag 1 means the story revealed the
-  base on the nav map, flags 30 and 31 mean the player actually docked. A base
-  moved from the first bucket to the second while the player was flying, exactly
-  as the model predicts.
-- Denominator starts from the `[Base]` list in `universe.ini` (197), not the
-  count of dockable space objects (250). A planet's mooring fixture is a second
-  object pointing at the same base, so counting objects double counts every
-  planet. 197 then narrows to 181 reachable and 163 dockable; `bases.py` owns
-  that and says why. 163 instead of 167 because Tohoku's two, Alaska's one and
-  Omicron Minor's one are excluded by name: all three systems are story-gated.
-  For Tohoku and Alaska that rests on the owner's knowledge of the game and on
-  no evidence. An earlier note here cited the saves, which was wrong: Tohoku is
-  M09 and Alaska is M11, the save is on Mission_05, so their absence means only
-  that he has not reached them. `bases.py` carries the correction.
-  **Omicron Minor is the one the data backs up**: `st01` has no jump to
-  anywhere outside the five story Omicrons, and Planet Toledo was the only
-  dockable thing in it, so excluding it takes the system off the page.
-
-## Known gaps, deliberately not fixed
-
-- 19 `visit` entries carry small ids from a different id space and flag 65.
-  `FLHash` does not cover them. They are not bases and do not affect the report.
-- `AutoSave.fl` changes under your hands while the game is running. Test against
-  a fixed `Save*.fl`, or you will chase differences that are just play.
-- **Adv. Dissolver and Adv. Sunrail are stocked by exactly one base and that
-  base is Battleship Essex in Leeds (`br05_04_base`), which `dockable_bases`
-  says you cannot land on.** Found 2026-09-12 while adding the loot source.
-  Either the docking rule is wrong about Essex or those two guns, at 24790
-  credits and rank 22, are genuinely unbuyable in a normal game. The Equipment
-  tab says which rather than guessing: their row reads "stocked by 1 base you
-  cannot dock at". Resolving it means reopening the rule in `bases.py`, which
-  is the owner's call and is not this change.
-
-## What the `visit` flags mean
-
-Read them as bits. Bit 1 is "seen, it is on the nav map" and bit 16 is "this is
-a secret", so a recorded wreck reads 17. Bases read 30 or 31 once docked at, and
-1 when the story has only revealed them.
-
-**Bit 8 means the wreck has been emptied.** Settled 2026-09-01, replacing the
-note that called it not understood. A wreck found but not looted reads 17, and
-the same wreck reads 25 once the loot is taken.
-
-The save that settled it held five found wrecks: four at 25 and exactly one at
-17, the Storm in Dublin (D6). The owner confirmed independently that the Storm
-is the one he had found and deliberately not emptied, and that he was leaving it
-alone. One save cannot distinguish "not looted" from "some other property of
-that particular hull", so the second leg is the old reading this note used to
-carry: New York's three Patrol 27 hulls were 25, 17, 17 and are now 25, 25, 25.
-Two of them changed while the player flew, which a fixed property of the object
-cannot do and being emptied is exactly what does.
-
-**The transition was never caught in a file.** All 20 saves on disk already hold
-their final flags, so the 25/17/17 reading survives only as the earlier entry in
-this document and is no longer re-checkable. If you want it on disk, note a
-wreck's flag, empty it, and keep that pair of saves.
-
-**An empty wreck counts as emptied the moment it is found.** 53 of the 157
-carry nothing at all, which is the game's own design and not a gap in the
-reader. The game never sets bit 8 on those, because there was never anything to
-take, so they sat in the report as found-but-still-loaded forever and the
-stripped count could not reach 157 however thoroughly they were searched. There
-is no second visit that would ever change one, so finding it is emptying it.
-
-**Which hulls those are is not a guess and not a list**, it is the `holds`
-flag; the section *a hull that holds nothing is not a hull you have not opened*
-below has the rule, the count and what it is checked against. Two figures here
-were corrected by that work: it is 53 and not 54, because the Dallas Storage
-Container keeps its cargo on its archetype rather than in a loadout, and
-**Sigma-13 is not where they are**. That was the owner's recollection and it is
-5 of 11 there, against 23 of 27 in Omega-5 and 19 of 24 in Omicron Alpha.
-
-Do not chase this as a loot-parsing bug. It was, briefly, on the theory that
-`load_item_names` was dropping items with no display name; the first wreck
-checked turned out to hold eight kinds of cargo and parse correctly. The empty
-ones are simply empty.
-
-**The report shows it, and progress deliberately does not count it.** Found is
-found: a wreck counts once for the totals and the percentage whether or not it
-was emptied, because reaching it is the discovery. The bit only changes how the
-line is drawn, `*` and amber for one still holding its loot against `+` and
-green for one already stripped, plus a "still loaded" tally. That way the number
-you are trying to drive to 157 never moves backwards, while the list still tells
-you where there is something left to collect. An untouched wreck also shows its
-loot without the checkbox, since that is cargo you can still go and get.
-
-## Settled: a hull that holds nothing is not a hull you have not opened
-
-Closed 2026-09-13, the second time the owner reported it: *"и в Омикрон гамме
-мы вроде правили ошибку, но она снова всплыла - куча обломков с лутом, которого
-нет"*.
-
-**SYMPTOM**: a pile of wrecks with loot that is not there.
-**EVIDENCE**: the wreck flags across every save on disk, set against what each
-object carries in the system files.
-
-### Omicron Gamma was a false lead, withdrawn by the owner
-
-**Read this before re-opening it.** On 2026-09-13 the owner withdrew the report
-himself: *"я тебе наврал и пустил по ложному следу. Все обломки в том омикроне
-реальные"*. Gamma is not broken, and the section below is what was measured on
-the way to finding that out. It is kept because the measurements are good and
-because the next person to look at Gamma will have the same suspicion.
-
-### Omicron Alpha is the system that actually looked wrong
-
-Every system holding a hull that can never hold anything, and there are only
-four of them:
-
-| | | hulls | of them scenery |
-|---|---|---|---|
-| Omega-5 | `bw02` | 27 | **23** |
-| Omicron Alpha | `hi01` | 24 | **19** |
-| Omega-11 | `bw04` | 10 | 6 |
-| Sigma-13 | `bw05` | 11 | 5 |
-| Omicron Gamma | `hi02` | 17 | **0** |
-
-His own description when asked, *"много обломков, но большинство из них пустые,
-и только в нескольких есть лут"*, is **Omicron Alpha line for line**. Omicron
-Gamma really is seventeen Corsair hulls with twenty Artifacts each: it is a
-cache, and being the one system where every hull is loaded is exactly what
-makes it look wrong beside everything else.
-
-Checked down to the mechanism rather than taken on the owner's word, because
-his word had just changed: all 16 Corsair hulls carry `SECRET_c_co_elite2_hi02a`
-or `...b`, which is `cargo = commodity_alien_artifacts, 20` plus two
-`fc_c_gun01_mark04`; the guns read `lootable = true`; and the hull archetype
-carries the drop fuse described below. **There is nothing wrong with Omicron
-Gamma.** Four separate theories about it were tried and every one died, and
-they are listed at the end of this section so nobody walks them again.
-
-### The flag he expected is real, and it is not a value
-
-It is **whether the object carries a `loadout` key at all**. A hull with none
-can never hold anything, and the game never sets bit 8 on it because there was
-never anything to take.
-
-Labelled against all 220 saves on disk, over the 135 wrecks some save has
-recorded:
-
-| the object | the game recorded the loot taken | count |
-|---|---|---|
-| has a `loadout` | yes | **82** |
-| has no `loadout` | no | **53** |
-| | disagreements | **0** |
-
-**53 of 53 is the number that matters**: every hull the rule calls scenery has
-now been visited in some save, and the game set the looted bit on none of them.
-
-**The sample grows as he plays, so re-measure rather than quote.** It was 107
-wrecks when first measured, 109 an hour later, and 135 the same evening once he
-loaded `Save707c.fl`, which alone carries 133. The ratio held at every size. The
-classifier is a throwaway script over `wrecks.load_wrecks` and
-`flvisits.parse_visits`, not a file in this repo, and re-running it is cheap.
-
-### What was broken was the page, and it is the whole reason this came back
-
-`wreckLine` printed loot **only when there was loot**, so an empty-by-design
-hull and a found-but-unopened loaded one drew identically: Omicron Alpha's 19
-scenery hulls read as 19 unexplored prizes. Nothing in the data was wrong and
-no amount of re-reading the loot parser was ever going to help.
-
-So a wreck row has four states rather than three, and each system says its own
-tally once, above the list:
-
-| | mark | reads |
-|---|---|---|
-| scenery | `·` | `empty hull`, in the dim not-found colour |
-| not found | `-` | nothing |
-| found, emptied | `+` | its loot, as history |
-| found, still loaded | `*` | its loot, as something to go and collect |
-
-### The one exception, and it is now none
-
-`Li04_depot_superconductors_surprise`, the Dallas Storage Container, was the
-single hull the saves said was looted and the reader called empty. **A
-container names its cargo on its archetype where a ship names it in a
-loadout**: `surprise_superconductors` carries `loadout =
-surprise_superconductors`. One object in 157 is built that way.
-`wrecks.archetype_loadouts` is the fallback, it resolves to 40 Superconductors,
-and it moves the empty count from 54 to **53**.
-
-### How a wreck actually drops its loot, found on the false trail
-
-Worth having, because until 2026-09-13 this project inferred wreck loot from
-the loadout and had never read the mechanism. It is a **fuse on the hull's
-Solar archetype**, and it independently confirms the `loadout` rule above.
-
-Every wreck hull is `destructible = true` with `hit_pts = 3600` and two fuses:
-
-    fuse = fuse_suprise_<hull>,     0, 3601    ; fires at once, cosmetic damage
-    fuse = fuse_suprise_drop_loot,  0, 3590    ; fires once you have shot it
-
-`FX/fuse_suprise_solar.ini` defines the second one, and it is the whole of what
-a wreck gives you:
-
-  * **22 `[destroy_hp_attachment]` blocks, every one `fate = loot`**, over
-    `HpWeapon01..05`, `HpTurret01..06`, `HpShield01`, `HpThruster01`, `HpMine01`,
-    `HpCM01`, `HpCD01`, `HpTorpedo01`, `HpCargo01..04` and `HpMount`. That is
-    the `equip` half of the loadout, knocked off its hardpoints.
-  * **one `[dump_cargo]` at `origin_hardpoint = HpMount`**, which is the `cargo`
-    half.
-
-**So a hull with no loadout has nothing mounted and nothing in the hold, and
-the fuse has nothing to drop.** That is why the rule works, and it is a better
-reason than the correlation the saves give.
-
-Counted over the 157: **133 hulls are `MISSION_SATELLITE` carrying that fuse**,
-23 more are the same thing with the key spelled `Archetype`, and exactly one is
-the `DESTROYABLE_DEPOT` container, which has no fuse at all and drops its cargo
-by being a depot.
-
-Two things were checked here and are **not** the answer, so that nobody spends
-the evening on them again: `HpMount` exists on all four hull models looked at,
-so `dump_cargo` always has an origin; and `lootable = true` on every gun
-involved, including the Corsair `fc_c_gun01_mark04`.
-
-### 23 wrecks spell the key `Archetype`, and that is the `Base` bug again
-
-`read_multi` keeps the case it finds, so `entry["archetype"]` misses 23 of the
-157. It costs nothing today, because all 23 carry a loadout of their own and
-never reach the archetype fallback, and it would cost the next container
-anybody adds everything. `load_wrecks` case-folds the entry before that lookup.
-Proved harmless rather than assumed: `holds` and the loot list are byte
-identical across all 157 with the fold and without it.
-
-**This is the third member of a family now** (`base`/`Base` in
-`flvisits.load_objects`, `archetype`/`Archetype` here), and the family rule is
-worth stating once: **in Freelancer's INI files the key case is not
-load-bearing, so any reader that treats it as load-bearing is wrong, and it is
-wrong silently.** It returns fewer rows, never an error.
-
-### Four theories that were wrong, in the order they were tried
-
-Written down because each one is plausible and somebody will walk back into it:
-
-  * **The names repeat, so the reader is confusing two hulls.** The owner's own
-    correction, *"у обломков бывают не уникальные имена - не туда копаешь"*.
-    They do repeat, hard: **68 distinct names over 157 wrecks**, with "Corsair
-    Fighter" on 31 of them. It is still not the cause, because every object has
-    its own nickname and the visit flags are keyed on the hash of that.
-  * **They sit in one tight cluster, so it is one object drawn many times.**
-    Omicron Alpha's are tighter still and are genuinely separate objects.
-  * **The loadout belongs to the ship rather than the wreck.** The loadout
-    named is identical to one on a wreck the owner had emptied himself.
-  * **A loadout shared by several hulls means scenery.** Refuted by New York:
-    `Li01_suprise_li_elite_badlands_01`, `_02` and `_03` are three Patrol 27s
-    sharing one loadout, and all three hold four Justice Mk III apiece.
-
-The rule that survived is the dull one, and it is the only one that was ever
-checked against the saves rather than against a hunch.
-
-## Settled: the Asteroid Miners are not dockable, and the rule is in the data
-
-Closed 2026-09-01 by screenshot, at 100 m from the Asteroid Miner in Omega-7
-with the target selected and no dock prompt. The guess in the previous version
-of this section, run-time reputation gating invisible in the files, was wrong:
-the reason is in the data and the denominator is now 167 instead of 181.
-
-The rule, and the three candidates that had to be eliminated to find it, are in
-`bases.py`. It is not restated here, and it is not duplicated in `flvisits.py`
-or `serve.py`: both call it. Those two held their own copies of the old
-"reachable" filter and that is exactly how they drifted apart in August.
-
-## Settled: Ithaca Research Station is not reachable
-
-It showed up as an unvisited base in New York. It is not one. Its space object
-`Li01_05` is defined in `UNIVERSE/SYSTEMS/INTRO/intro.ini`, and `universe.ini`
-does not list `INTRO` among its 53 systems. It exists for the opening cutscene
-only.
-
-The cause was structural: objects were gathered by walking the `SYSTEMS/`
-directory and taking the system from the folder name, so a cutscene file was
-read as if it were a system. The fix is to follow the `file` key that
-`universe.ini` gives for each declared system instead, which excludes stray
-files by construction.
-
-## Settled: the reader's marks belong to the server, not to the browser
-
-Closed 2026-09-09, after the owner marked news and rumours read one day and
-found them gone the next.
-
-**Nothing was corrupted and no key had changed.** Every one of the 17 rumor
-ids and every news key regenerated byte-identically the following day. There
-were simply two stores. `localStorage` is scoped to a **browsing context**, and
-the marks had been made in a Zen workspace, which is a container
-(`userContextId=1`, 75 marks), while the tab open the next day was a plain one
-(`userContextId=0`, 20 marks). Save looked fine only because its 16 marks were
-a strict subset of the other store's 49; it had lost 33.
-
-**`run.sh` is what moved the tab**, and it will do it again: it ends in an
-unconditional `xdg-open`, which always opens a plain tab and never a container
-one, so every server restart spawns a tab in the default context.
-
-So the old comment was right about who owns the marks and wrong about where the
-machine keeps them. They live in `data/marks.json` now, written through a temp
-file in the same directory and `os.replace`, under one lock because `serve.py`
-is threaded. A missing or unreadable file reads as no marks: a corrupt file
-should cost the marks, not the tab.
-
-Two rules that fall out of it and are worth keeping:
-
-- **`merge_marks` unions and can never delete.** That is what makes it safe to
-  run against a browser store nobody has seen before, and it is why every
-  context that ever held marks can still contribute its own.
-- **The page is a cache, not the owner.** A toggle applies locally and posts
-  afterwards, and a `marksHeld` timestamp stops the five-second poll handing
-  back a payload that predates the write. Same guard and same reason as the
-  slider under a thumb in `engine.py`.
-
-`localStorage` is deliberately not cleared. It costs nothing and it is the only
-fallback if the file is ever lost.
-
-## Settled: the header says which save, and `api/reveal` takes no argument
-
-Added 2026-09-12 at the owner's request: *"при нажатии на autosave.fl указывать
-папку с сейвами"*. The header showed `AutoSave.fl` and nothing else, while the
-file it names sits at
-
-    ~/Games/freelancer-win32/drive_c/users/<account>/Documents/My Games/
-    Freelancer/Accts/SinglePlayer/AutoSave.fl
-
-six levels down a Wine prefix, in one of several accounts, picked by mtime at
-startup. **The browser cannot work that out and the server never said.** So
-`api/state` now carries `save_path` and `save_dir` beside the basename, the
-name in the header is a button, and opening it shows the folder with a button
-that hands it to the file manager.
-
-**`api/reveal` takes no argument, and that is the design rather than an
-omission.** The only folder it can open is the one this process chose at
-startup, so there is nothing for a page to point it at. An endpoint that opened
-a path the browser sent would be a local server that opens arbitrary folders on
-request, which is a different and much worse thing to have running on
-localhost.
-
-**The opener is spawned and never waited for**, so "opened" means asked. A
-misconfigured handler would otherwise hang the POST and freeze the panel, and
-the panel would be reporting on a window rather than on a request. The path is
-printed next to the answer, which is what makes a silent no-op readable. The
-three spellings of the action, `xdg-open`, `os.startfile` and `open`, live in
-one function in `common.py`, because the second copy of that is how a project
-ends up opening folders two different ways.
-
-## Settled: a faction with nobody in any bar is nobody you can deal with
-
-Closed 2026-09-09, cutting the Reputation tab from 55 factions to 47 at the
-owner's request to drop "the nomads and the story factions".
-
-**The rule is in the data, not in a list.** A faction with no `[GF_NPC]`
-anywhere in `mbases.ini` has no one standing in any bar in the game, so there
-is nobody to fly for or against. That is exactly eight of the 55 groups in
-`empathy.ini`: Nomads, `fc_f_grp` (Fugitive), Kress's Men, Quintaine's Men,
-`fc_uk_grp`, which resolves to a single space in the string table and has no
-display name at all, and the three story doubles `fc_kn_grp`, `fc_ln_grp` and
-`fc_rn_grp`. The next faction up has **seven** bar NPCs, so the boundary is
-nowhere near close.
-
-**Cut from `events` and `empathy`, never from `names`.** Being nobody you can
-deal with is not being nobody: `fc_kn_grp` and `fc_uk_grp` own bases, and
-cutting them out of the naming table blanked the owner badge on every one of
-them. That was found by checking the owners after the cut, not by reading the
-code, and it is the reason the two are separated at all.
-
-**The `(nickname)` suffix on three faction names is gone with the clash that
-caused it.** `fc_ln_grp` was the other "Liberty Navy", and the same for Kusari
-Naval Forces and Rheinland Military; all three were the cut half. So
-`_disambiguate` is now told which keys can actually collide and finds nothing.
-It stays in place: the clash was real, and a mod that gives one of those
-factions a bartender brings it straight back. The four house police forces
-still collide and still take their house code.
-
-## Settled: the story state is `MissionNum`, and only news moves with it
-
-Closed 2026-09-07, and it is three findings that have to be read together.
-
-**A save's story state is `[StoryInfo] MissionNum`, an index into a table of 42
-names.** The names are not in any INI: they sit as a contiguous block of strings
-in `DLLS/BIN/content.dll`, written in reverse, and they are kept as
-`data/story-states.txt` rather than read out of a binary at run time. Verified
-on **all 18 saves on this disk**, every one consistent:
+- **A tab is a pair of files with one name**, `backend/<name>.py` and
+  `frontend/<name>.py`; either half may be absent (a tab that only draws what
+  `/api/state` carries has no endpoints). Adding one is a row in `tabs.py` plus
+  the files it names.
+- **Modules under `backend/` have no `if __name__ == "__main__"` block.** Inside a
+  package a relative import has no parent, so `python3 backend/live/dockdist.py`
+  cannot run. Each keeps its `main()`, reached through `fl.py`.
+- Everything new goes in its own file. `flvisits.py` supplies the primitives;
+  `wrecks.py` has its own INI reader because loadouts repeat their `equip` and
+  `cargo` keys and the reader in `flvisits.py` collapses repeats.
+
+## `flvisits.py`: run `check_frozen.py` before and after every edit
+
+The module unpicks three undocumented formats: FLS1 save encryption, BINI binary
+INI, and PE resource tables in the DLLs. It resolves a **one-way** hash by brute
+force: hash every nickname in the game data and look the result up. The
+constants were found by search and confirmed against real saves; several
+plausible alternatives scored zero. None of it can be re-derived from the code,
+so a tidy edit breaks it silently: the report still prints, and it is wrong.
+
+**Run `check_frozen.py` before and after, and diff.** Every line must match byte
+for byte except `AutoSave.fl`, which the game rewrites while you play. No clean
+diff, no commit. Reading the diff and reasoning about it does not replace this.
+The script fingerprints the hash table, the string tables, the system walk, the
+dockable set and each save's resolved visits with their flags, over every save
+on disk. On 2026-08-31: 96 saves, 219,634 visit entries, 7,372 resolved, every
+digest identical.
+
+The file was frozen in August and unfrozen on 2026-09-07 at the owner's request:
+three thaws in five weeks, each correct, each a round trip. The check made them
+safe, not the freeze. Every edit gets a line here:
+
+- **2026-08-31.** The denominator counted all 197 `[Base]` entries in
+  `universe.ini`, 15 of which no space object points at; three are intro-cutscene
+  copies of Manhattan sharing one `strid_name`, so "Planet Manhattan" printed
+  three times as unvisited. The two programs would have disagreed, 197 against
+  182.
+- **2026-09-01.** The dockable filter sat in both `flvisits.py` and `serve.py`;
+  it moved to `bases.py` and both call it. Eight lines in `main()`, none in the
+  decoding, the hash or the loaders. Same save before and after: 3430 object
+  nicknames, 2188 visit entries, 486 resolved by both, identical.
+- **2026-09-06.** `ipath` was defined twice, at lines 47 and 121; the second
+  shadowed the first, leaving 19 dead lines whose docstring described behaviour
+  nothing ran. The live one took the useful half of that docstring. A comment's
+  167 dockable / 30 dropped became 164 / 33 (163 / 34 since 2026-09-13).
+- **2026-09-07**, for bar rumors. `read_string_table(path)` became
+  `read_string_table(path, rtype=RT_STRING)`: rumor text is RT_HTML (type 23),
+  names are RT_STRING (type 6), and the PE walk is the same. `resource_dlls()`
+  came out of `load_names()`, so `infocards.py` reads the same seven DLLs in the
+  same order. All 123 stable lines identical.
+
+## Saves
+
+### What the reader was verified against
+
+- All 301 hashes in a live save resolved to a nickname in the game data. The same
+  brute force without lowercasing the nickname scores 40 of 301, so the match is
+  not coincidence.
+- The flag model held across a play session: a base moved from "revealed" (1) to
+  "docked" (30/31) while the player flew.
+
+### Visit flags
+
+Read them as bits. Bit 1: seen, on the nav map. Bit 16: a secret, so a found
+wreck reads 17. **Bit 8: the wreck has been emptied**, so it then reads 25
+(settled 2026-09-01). Bases read 30 or 31 once docked, 1 when the story has only
+revealed them.
+
+Evidence for bit 8: a save with five found wrecks, four at 25 and one at 17, the
+Storm in Dublin (D6), which the owner had found and left loaded on purpose. And
+New York's three Patrol 27 hulls read 25, 17, 17 in an earlier save and 25, 25,
+25 later; a fixed property of an object cannot change in flight. That
+transition was never caught in a file: the 20 saves then on disk all held final
+flags. To get it on disk, note a wreck's flag, empty it, and keep both saves.
+
+- 19 `visit` entries carry small ids from another id space and flag 65. `FLHash`
+  does not cover them; they are not bases and do not affect the report.
+- `AutoSave.fl` changes while the game runs. Test against a fixed `Save*.fl`.
+
+### Story state: `[StoryInfo] MissionNum`
+
+An index into a table of 42 names. The names are in no INI: they sit as a
+contiguous block of strings in `DLLS/BIN/content.dll`, written in reverse, and
+are kept as `data/story-states.txt`. Verified on all 18 saves on disk
+(2026-09-07):
 
     Restart.fl   Mission_01a  MissionNum 1   -> mission_01a_loaded
     Save116a.fl  Mission_02   MissionNum 7   -> mission_02_accepted
     Save707c.fl  No_Mission   MissionNum 5   -> freetime_01_02
     Save144d.fl  Mission_13   MissionNum 40  -> mission_13_accepted
 
-The `No_Mission` row is the one worth keeping: the states between two missions
-are real states with their own names, so a reader that only understood
-`Mission_NN` would call that save "nowhere".
-
-**News is gated on that state and genuinely grows as you play.** All 403
-`[NewsItem]` entries in `DATA/MISSIONS/news.ini` carry
-`rank = <from state>, <to state>`, and 223 of them have opened at
-`mission_03_loaded` against 385 at `mission_13_accepted`. An item whose window
-has closed behind you is a different thing from one you have not reached, which
-is why the tab draws them by debut and marks each one live or past.
-
-**Bar rumors are gated too, and the gate is decorative.** All **7803** `rumor`
-lines in `mbases.ini` carry exactly one window, `base_0_rank .. mission_end`.
-Not one of them ever opens or closes: every rumor in Sirius is available from
-the first minute of a new game. It is read and applied anyway so a mod that
-does gate them keeps working, but **do not go looking for a rumor that
-unlocks**. What changes is where you have docked, so that is what the tab
-scopes them to: 161 bases carry rumors, a median of 16 each.
-
-**Mission dialogue cannot be added, because the text does not exist.** A
-`[Dialog] Line` in a mission script names a `.utf` audio asset;
-`DATA/AUDIO/DIALOGUE/` is 40 folders of sound and nothing else. Freelancer
-ships no subtitles for in-space comms. This was checked before the work started
-and it is the reason "news and dialogue" became "news and bar rumors".
-
-**Rumor text is RT_HTML, not RT_STRING.** `MiscText.dll` holds 3101 resources
-of type 23 and **zero** of type 6, which is why a rumor id reads as unresolvable
-until the resource *type* is the thing you change rather than the file. All 3030
-distinct rumor ids resolve once it is, none missing. `infocards.py` unwraps the
-RDL: `<PARA/>` is a line break and everything else is furniture.
-
-**Deliberately not done: `rumorknowdb`.** 564 lines over 112 targets name the
-hidden jump hole (`li02_to_li04_hole`), wreck or base a given speaker knows
-about. That is a real cross-link between the Neural Net and the Systems tree
-and it is out of scope until someone asks for it.
-
-## Settled: the `type` on a log substitution is the placeholder's letter
-
-Closed 2026-09-07. A save's log line is
-`log = <ids>, <count>, [<param ids>, <type>, 0] * count`, and `type` is the
-**ASCII code of the letter in the text**. `22505` reads
-"Meet Juni on Planet Manhattan%M" and its parameters are `(196609, 83)`,
-`(0, 82)` and `(1, 77)`; 77 is `M`, so `%M` takes the third.
-
-Where the detail is real that is the whole second half of the entry:
-"Start scanning nearby ships%M" plus `(25240, 77)` is "Start scanning nearby
-ships / Scan nearby ships and look for anything suspicious".
-
-Checked across every save on disk: 210 log texts carry a placeholder, all of
-them `%M`, and 186 have a parameter of the matching type. The other 24 have
-none, which is the game saying the detail is empty, so the placeholder is
-dropped rather than printed. Until this was understood the page printed a bare
-`%M` at the end of a sentence, which reads as corruption.
-
-
-## Settled: what in the Neural Net has a date, and what does not
-
-Closed 2026-09-10, when the three sources became one list and the owner asked
-for it sorted by when each entry arrived. The answer is different for each of
-the three and none of them shares a clock with another, so the tab says so
-rather than inventing one.
-
-**A save log entry has no date at all.** No timestamp, no seconds count. The
-whole save holds exactly one clock, `tstamp`, a Windows FILETIME of when the
-file was written, plus `total_time_played`. Position in the log is the entire
-chronology, and new entries are prepended, so index 0 is the newest.
-
-**`base_visited` is the docked bases in the order you first docked at them**,
-and that is a real receipt time for a bar rumor. Proved twice, because an order
-that looks right on one save is worth nothing:
-
-  * across the **162** saves on this disk an older save's `base_visited` is a
-    prefix of a newer one's, **137** times against **14**, and every one of the
-    14 sits where two saves at the same `total_time_played` belong to different
-    playthroughs. A branch is not a counter-example;
-  * on the live save all **24** values resolve to base nicknames, the resolved
-    set is **exactly** the docked set the visit flags give, neither way round,
-    and the order opens Planet Manhattan, Planet Pittsburgh, Baltimore
-    Shipyard, which is the campaign order.
-
-The values are `FLHash` of the base nickname, the same one-way hash the visit
-flags and the cargo lines use. `common.dock_order` reads it, and **it supplies
-order only**: `Ctx.docked` stays the authority on which bases have been docked
-at, so a save carrying no `base_visited` leaves rumors unranked rather than
-losing them.
-
-**Deliberately not done: dating a log entry from its mission file.** A save log
-entry can be placed on the story axis. 97 of the 299 distinct log ids across all
-162 saves appear as `Act_NNIds` in exactly one `DATA/MISSIONS/M*/` file, none in
-two, and a mission maps to a story state, which is the axis `news.debut` already
-uses. The other 202 are the random job generator's objective text and have no
-story position at all. So a true interleave of save and news is buildable: date
-the 97, interpolate the rest by position between two dated neighbours, since the
-log is monotonic. It is not built, because the owner picked streams-in-order
-over one interleaved timeline on 2026-09-10. This note exists so nobody
-re-derives the bridge from scratch to find that out.
-
-## Settled: the game's own route tables are not shortest paths
-
-Closed 2026-09-12, building Map → Best Path after the owner reported that the
-in-game hack does not work.
-
-**The graph is in the system files and is complete.** An `[Object]` carrying a
-`goto = <system>, <object>, <tunnel>` is a jump: **232 of them across 52
-systems, every one two-way, and every `goto` naming an object the same walk
-found.** 84 gates, 140 holes of five kinds, two `nomad_gate` and six Dyson
-airlocks. The save records which ones you have seen the same way it records a
-base, by `FLHash` of the nickname, all at flag 1.
-
-**Checked against `UNIVERSE/systems_shortest_path.ini`, the table the hack
-switches the game to: equal on 1502 of its 2079 pairs, this tool shorter on
-577, longer on none.** `fl.py jumps --check` is that comparison and it is the
-guard on the graph: a route longer than the table's would mean an edge was
-lost. New York to New London is the example, four jumps in the table against
-three through Magellan.
-
-**The nodes are jump objects, not systems**, and that is what makes it right.
-New York holds both a gate and a hole to Texas and which one you want depends
-on where you came in; a graph of systems cannot say that. Start at any jump in
-the departure system for free, a jump costs one hop and no distance because it
-is instant, flying to another jump in the same system costs the distance
-between them, and arriving is the first jump that lands in the destination.
-
-**Two costs, and they disagree on 49% of the 2182 reachable pairs**, which is
-why both are drawn. Fewest jumps ties-break on distance and least flying
-ties-breaks on jumps, so it is one Dijkstra under two orderings of the same
-pair. Checked across every pair: no route by flying is longer than the
-fewest-jumps one, and none by jumps has more hops than the least-flying one.
-
-**Distance covers the middle systems only, and trade lanes are not in it.**
-Both ends are picked by hand, so where you stand in the first system and where
-you are going in the last are not things this knows; lanes would change real
-travel time completely but need where the lane runs and whether it is standing,
-which the files do not settle. Same rule as the perishable cargo.
-
-**A link counts as found when either end has been seen**, not just the one you
-stand at. 14 of the 116 links in the save of that day were marked at one end
-only, and refusing the return trip on those would be the tool pretending not to
-know about a hole whose far side it just described. Each step still carries
-`found` for its own object, so the page marks what your nav map will not show.
-
-**Five systems are a closed island**: `st01`, `st02`, `st02c`, `st03` and
-`st03b`, the single-player-only Omicrons. They join each other and nothing
-else, so 470 of the 2652 ordered pairs have no route at all. That is the data,
-not a missing edge.
-
-## Settled: the route tables are files, so the shortest paths go in them
-
-Closed 2026-09-12, at the owner's go, after Map → Best Path proved the shipped
-tables are not shortest paths. `live/routetable.py` rewrites them.
-
-**This beats the byte patch on its own ground.** `live/bestpath.py` swaps which
-table the game reads and dies on every save load, because `content.dll` and
-`server.dll` load with the save. A file survives, needs no running game, no
-`/proc/<pid>/mem` and no injected code.
-
-### The byte patch cannot work, and that is settled by observation
-
-**The order of events kills it.** The game reads the table **once, when the
-world loads**, and `content.dll` and `server.dll` are reloaded by that same
-load, which wipes the patch. So the only moment the patch can be applied is
-after the read has happened, and swapping a filename pointer does nothing to a
-table already in memory. flhack hooks the load itself to get in first; a button
-pressed afterwards is too late by construction.
-
-Established on 2026-09-12 by a route the owner flew, not by reasoning about
-bytes: with the patch reading **ON** and all five sites verified against the
-shipped files, the game routed Hokkaido to Tau-23 as `Hokkaido > New Tokyo >
-Kyushu > Tau-29 > Tau-31`, which is the gates-only table's own row, where the
-holes table says `Hokkaido > Kyushu` in two. Toggling the patch changed
-nothing. The route tables are also not held open by the process, which fits.
-
-**Three earlier answers were each true and each beside the point**, and that is
-worth remembering: the patch does apply, the build is right, and the swap
-direction is right. None of them is the question. The question was what the
-game does, and only flying it answered that.
-
-### Refuted 2026-09-13: one content into both files flies you into a star
-
-The section that stood here said both targets were written with one
-hole-inclusive content, shaped from the widest shipped table, and listed the
-cost as "the lawful table stops being lawful, and whether anything else in the
-game reads that distinction is not known". **It is known now. The router reads
-it, and without a gate it points the course at the system origin.**
-
-**SYMPTOM**, the owner's: *"он повел меня в ЗВЕЗДУ"*. Set Best Path from
-Battleship Matsumoto to Ohashi Border Station, which is Hokkaido to Shikoku.
-
-**EVIDENCE**: `Ku05_Sun`, archetype `sun_2000`, sits at exactly `[0, 0, 0]` in
-Hokkaido; the written route's first hop was Hokkaido to Kyushu, which exists
-only as a jump hole; and the shipped table went through New Tokyo, a gate.
-
-**The engine can only follow a hop that has a jump gate.** With no gate between
-Hokkaido and Kyushu it could not turn that hop into a waypoint and fell back to
-the system origin, which is a red dwarf.
-
-**The shipped files said so by their own shape and it was not measured.** Rows
-whose route contains a hop no gate can make:
-
-    shortest_legal_path.ini       0 of 1225      <- the one Set Best Path reads
-    systems_shortest_path.ini  1440 of 2029
-    our one content            1723 of 2029
-
-`shortest_legal_path.ini` being gates-only is **the contract the router relies
-on**, not an accident of content. Writing hole routes into it is not a mode
-with a cost, it is a bug, and no button should offer it.
-
-### What is written now, and why nothing needs switching
-
-Gates-only shortest paths, into `shortest_legal_path.ini` alone, **at that
-file's own width**. Measured over its 1225 rows: 136 shorter, 0 longer, 0 with
-no gates-only route, and **0 naming a system the file does not already list**.
-That last number is 234 when holes are allowed, and widening the file to fit
-those 234 is exactly what broke it.
-
-**The headline win never needed a hole.** New York to New London is four jumps
-shipped, `li01 > li02 > iw04 > br02 > br01`, and three through Magellan,
-`li01 > iw03 > br02 > br01`. Every hop a gate. The hole routes were never where
-the improvement was, and bundling them in is what sank it.
-
-**366 rows change for 136 that shorten.** The other 230 are equal-length routes
-where the tie-break prefers less flying between the jumps. They are gates-only
-and none is longer, so they are safe; `--flying` asks for least distance
-outright and is a different feature.
-
-`systems_shortest_path.ini` is not touched at all. The game does not read it,
-and the byte patch that would make it read it cannot work. Hole routes live in
-`Map -> Best Path`, which is a reader and needs no engine. **So there is
-nothing to switch between**, and the owner's question of how to switch has that
-as its answer.
-
-**`content()` now refuses on two counts, and both were proved to fire** by
-running yesterday's rule through them: 1096 routes with a gateless hop and 234
-naming an unlisted system, nothing written. On the new rule both are zero.
-
-
-**`fl.py jumps --check` compares the graph against the game's table, and
-`routetable.py` writes that table.** After the first write it reported 2079
-equal, 0 shorter: a tautology that reads exactly like good news, which is this
-project's worst failure mode and is called out three times elsewhere in this
-file. It now prefers `<name>.vanilla` when one is there, and reads 1502 / 577 /
-0 / 0 again.
-
-The general shape, worth keeping: **a tool that writes a file must not be
-checked against that file.** `check_frozen.py` gets this right by comparing two
-runs of the same reader; this one got it wrong by comparing a reader to
-something it had edited.
-
-## Closed: the hack applied, was aimed right, and still could not work
-
-**The control is gone from the Engine tab**, removed 2026-09-12 at the owner's
-request once the file rewrite made it redundant. `live/bestpath.py` and
-`fl.py bestpath` stay; what went is the box, its reader, its POST handler and
-the `bestpath` entry in `backend/engine.py`'s `API`.
-
-**That entry was also a name collision, and a silent one.** `backend/engine.py`
-and `backend/bestpath.py` both offered a GET called `bestpath`, and `tabs.py`
-built one table with `dict.update`, so the later module won by import order and
-the earlier endpoint was unreachable with nothing said. `_table` raises on a
-repeat now, and the guard was proved to fire before being relied on. An
-endpoint name is a tab's address; two tabs cannot share one.
-
-Opened and shut on 2026-09-12. Kept because every step of it was a true answer
-to the wrong question, which is the part worth not repeating.
-
-**It applied.** `fl.py bestpath` read ON against the running game with all five
-sites differing from the shipped files, verified byte by byte against both the
-vanilla and the patched values.
-
-**The build was right.** `server.dll` holds `0x0A` at RVA `0x1ACE3` and
-`content.dll` `0xC4` at `0x89492`, exactly flhack's build 10; build 11's
-offsets give `0x24` and `0x90`.
-
-**The swap direction was right**, which the module's own `routes()` had always
-said was unestablished. The deduction, from two checkable facts: unpatched
-Freelancer routes through gates only, which is the whole reason the option
-exists; and unpatched, the slot at content.dll `+0x89492` points at
-`systems_shortest_path.ini` while `+0x89512` points at
-`shortest_legal_path.ini`. For vanilla to behave as it does the router must
-read `+0x89512`, and the swap puts the holes table there.
-
-**And it still does nothing**, because the table is read once when the world
-loads and the patch is wiped by that same load. The account, and the flown
-route that settled it, are under *the route tables are files* above.
-
-**The lesson is the sequence.** Three correct measurements in a row, each
-answering a question nobody had asked, while the actual question, "what does
-the game do", stayed untouched until the owner flew a route and reported
-`Hokkaido > New Tokyo` where two jumps existed. **A patch reading ON is not a
-patch working**, and no amount of reading bytes was going to say so.
-
-`live/bestpath.py` is left in place and is now redundant: with both tables
-carrying the same routes, which one the game reads no longer matters.
-
-## Settled: a bribe has a place, and 11 factions have none you can reach
-
-Closed 2026-09-12. The Reputation tab offered "bribe a bartender" with a price
-and no idea where, and the count beside it was **bartenders**, which answers
-"can I bribe this faction at all" and nothing else.
-
-**A `[GF_NPC]` belongs to the `[MBase]` above it in `mbases.ini`**, which is the
-whole mechanism: the file nests by position and by nothing else, so one walk
-that remembers the current base attributes every `bribe` line to a station.
-`game/jobs.py` makes the same walk for the job boards, and `reputation.load_bar`
-now makes it too rather than throwing the base away.
-
-Counted, not assumed:
-
-  * 41 of the 55 factions are bribable, across **162 distinct bases**.
-  * **Every one of the 2386 `bribe` lines reads a flat 10000**, so there is no
-    cheapest bartender and the list answers *where*, never *where cheapest*.
-    Same shape as equipment prices. What the engine actually charges is a
-    separate finding and is in the section on `BRIBE_RATE`.
-  * Bases per faction run 3 to 94, median 22. Too many to list, which is why
-    the page lists only the ones the save has docked at: median 7 on the save
-    this was built against, and that is a list worth reading.
-
-**The number that turned out to matter is zero.** On that save, 11 of the 41
-bribable factions had no reachable bar at all, the Rheinland Police among them:
-25 stations will take the money and the player had landed on none. The row used
-to print a price and imply it could be paid. It now says so in a sentence, and
-`bases_total` is carried precisely so that an empty list reads as a journey
-rather than as a lookup that failed.
-
-**The split across layers is the same one Jobs uses.** `load_bar` returns base
-nicknames and knows nothing else; `backend/rep.py` narrows them against
-`GameData.bases` for dockability and against the save for where you have been,
-and turns them into the shared base shape out of data `GameData` already holds.
-No second base index was built, and `market.base_index` was deliberately not
-imported for it.
-
-Fixed in passing, because this endpoint now needs two facts from the save:
-`_reputation` read the file itself with `fl.decode_save(ctx.save)`, outside
-`Ctx`. That is the second-read trap `common.Ctx` exists to prevent, and adding
-the docked set would have made it a third. It reads `ctx.saved()` now, and the
-standings and the docked bases come from one decode.
-
-## Settled: a job board's ceiling is two files multiplied together
-
-Closed 2026-09-12 for the Jobs tab. A bar shows you what it is offering today
-and never what it can offer, and the difference is what the tab exists to show.
-
-| File | What it gives |
-|---|---|
-| `DATA/MISSIONS/mbases.ini` | `[MVendor] num_offers = 2, 4`, the slots on the board, and `[BaseFaction] mission_type = DestroyMission, <min>, <max>, <weight>`, one faction's band of difficulty and its weight in the draw |
-| `DATA/RANDOMMISSIONS/diff2money.ini` | 23 rungs, difficulty to credits, 1800 at 0.0 up to 247065 at 100.0 |
-
-So a board's ceiling is the money at its highest `max`, and its floor the money
-at its lowest `min`. Counted, never assumed:
-
-  * **160 of the 163 dockable bases run a live board.** Planet Primus and
-    Planet Gammu carry no offering faction at all; Planet Sprague carries one
-    and `num_offers = 0, 0`, so its board has no slots. `fl.py jobs --all`
-    lists the three. It was four until 2026-09-13: Planet Toledo was the
-    fourth, and it left the denominator with Omicron Minor.
-  * **All 241 `mission_type` rows in the game are `DestroyMission`**, the only
-    random mission type vanilla ships. The kind is carried through anyway, so a
-    mod that adds one gets listed rather than silently counted as a bounty.
-  * 101 bases have one faction offering, 51 have two, 11 have three, one has
-    five. Trafalgar Base is the five, and its weights read 40/20/20/10/10.
-  * The ceiling is 146192, at Ruiz Base, Planet Malta, Planet Crete and Tripoli
-    Shipyard. The lowest live board pays 2200.
-
-**The interpolation between two rungs is load-bearing and must not be flattened
-into a lookup.** Four of the 19 band edges in `mbases.ini` miss their rung by
-float32 noise between the two files, `0.11239` against the ladder's `0.112387`,
-the same number written twice at different precision. Walking between the
-neighbours puts those within a credit of where they belong. A lookup would have
-to decide what a value on no rung means, and every answer to that is invented.
-
-**Two numbers are deliberately not printed, and they are the two you want
-next.** What the job sends at you, and what the best of a full board comes to.
-`npcranktodiff.ini` maps (NPC rank, wing size) to the same difficulty scale, so
-the game plainly inverts it to choose your opposition, but the direction of that
-inversion is in no file, and neither is how the draw is spread inside a band.
-This is the `decay_per_second` rule one section down, for the same reason: a
-number on the page implies a model, and neither model is checkable.
-
-**"Open" means a system holding at least one base you have docked at**, the
-owner's call on 2026-09-12 over the wider "or merely revealed". The bases inside
-such a system that you have *not* landed on are the point of the tab. Measured
-on the save of that day: 12 open systems, 63 bases in them, 62 running a board,
-55 of those already docked at.
-
-**Sorting and both filters are done on the page.** 160 rows and no filter
-language is the Routes case, not the Equipment one, and the endpoint has already
-sent every figure. The view does refetch on every entry, which Equipment's does
-not: which systems are open is a fact about the save, and docking somewhere new
-between two looks at the tab is precisely what it is for.
-
-## Settled: `run.sh` used to serve the old code and look like it had started
-
-Closed 2026-09-12, from the owner restarting the server for a new tab and the
-tab not being there. Nothing was wrong with the tab.
-
-`run.sh` started `serve.py` in the background and then waited for the port by
-connecting to it. With a server already up, the new one died on `bind` while the
-wait loop connected on its **first** try, because the old process answered, and
-`xdg-open` then put a browser on it. The only trace was a bind error in a
-terminal nobody reads. A restart that is not a restart is worse than a failed
-one: the page looks exactly as it should and the new work appears to be missing.
-
-It now refuses a port somebody already holds, names the port, and prints the
-command that frees it.
-
-**The refusal moved into `serve.py` on 2026-09-12 and that is where it belongs.**
-The first fix was a `/dev/tcp` probe in the script, which is a guess by
-construction: a script can look at a port, decide it is free, start the server
-and never learn whether it bound. `serve.py` is the only party that knows, so
-it binds before it loads anything, prints the refusal itself and exits 1.
-`run.sh` is now three lines around `serve.py --open`, and `run.cmd` is the same
-three for Windows.
-
-**Two traps from the shell era, kept because both cost a session.** Nothing in
-`run.sh` can trip either any more, which is precisely why they are written down
-here rather than there:
-
-  * `exec` carrying only redirections applies them to the script for good, so
-    `exec 3<&- 2>/dev/null` sends every later line to `/dev/null`. That was
-    written, to tidy up after the probe, and it silenced the very messages the
-    fix exists to print. Proved with
-    `bash -c 'exec 3<&- 2>/dev/null; echo hi >&2'`, which prints nothing.
-  * **`allow_reuse_address` does not mean the same thing on both platforms.**
-    `HTTPServer` sets it, and on Linux it means "bind over a socket in
-    TIME_WAIT", which is what lets this be restarted straight after Ctrl+C. On
-    Windows `SO_REUSEADDR` lets a second program bind a port another program is
-    **actively listening on**, with no rule about which one gets a connection.
-    That is this whole bug, handed out by the operating system. So `serve.py`
-    keeps the flag on Linux and turns it off on Windows.
-
-## Found 2026-09-12: one base spells `Base` and falls out of the index
-
-**The symptom is gone as of 2026-09-13 and the bug is not.** That base is
-Planet Toledo, and Planet Toledo is now in `bases.STORY_LOCKED` because there
-is no way back to Omicron Minor after the campaign. So it is out of the
-denominator, which is the only place it was visible: a base that is not counted
-cannot sit uncounted for ever. **Nothing about `load_objects` changed**, and the
-next object anybody adds with a capital key falls out of the index exactly the
-same way. Read the rest of this section as live.
+The states between missions have names of their own, so a reader that only
+understood `Mission_NN` would call the `No_Mission` save "nowhere".
+
+### The log
+
+A log line is `log = <ids>, <count>, [<param ids>, <type>, 0] * count`, and
+`type` is the **ASCII code of the placeholder's letter**. `22505` reads "Meet
+Juni on Planet Manhattan%M" with parameters `(196609, 83)`, `(0, 82)`, `(1, 77)`;
+77 is `M`, so `%M` takes the third. Where the detail is real it is the entry's
+second half: "Start scanning nearby ships%M" plus `(25240, 77)` reads "Start
+scanning nearby ships / Scan nearby ships and look for anything suspicious".
+Across every save: 210 texts carry a placeholder, all `%M`, and 186 have a
+parameter of that type. The other 24 have none, so the placeholder is dropped; a
+bare `%M` reads as corruption.
+
+**A log entry has no date.** The save holds one clock, `tstamp` (a Windows
+FILETIME of the write), plus `total_time_played`. Position is the chronology:
+new entries are prepended, index 0 is the newest.
+
+**`base_visited` lists the docked bases in the order of first docking**, which is
+a real receipt time for a bar rumor. Its values are `FLHash` of the base
+nickname. Checked twice: across 162 saves an older save's list is a prefix of a
+newer one's 137 times against 14, and all 14 are two playthroughs at the same
+`total_time_played`; on the live save all 24 values resolve, the set equals the
+docked set from the visit flags, and the order opens Planet Manhattan, Planet
+Pittsburgh, Baltimore Shipyard, the campaign order. `common.dock_order` reads it
+for order only. `Ctx.docked` stays the authority, so a save without
+`base_visited` leaves rumors unranked, not lost.
+
+**Not built: dating a log entry by its mission file.** 97 of the 299 distinct log
+ids across 162 saves appear as `Act_NNIds` in exactly one `DATA/MISSIONS/M*/`
+file, and a mission maps to a story state, the axis `news.debut` uses. The other
+202 are random-job text with no story position. One interleaved timeline is
+buildable: date the 97, place the rest by position between dated neighbours. On
+2026-09-10 the owner chose the streams in order instead.
+
+## Bases: what counts toward the total
+
+Count from the `[Base]` list in `universe.ini` (197), not from dockable space
+objects (250): a planet's mooring fixture is a second object for the same base.
+197 narrows to 181 reachable and **163 dockable**. `bases.py` owns the rule and
+its reasons; `flvisits.py` and `serve.py` call it.
+
+- **Ithaca Research Station** (`Li01_05`) is defined in
+  `UNIVERSE/SYSTEMS/INTRO/intro.ini`, and `universe.ini` does not list `INTRO`
+  among its 53 systems: it exists for the opening cutscene. Objects are gathered
+  by following the `file` key `universe.ini` gives for each declared system, not
+  by walking `SYSTEMS/`, which excludes stray files by construction.
+- **The Asteroid Miners are not dockable** (2026-09-01): at 100 m from the one in
+  Omega-7, target selected, no dock prompt. The reason is in the data, not in
+  run-time reputation gating; the rule and the three candidates eliminated on
+  the way are in `bases.py`. The total went from 181 to 167.
+- **Story-locked bases are excluded by name** (`bases.STORY_LOCKED`): Tohoku's
+  two, Alaska's one, and Planet Toledo, the only dockable thing in Omicron Minor
+  (164, then 163 on 2026-09-13). Tohoku (M09) and Alaska (M11) rest on the
+  owner's knowledge of the game, not on evidence: his save is on Mission_05, so
+  their absence only means he has not reached them. Omicron Minor is backed by
+  data: `st01` has no jump outside the five story Omicrons, so the system leaves
+  the page.
+- **Battleship Essex** in Leeds (`br05_04_base`) is undockable per
+  `dockable_bases`, yet it is the only stockist of Adv. Dissolver and Adv.
+  Sunrail (24790 credits, rank 22). Either the rule is wrong about Essex or the
+  two guns are unbuyable in a normal game. The Equipment tab says "stocked by 1
+  base you cannot dock at". Reopening the rule is the owner's call.
+
+### Open bug: one base spells `Base`
 
 `flvisits.load_objects` keeps an `[Object]` only when it carries both `nickname`
-and `base`, and it reads that key case-sensitively while `read_ini` preserves
-the case it found. Across all 53 system files, **247 objects spell it `base` and
-exactly one spells it `Base`**: Planet Toledo, `St01_01_Base` in Omicron Minor.
+and `base`, matched case-sensitively, while `read_ini` keeps the case it found.
+Across the 53 system files 247 objects spell it `base` and one spells it `Base`:
+Planet Toledo, `St01_01_Base`. Measured 2026-09-12:
 
-What follows, measured rather than reasoned:
+- `load_objects` returns 247 objects where the files hold 248.
+- `bases.dockable_bases` lowers keys, so it counted Toledo: the two walks
+  disagreed about one base.
+- `common.read_state` maps a visit through `game.objects`, which had no entry, so
+  Toledo sat in `unknown` even after docking.
+- `market.base_index` could not name it: `fl.py jobs --all` printed a bare
+  nickname and an empty system.
 
-  * `load_objects` returns 247 objects where the files hold 248.
-  * `bases.dockable_bases` uses `read_multi` plus a key-lowering helper, so it
-    saw the object and counted Planet Toledo among the 164. The two walks
-    disagreed about the same base.
-  * Nothing could therefore resolve a visit to it: `common.read_state` maps a
-    visit hash through `game.objects`, which has no entry, so Planet Toledo sat
-    in `unknown` for ever even after docking. It was one of the 164 in the
-    denominator and could never move to the numerator.
-  * `market.base_index` cannot name it either, which is how this surfaced:
-    `fl.py jobs --all` printed a bare nickname and an empty system.
+Story-locking Toledo removed the symptom, not the bug: the next object with a
+capital `Base` falls out of the index the same way. The fix is one word in
+`flvisits.py` and moves the number the app is about, so it is the owner's call,
+made with `check_frozen.py`.
 
-The Jobs tab was never affected, because Toledo's board is shut and never
-reaches it. **The spelling is still left alone on purpose**: it is a one-word
-change in `flvisits.py`, which has its own procedure (`check_frozen.py` before
-and after, and diff), and it moves a number the whole app is about. The owner's
-call, not a tidy-up. Excluding the base fixed what he could see; it did not fix
-this, and the two should not be confused for one another later.
+## Wrecks
 
-## Settled: three commodities spoil, and the data says so twice
+**A wreck counts as found once its hash is in the save, emptied or not.** The
+total and percentage never fall. A row's mark carries the rest, and each system
+prints its tally once, above the list:
 
-Closed 2026-09-10 for the Routes tab.
+| | mark | reads |
+|---|---|---|
+| scenery | `·` | `empty hull`, in the dim not-found colour |
+| not found | `-` | nothing |
+| found, emptied | `+` | its loot, as history |
+| found, still loaded | `*` | its loot, as something to collect, without the checkbox |
+
+**A hull with no `loadout` key is scenery** (the `holds` flag): it holds nothing,
+the game never sets bit 8 on it, and it counts as emptied the moment it is found.
+Against all 220 saves on disk, over the 135 wrecks some save had recorded
+(2026-09-13):
+
+| the object | the game recorded the loot taken | count |
+|---|---|---|
+| has a `loadout` | yes | 82 |
+| has no `loadout` | no | 53 |
+| | disagreements | 0 |
+
+The sample was 107 wrecks, then 109, then 135 the same day once he loaded
+`Save707c.fl`, which alone carries 133; the ratio held at every size. Re-measure
+with a throwaway script over `wrecks.load_wrecks` and `flvisits.parse_visits`.
+
+**The game's mechanism confirms the rule.** Every wreck hull is
+`destructible = true` with `hit_pts = 3600` and two fuses:
+
+    fuse = fuse_suprise_<hull>,     0, 3601    ; fires at once, cosmetic damage
+    fuse = fuse_suprise_drop_loot,  0, 3590    ; fires once you have shot it
+
+`FX/fuse_suprise_solar.ini` defines the drop: 22 `[destroy_hp_attachment]`
+blocks, all `fate = loot`, over `HpWeapon01..05`, `HpTurret01..06`, `HpShield01`,
+`HpThruster01`, `HpMine01`, `HpCM01`, `HpCD01`, `HpTorpedo01`, `HpCargo01..04` and
+`HpMount` (the `equip` half of the loadout), and one `[dump_cargo]` at
+`origin_hardpoint = HpMount` (the `cargo` half). No loadout, nothing to drop. Of
+the 157: 133 are `MISSION_SATELLITE` with that fuse, 23 the same with the key
+spelled `Archetype`, and one is a `DESTROYABLE_DEPOT`, which has no fuse and
+drops its cargo by being a depot. Checked and not the cause: `HpMount` exists on
+all four hull models looked at; `lootable = true` on every gun involved.
+
+- **The depot** is `Li04_depot_superconductors_surprise`, the Dallas Storage
+  Container. A container names its cargo on its archetype
+  (`surprise_superconductors` carries `loadout = surprise_superconductors`).
+  `wrecks.archetype_loadouts` is the fallback: 40 Superconductors, and scenery is
+  53, not 54.
+- **23 wrecks spell the key `Archetype`.** `read_multi` keeps case, so
+  `load_wrecks` case-folds the entry before the archetype lookup. Harmless today
+  (all 23 carry their own loadout); `holds` and every loot list are byte
+  identical across the 157 with and without the fold.
+
+Scenery by system: Omega-5 (`bw02`) 23 of 27 hulls, Omicron Alpha (`hi01`) 19 of
+24, Omega-11 (`bw04`) 6 of 10, Sigma-13 (`bw05`) 5 of 11, Omicron Gamma (`hi02`)
+0 of 17. The owner remembered Sigma-13 as the empty one; it is not.
+
+**Omicron Gamma is not broken.** Reported on 2026-09-13 as wrecks showing loot
+that is not there, withdrawn by the owner the same day: all its wrecks are real.
+It is a cache: 16 Corsair hulls carry `SECRET_c_co_elite2_hi02a` or `...b`, 20
+Alien Artifacts plus two `fc_c_gun01_mark04` each (`lootable = true`). "Many
+wrecks, most empty, a few with loot" describes Omicron Alpha. What was broken was
+the page: `wreckLine` printed loot only when there was some, so a scenery hull
+and a found, unopened, loaded one drew the same.
+
+Refuted, do not retry:
+
+- **The loot parser drops items** (`load_item_names` and unnamed items): the
+  first wreck checked held eight kinds of cargo and parsed.
+- **Repeated names confuse two hulls**: names repeat (68 over 157 wrecks,
+  "Corsair Fighter" on 31), but every object has its own nickname and the visit
+  flags key on its hash.
+- **A tight cluster is one object drawn many times**: Omicron Alpha's are
+  tighter and are separate objects.
+- **The loadout belongs to the ship, not the wreck**: the same loadout sits on a
+  wreck the owner emptied himself.
+- **A loadout shared by several hulls means scenery**: New York's
+  `Li01_suprise_li_elite_badlands_01`, `_02`, `_03` are three Patrol 27s sharing
+  one loadout, and each holds four Justice Mk III.
+
+## Factions, news, rumors, commodities
+
+### A faction with nobody in any bar is out of the Reputation tab
+
+Cut on 2026-09-09 at the owner's request, 55 factions to 47. A faction with no
+`[GF_NPC]` in `mbases.ini` has nobody to fly for or against. That is eight of the
+55 groups in `empathy.ini`: Nomads, `fc_f_grp` (Fugitive), Kress's Men,
+Quintaine's Men, `fc_uk_grp` (its name resolves to a single space), and the
+story doubles `fc_kn_grp`, `fc_ln_grp`, `fc_rn_grp`. The next faction up has
+seven bar NPCs.
+
+- **Cut from `events` and `empathy`, never from `names`.** `fc_kn_grp` and
+  `fc_uk_grp` own bases; cutting their names blanked the owner badge on each.
+- `_disambiguate` appended `(nickname)` to three names because `fc_ln_grp` was a
+  second "Liberty Navy" (and likewise Kusari Naval Forces, Rheinland Military).
+  All three doubles were cut, so nothing collides. The function stays: a mod that
+  gives one of them a bartender brings the clash back. The four house police
+  forces still collide and take their house code.
+
+### News
+
+All 403 `[NewsItem]` entries in `DATA/MISSIONS/news.ini` carry
+`rank = <from state>, <to state>`: 223 have opened at `mission_03_loaded`, 385
+at `mission_13_accepted`. A window closed behind you differs from one not
+reached, so the tab draws items by debut and marks each live or past.
+
+364 are distinct (2026-09-10). 17 are empty (no headline, text, category or
+base; all debut at `mission_end`). 22 repeat another item's headline and text,
+differing in window and sometimes icon: "Arrival of Freeport 7 Survivors" is
+filed at `mission_01a_loaded` as `critical` and at `mission_01a_accepted` as
+`world`. A duplicate folds into the copy that opened first, taking the wider
+window, the union of the bases, and `critical` if either had it.
+
+A mark's key is `news:<debut>:<headline>`, so the fold would have dropped 9 of
+the 266 news marks. `_collapse` therefore carries `debuts`, the full list; the
+page treats a row as marked if any of its keys is and clears all of them on
+unmark. After the change: zero unreachable keys, 18 marks on folded rows.
+
+### Bar rumors
+
+- **Every rumor is available from the first minute.** All 7803 `rumor` lines in
+  `mbases.ini` carry one window, `base_0_rank .. mission_end`. The window is
+  applied anyway, for mods; **do not look for a rumor that unlocks**. The tab
+  scopes rumors by where you have docked: 161 bases carry rumors, median 16.
+- **Rumor text is RT_HTML, not RT_STRING.** `MiscText.dll` holds 3101 resources
+  of type 23 and none of type 6. All 3030 distinct rumor ids resolve.
+  `infocards.py` unwraps the RDL: `<PARA/>` is a line break, the rest is dropped.
+- **Not built: `rumorknowdb`.** 564 lines over 112 targets name the hidden jump
+  hole (`li02_to_li04_hole`), wreck or base a speaker knows about: a real link
+  between the Neural Net and the Systems tree, out of scope until asked for.
+- **Mission dialogue cannot be added**: a `[Dialog] Line` names a `.utf` audio
+  asset, `DATA/AUDIO/DIALOGUE/` is 40 folders of sound, and the game ships no
+  subtitles for in-space comms. That is why "news and dialogue" became "news and
+  bar rumors".
+
+### Three commodities spoil
 
 | Commodity | `decay_per_second` | `hit_pts` | the game's own infocard |
 |---|---|---|---|
@@ -1044,1155 +424,559 @@ Closed 2026-09-10 for the Routes tab.
 | Luxury Food | 1.0 | 100 | `>>>HIGHLY PERISHABLE <<<` |
 | MOX | 1.0 | 200 | `>>>PERISHABLE <<<` |
 
-Every other one of the 105 commodities reads `decay_per_second = 0`,
-`hit_pts = 250`, and carries no banner. All three are traded.
-
-**The two halves of the rule are independent and they agree.** *Which*
-commodities spoil is a number in `select_equip.ini`; *how badly* is text in the
-item's own infocard, which is RT_HTML and therefore a different resource type in
-a different table. The set the field picks out and the set the text picks out
-are the same three, which is why `market.perishable` derives it rather than
-holding three nicknames somebody typed.
-
-**What none of it says is what spoiling costs you on a run**, and the page must
-not print a number that implies it does. `decay_per_second` sits among
-`pod_appearance`, `loot_appearance` and `hit_pts`, every one of which is a
-property of the container once it is floating in space, so the files do not
-prove a hold loses cargo in flight. Routes shows the game's own label, keeps
-`run` as the plain multiplication it is, says so in the note, and offers a
-checkbox. Do not let a decay model in later without evidence for it.
-
-## Settled: 39 of the 403 news items are noise
-
-Closed 2026-09-10. `news.ini` files 403 `[NewsItem]` entries and holds **364**
-distinct ones.
-
-  * **17** carry no headline, no text, no category and no base, and every one
-    of them debuts at `mission_end`. They drew as empty boxes.
-  * **22** are exact duplicates, same headline and same text as an item already
-    in the list, differing only in the window they run in and sometimes the
-    icon. "Arrival of Freeport 7 Survivors" is filed at `mission_01a_loaded` as
-    `critical` and again at `mission_01a_accepted` as `world`.
-
-A duplicate folds into the copy that broke first, taking the wider window, the
-union of the bases and `critical` if either had it.
-
-**The fold would have eaten nine of the owner's marks, and that is the part
-worth remembering.** A mark's key on the page is `news:<debut>:<headline>`, so
-every filed copy has its own key and the survivor keeps only one of them. Nine
-of the 266 news marks on this machine sat on a copy that would have gone.
-`_collapse` therefore carries `debuts`, the full list, the payload passes it
-through, and the page treats a row as marked if **any** of its keys is and
-clears every one of them when the mark comes off. Measured after the change:
-zero held keys unreachable, 18 marks living on a folded row.
-
-## Settled: the engine controls are a tab, not a strip
-
-Tried on 2026-09-07, following the design canvas, and reverted the same day at
-the owner's call after it would not work for him. Two things were wrong with it
-and both are structural, not cosmetic:
-
-- **It polled the running game from every page.** Reading cruise, lane, best
-  path and the docking takeover means scanning process memory, and the strip
-  did it every five seconds whether you were reading Trade, the log or nothing
-  at all. A tab polls only while it is open, which is the rule everything else
-  on this page already follows.
-- **It was rebuilt on every tick of that poll**, and a browser only fires
-  `click` when the press and the release land on the same element. See the next
-  section. `paint()` fixed the mechanism and the owner still could not open the
-  drawer, so the strip went rather than the hunt continuing.
-
-As a tab it also stopped showing two of its controls twice. Best path and the
-docking takeover were in the strip and again in the drawer, which is two places
-to read one setting.
-
-The canvas still draws it as a strip. That part of the design is not
-implemented and this is why.
-
-## Settled: a poll that rewrites identical markup swallows clicks
-
-Found 2026-09-07, an hour after the redesign shipped, from the owner's report
-that `ALL KNOBS` "opened once and then stopped opening".
-
-`render()` runs on the five-second poll and was assigning `innerHTML` on the
-engine strip, the panel and the totals row every single time. **The markup was
-byte-identical**, 1389 characters of it for the strip, because the values it
-prints only change when you change them.
-
-Assigning `innerHTML` destroys and rebuilds every child, and **a browser only
-fires `click` when the press and the release land on the same element**. So a
-click whose mousedown and mouseup straddled a tick produced no `click` event at
-all: no error, no console line, nothing to see. Every button on every tab was
-exposed, not just that one.
-
-Proved in a headless browser rather than reasoned about: press the button, run
-one `render()`, release it, and `document.querySelector('#engmore')` is a
-different object from the one the press landed on.
-
-The fix is `paint(node, html)` in `frontend/shell.py`, which writes only when
-the html differs and returns whether it did. **It is not an optimisation and
-must not be removed as one.** Rewiring is skipped along with the paint, which
-is correct: handlers survive because the elements they are on do. Text
-selection, focus and scroll position stop being thrown away every five seconds
-as a side effect.
-
-The general rule for anything on this page: a five-second poll is allowed to
-compare, never to rebuild. If a panel must be rebuilt on a tick, its buttons
-are not clickable and no amount of testing the handler will show it.
-
-### `paint` was comparing against the wrong thing, and four views never matched
-
-Reopened and closed again 2026-09-10, from the owner's report that *"селекты
-скрываются после нажатия мышью"* and that the Equipment search box loses focus
-after a while. He guessed a browser fault. It was this section's own fix, half
-done.
-
-`paint` wrote only when its markup differed from **`node.innerHTML`**, and that
-comparison cannot work: the browser hands back its own serialisation, not the
-string it was given. Measured per view:
-
-| View | Written | Read back |
-|---|---|---|
-| `search` | `<option value="guns" selected>` | `selected=""` |
-| `rep` | the same | |
-| `systems` | `<div class="housebody" hidden>` | `hidden=""` |
-| `log` | a U+00A0 inside a rumor, raw | `&nbsp;` |
-
-A bare boolean attribute comes back with `=""`, and a character the serialiser
-prefers as an entity comes back as one. So four of the nine views never matched
-and were destroyed and rebuilt on **every tick**, for three years of
-five-second intervals, with nothing to see: `wire()` re-ran, so the buttons
-still worked. What went was the open `<select>`, the focused input, the
-half-typed text, the selection and the scroll position. `overview`, `chart`,
-`market`, `routes` and `engine` were stable, which is why it hid.
-
-**Writing the markup more carefully is not the fix and must not be attempted.**
-The comparison was the bug. `paint` now remembers the last html it wrote, in a
-`WeakMap` keyed on the node, where it is exactly the string that went in. It is
-also cheaper: reading `innerHTML` on a 700-row table serialised the whole
-subtree once a tick to answer a question about a string.
-
-Two consequences worth keeping:
-
-- **Anything that empties a painted node by hand goes through `clear(node)`**,
-  or the record says it still holds markup that is no longer on screen and the
-  next legitimate write is skipped. `check_views.py` is the one caller.
-- **`check_views.py` now measures the invariant**, by identity rather than by
-  asking `paint` whether it wrote: render a view twice with the same data and
-  no node may be replaced. Proved to fire by putting the old comparison back on
-  purpose: 12 `POLL` lines, naming exactly `systems`, `search`, `rep` and the
-  two log views that carry rumors.
-
-
-## The look: `design/Neural Companion.dc.html` is the source, not a screenshot
-
-Added 2026-09-07. The page's visual language is a Claude Design canvas that
-lives in `design/`, drawn by the owner: dark HUD, Chakra Petch over IBM Plex
-Mono, cyan for the instrument and amber for anything that touches a file.
-Overview and Systems are drawn in full; Equipment, Trade, Reputation and Neural
-Net are drawn as markup; **Chart is the one screen it does not cover**, and was
-built from the same panel, border and label vocabulary as the rest.
-
-Read it before changing how anything looks. Its values are in
-`frontend/_theme.css` as tokens and nowhere else, so a colour has one spelling.
-
-**The canvas emits inline styles because that is how its editor works; the page
-uses classes.** Do not port a `style="..."` across. And a tab's own selectors
-live in that tab's module rather than in the theme: the two grid-column bugs
-this project has shipped were both a row template and its column list drifting
-apart in two different files.
-
-Three places the page deliberately departs from the canvas, all for the same
-reason, that every engine control writes into a live game: a slider posts on
-release rather than per pixel of drag, a redraw is held off while a slider is
-under a thumb, and the two expensive readings behind `ALL KNOBS` are fetched
-only when it is open. `frontend/engine.py` says so at the top.
-
-`check_views.py` skips any grid carrying `wrapgrid`. That is the marker for a
-grid that is meant to wrap, the Overview's panel flow and its label/value list,
-as against a table row whose cell count must match its column list. It cannot
-be told from the computed style, because `repeat(auto-fit, ...)` resolves to
-concrete tracks and reads exactly like a hand-written column list.
-
-## Writing to the running game
-
-The Engine tab changes cruise speed in a live Freelancer, and this is the only
-part of the project that writes anything anywhere. It writes to process memory,
-never to a save and never to a game file.
-
-It exists because `CRUISING_SPEED` is a single global in `constants.ini`, read
-once at startup, with no per-system or per-zone variant anywhere in the data:
-the key appears in exactly one file of the 8370 under `DATA/`. Wanting 5000 in
-open space and 500 in an asteroid field therefore cannot be expressed in the
-game's own data at all.
-
-Confirmed working on 2026-09-01 by writing 20.0 into a live game: the ship
-slowed on the spot, no reload and no crash, and the owner then asked for the
-tab. So the value is read per cruise burn and never cached when the ship spawns.
-
-**Never hardcode the address.** It lives in `common.dll`, which loads at a
-different place each run. `speed.py` finds it by the three floats that follow
-it, `5.0, 3.0, 0.25`, unique in the whole address space: one hit every time.
-Searching for the speed value is useless, plain `1000.0` matched 6948 places,
-which is what killed the first two attempts.
-
-A change lasts until the game is closed. `constants.ini` still says what it
-said, which is the intended split: the file is the default, the tab is the
-session.
-
-`kernel.yama.ptrace_scope` is 0 on this machine, so no privileges beyond the
-same user are needed. On a machine where it is not, this stops working and
-should say so, and must not be "fixed" by loosening it.
-
-**Two kinds of address, and only one of them is searched for.** `speed.py`
-scans, because `CRUISING_SPEED` sits in a loaded copy of `constants.ini` whose
-position is not fixed. `tradelane.py` and `dockdist.py` do not: their constants
-are in `common.dll` itself, at addresses taken from **flhack** (Jason Hood,
-2014, source at `~/Downloads/flhack/`), resolved against the module's own base
-from `/proc/<pid>/maps`. A scan is the wrong tool there and was tried first: it
-found a lone 2500.0 that turned out to be a CommConsts value in the loaded
-`constants.ini` and never the trade lane speed. Both modules validate what they
-found before writing to it, by reading the float and refusing if it is not a
-plausible value, which is what catches a wrong build or a moved address.
-
-Those addresses land in `.rdata`, which is read-only in the process.
-`/proc/<pid>/mem` bypasses page protection, so no `mprotect` is needed the way
-flhack needs one on Windows.
-
-## Settled: the dock cruise distance lives in `common.dll`, and in no INI
-
-Closed 2026-09-05, after a fix aimed at the wrong number did nothing. Worth
-reading before anyone reaches for `select_equip.ini` again.
-
-**There is no docking distance anywhere in the game's data.** A sweep of all
-1252 INI files under `DATA/` for any key whose name contains `dock` returns
-`docking_sphere` and `dock_with` on objects, `act_lockdock` and friends in the
-mission scripts, and nothing global. `Trade_Lane_Ring` in `solararch.ini`
-carries no `docking_sphere` at all, where `jumpgate` carries 225 and `jumphole`
-150. `constants.ini` has nothing either.
-
-**It is a float in `common.dll`, and the compare is one instruction:**
-
-    0x62fe171  d8 1d c0223a06   fcomp dword [0x63a22c0]   ; 1750.0
-
-Confirmed both in the shipped file and in the running game. `0x63a22c0` is
-flhack's `ADDR_DOCK_DIST10`, its "Cruise to dock from" setting, and its default
-table calls it "activate cruise for docking from this". Four instructions read
-it, one `fcomp` and three `fmul` about 1250 bytes earlier in the same function,
-so changing it moves more than the cut point.
-
-**Why a trade lane runs through the dock path at all:** flhack's help says the
-proximity radius default of 495 "is that used by Trade Lanes". Entering a lane
-is a dock, which is the lead the owner gave and the reason this was found.
-
-**That constant is only half the job, and the half that is not the interesting
-one.** `0x63a22c0` decides *whether* the autopilot uses cruise for a dock run,
-and the compare is gated by `[esi+0x365]`, which is cleared straight after, so
-the answer is latched once when the dock is ordered and never recomputed as
-you close in. Moving it from 1750 to 300 changed nothing anyone could feel,
-because at any real trade lane range both answer "use cruise".
-
-**The distance at which docking takes over is a code patch, never a number**, and
-that is why every constant tried did nothing. It is `[ebp+0x50]`, a descriptor
-field loaded at `0x62fe758`, so the only place to change it is the instruction
-that reads it. flhack calls this "Closer docking". `dockdist.py --takeover`
-ports its stub; `inject.py` carries how the code gets in. Settled at **200 m**
-for lanes and gates on 2026-09-05 after the owner flew 100, 200, 400 and 600,
-which is the value flhack picked independently.
-
-**One global was tried and disproved: `0x639f44c`.** It initialises a field
-that holds the same 1000.0 and looked like the same thing. The owner flew it at
-100, 1000, 5000 and 10000 with no difference to a lane approach. The knob was
-removed the same day. Do not go looking for it again.
-
-## Injecting code: the cave, and the page that is not writable
-
-`inject.py`, 2026-09-06. flhack allocates executable memory with
-`VirtualAllocEx` and stores the pointer at `0x67bf40`. `/proc/<pid>/mem` cannot
-allocate, and it does not need to:
-
-    common.dll .text ends at 0x6398730 with 2256 bytes of zero padding,
-    inside a mapping that is already r-xp
-
-That is linker slack between the end of the code and the start of `.rdata`.
-Nothing writes there, and writing to it from outside works because
-`/proc/<pid>/mem` goes through page protection, the same way `tradelane.py` has
-written to `.rdata` since 2026-09-02.
-
-**The trap, and it kills the game instantly.** Writing to the cave from outside
-is fine; the game writing to it is not, because the page is read-only. The
-first version of the stub stored `dockwith` into the cave and Freelancer died
-on the first call. flhack has the same split and solves it the same way, with
-its data at a static address it first makes writable. We cannot change
-protection, so anything the stub writes at runtime goes to `inject.find_scratch`,
-a zero run in a mapping that is already writable. Constants stay in the cave,
-because only this tool ever writes them, from outside.
-
-**Be frugal reading `/proc/<pid>/mem` on this machine.** `volkface` is a 7.6 GB
-tablet that sits at a few hundred MB free with the game up. The first
-`find_scratch` pulled whole mappings into Python and walked them byte by byte,
-and the desktop stalled hard enough to look like a freeze. It now reads in 1 MB
-chunks, matches in C with `bytes.find`, and stops at the first hit: 0.1 s and
-14 MB.
-
-**Not every patch needs a stub.** Best path through jump holes is five bytes in
-`server.dll` and `content.dll` and no injected code at all, because the thing
-being changed is a pair of pointers and no computed value. flhack wraps
-it in a runtime hook only because it patches at launch, before those libraries
-exist; patching from outside while a game is already loaded needs none of that.
-Reach for `inject.py` when a value is computed, never by habit.
-
-Two facts that shape `bestpath.py`:
-
-  * **The build fingerprint is the byte the patch changes.** flhack identifies
-    v1.0 by `server.dll` holding 0x0A at the type site, and the patch writes
-    0x03 there. So "wrong build" and "already patched" are one check in one
-    place, and neither can be read as the other.
-  * **Those two libraries load with the save**, so the patch dies on every game
-    load. That is stated in the UI and not worked around, because the
-    workaround is a loader hook and the honest version is a button.
-
-**Not every freeze is yours.** The one on 2026-09-05 was
-`i915 GT0: rcs0 reset request timed out`, an Iris Xe GPU hang the driver could
-not recover from, with the injected stub in memory at the time and entirely
-innocent. Read the journal before assuming.
-
-## Settled: equipment costs the same everywhere, and `npc_` gear is not for sale
-
-Both closed 2026-09-04 while building the Equipment search, both by counting
-and never by assuming, and both shape what the page can offer.
-
-**One price, every dealer.** `market_misc.ini` rows carry the same seven fields
-as a commodity row, but the multiplier is exactly `1.0` on all 10871 of them and
-no item's differs between bases. So there is no cheapest dealer to find: the
-price belongs on the item and the expansion answers *where*. Do not port the
-Trade tab's dearest-versus-cheapest logic over; it has nothing to work on. The
-rank (0 to 30) and reputation (-1 to +0.8) gates are the same everywhere too,
-checked across the 366 goods sold at more than one base.
-
-**No item whose nickname starts with `npc_` is sold anywhere**, guns or shields.
-That plus "has no `[Good]`, so no price and no dealer" is the whole of what the
-catalogue drops, and the counts are in `equipment.py`. The visible symptom if
-the filter is ever removed: the shield list is led by `npc_shield01_mark10` at
-10127 capacity, which no player can buy.
-
-**The rule for what gets listed is acquirability**, not a nickname pattern.
-It was *sold at a dockable base, or present in a wreck*, which kept the 17
-codenamed guns (the hardest hitting in the game, all of them wreck loot) and
-dropped 12 others. **A third way was added on 2026-09-12**, shooting whoever is
-flying it; see the next section. Same shape as `bases.py`'s rule and the Trade
-tab's undockable markets.
-
-## Settled: a gun has four sources, and "nowhere" is one of them
-
-Closed 2026-09-12 on the owner's report: *"в списке оборудования нет руки
-смерти мк3 и номадских пушек"*. **Two different causes under one sentence**, and
-finding that out was the whole job.
-
-**The Nomad guns were a real gap.** The obtainable rule knew dealers and
-wrecks. There is a third route the data states plainly and nothing here had
-ever read: `MISSIONS/lootprops.ini` gives `special_nomad_gun01` and `02` a
-`drop_properties` of 10, and `SHIPS/loadouts.ini` hangs them off five and four
-Nomad loadouts. You shoot a Nomad and it falls out, which is exactly as
-obtainable as a wreck. They are the two hardest-hitting guns in the game at
-2568 and 2543 hull DPS, above CERBERUS, so their absence was not a detail.
-
-**Death's Hand Mk III is referenced by nothing.** A grep for it across all of
-`DATA/` returns `weapon_equip.ini` and `weapon_good.ini` and no third file: no
-dealer, no wreck, no loadout, no mission script, no loot entry. It shipped and
-was never wired up, and the same is true of Reaper Mk III, the two Order
-turrets Mk II, Vengeance Mk III, Rowlett's Revenge and the Nomad Prototype
-(which NPCs carry but nothing can drop). The owner's save carries none of the
-twelve, checked against the `equip` lines.
-
-So every row now carries a `source`: `sold`, `wreck`, `loot`, `none`, and the
-tab shows the first three by default with a checkbox for the fourth.
-**Absence that cannot be explained was the actual bug**: the list gave no way
-to tell "this is not in the game" from "the reader lost it", and it was the
-second of those the owner reasonably assumed.
-
-**Both halves of the loot rule are required, and dropping either breaks it.**
-Measured both ways:
-
-  * a drop chance alone lets in the twelve `shield01_mark08_lf`-shaped shields,
-    which carry a 6 and sit on no ship in the game, so nothing can drop them;
-  * a loadout alone lets in all 26 `npc_` shields, which carry no chance at all
-    and would head the capacity list at 10127 against a best buyable 289150,
-    which is the exact failure the `npc_` rule above exists to prevent.
-
-The pair keeps one rule honest for guns and shields alike, so there is no
-gun-only exception to remember. Shields still come out at 79 of 121.
-
-**There is deliberately no "the story gave it to you" source.**
-`msn_playerloadout`, the ship the campaign hands you at the end, carries exactly
-one thing no dealer sells, `special_nomad_gun01`, which already qualifies by
-dropping off Nomads. A source that can never be the answer is worse than no
-source. Whatever else the mission scripts hand over is not in these files.
-
-**On the percentage.** `drop_properties[0]` is read as a chance: across all 434
-entries it runs 0 to 100, it is 100 on every commodity, 33 on nanobots and
-shield batteries and 8 on most guns. Nothing depends on that reading beyond it
-being non-zero, so a wrong unit costs a word on the page and not a row in the
-list. Fields 2 and 3 are always equal to each other and are not the price.
-
-## Settled: a media query asks the viewport, and the layout is not in it
-
-Closed 2026-09-10, one day after it was introduced. Systems lays a house out
-two cards abreast, and it was written as `@media (min-width: 1400px)`. The
-owner never saw it fire, at any zoom.
-
-**1400 was a number picked out of the air, and his page is not the viewport.**
-His browser carries a sidebar that takes some 600px off the window, so the page
-sat at roughly 1396 CSS px: a hair under the guess. Zooming out widens the CSS
-viewport and should have crossed it, which is why it read as "the feature does
-not work" rather than "the window is too narrow".
-
-It is now a container rule with no breakpoint in it:
-
-    grid-template-columns: repeat(auto-fit, minmax(max(34rem, 48%), 1fr));
-
-`48%` is what caps it at two, because three tracks of 48% cannot fit however
-wide the screen gets. `34rem` is the floor, so it drops back to one column
-rather than squeezing a system's base list into something unreadable. Measured:
-one column at 900 and 1100, two from about 1130px of page width, two at 1256,
-1396, 1500 and 1920, never three.
-
-**The general rule: a media query measures the window, and almost nothing on
-this page lives in the window.** `.wrap` caps at 1680, a sidebar takes what it
-likes, and the panel is inside both. Where a layout should change because *this
-box* got wider, size it from the box: `auto-fit` with a percentage floor says
-that directly and cannot be wrong about somebody else's chrome. `.totals` and
-`.hits` were already written this way; Systems was the odd one out.
-
-## Settled: docked-only filters, and a favourite outranks every filter
-
-Closed 2026-09-10, and the first half **reverses a decision this file used to
-defend**, so read both halves before restoring anything.
-
-**"Only bases I have docked at" now drops rows.** It used to rewrite each row's
-`bases` and keep the row, so the page could say "nowhere you have docked sells
-it", and `backend/search.py` and `equipment.py::search` both carried paragraphs
-explaining that this was the opposite of the system filter and must not be
-merged with it. The owner's verdict: *"бесполезна в текущей реализации"*, and
-he is right. It left 187 of the 235 guns on screen with nothing under them,
-wreck loot included, which is not a filter. Measured against a save with 30
-docked bases: guns 235 → 51, shields 79 → 36. It is a filter kind inside
-`eqp.search` now, so one function still decides what is kept. `search.py` still
-narrows each surviving row's `bases` to the docked dealers, which is a
-different job, runs after, and can no longer empty a row.
-
-**A favourite bypasses every filter.** `eqp.search` takes `keep`, a set of
-nicknames checked before the filters and then **carried through the same
-sort**, which is what puts a favourite in the ranking rather than in a pile on
-top of it. Verified: starring the weakest gun in the game and asking for
-`hull_dps >= 100` returns 226 rows instead of 225, with that gun last.
-
-**The favourites live in `data/marks.json`, under their own kind.** Not
-`localStorage`: that is the trap that lost the Neural Net's marks on
-2026-09-09, and the account is under *the reader's marks belong to the server*.
-`fav` rather than a share of `star`, because a starred news item and a
-favourite gun are different things. The key is the bare item nickname, which is
-unique across guns and shields (314 rows, 314 nicknames), so it needs no prefix
-and carries none.
-
-**The Equipment tab has no `marksHeld` guard and does not need one.** It
-registers no `poll`, so nothing arrives to overwrite a star between the click
-and the reload that follows it. The Neural Net's guard sits next door because
-that tab re-reads its log every five seconds. Said out loud in the code, or the
-absence reads as an oversight.
-
-## Settled: the Equipment table shows every column, and you can drop one
-
-Closed 2026-09-10, in two passes. It used to show the sorted column plus
-whatever was being filtered on, two or three of nine, which is what *"в таблице
-мало данных"* meant. Measured with all of them on: guns need 1335px and shields
-1244px, no header is clipped at any width, and the page never scrolls sideways.
-Below about 1350px the table scrolls inside its own `.guns` box, which is what
-`overflow-x: auto` is there for. So all of them are drawn.
-
-**Dropping one is a `×` on its heading, not a row of switches and not a
-stepper.** Both of those were offered and the owner picked the heading: there
-is no extra control on the page at all until something is off, and then a
-`+ add a column…` select appears beside the `+ add a parameter…` one that was
-already there. `gearHidden` holds **the exceptions, not the selection**, so an
-empty set is the full table and a parameter added to the game later appears
-without being named anywhere.
-
-**A column you sort or filter on cannot be hidden and carries no `×`.** An
-arrow pointing at a column that is not on screen, or a filter narrowing the
-list by a number you cannot see, is the table lying about itself.
-
-Neither dropping nor restoring a column asks the server for anything: the
-figures are already in the payload. Verified, along with the click not falling
-through to the sort the heading also answers, and with the row cells staying in
-step with the grid at 12, 9 and 10 columns.
-
-`price` stays out of the parameter columns: it has a fixed column of its own
-further right, and listing it twice is how a table starts lying about itself.
-`default` came out of the payload with the old column rule, its only reader.
-
-## Settled: rank needed is a comparison, and the other numbers are not
-
-Closed 2026-09-10. `rank` is `cmp` in `PARAMETERS`, which draws the same
-`[= <= >=]` select the mount class does. Every other numeric parameter stays a
-plain minimum, at the owner's call: *"at least 400 hull DPS"* is the question
-people have about a gun, and *"at least rank 16"* is not a question about
-anything. What you want to know is what you can fly now.
-
-**Both comparisons are inclusive**, changed from `<`/`>` on the owner's call
-the same day, and that has a naming consequence worth keeping: **`>=` on a
-number is `num`**, which every other numeric filter already sends, because "at
-least" is precisely what `num` means. So the page sends `num` for it and there
-is no `over` kind. `<=` has no twin and is `upto`.
-
-**`le`/`ge` are not those two under different names.** They compare mount
-classes and refuse to answer across a socket family, because a shield's
-`fighter 6` and `elite 6` are different mounts; the numeric pair compares
-numbers. One name for both would put that family rule on a price.
-
-Checked against the catalogue, and the inclusive figures compose exactly with
-the strict ones they replaced:
-
-| | `=` | `<=` | `>=` |
+The other 102 of the 105 commodities read `decay_per_second = 0`,
+`hit_pts = 250`, no banner. All three are traded. *Which* spoil is a number in
+`select_equip.ini`; *how badly* is infocard text (RT_HTML, another table). The
+two sets agree, so `market.perishable` derives the set instead of holding typed
+nicknames.
+
+**The files do not say what spoiling costs on a run.** `decay_per_second` sits
+among `pod_appearance`, `loot_appearance` and `hit_pts`, properties of a
+container floating in space. Routes shows the game's label, keeps `run` a plain
+multiplication, says so in the note, and offers a checkbox. No decay model
+without evidence. One observation exists: on 2026-09-15 the trade watcher saw
+the owner's Alien Organisms lose a unit every few minutes in the hold. No rate
+was measured.
+
+### Systems are identified by nickname
+
+Display names repeat: Omicron Beta is `Ew02` and `St02`; Omicron Major is
+`St03`, `St03b`, `St02c` and `FP7_system`; Unknown is `Ew05` and `Ew06`. Only one
+of each group has a market, so keying the trade selectors on labels works today
+by luck. `market.py` rows carry `sys_nick`, the identity, and `system`, the
+printed label.
+
+## Equipment
+
+- **One price at every dealer.** The multiplier in `market_misc.ini` is `1.0` on
+  all 10871 rows, and no item's price differs between bases. The rank (0 to 30)
+  and reputation (-1 to +0.8) gates are the same everywhere too, checked across
+  the 366 goods sold at more than one base. The price sits on the item, the
+  expansion answers *where*. Do not port the Trade tab's dearest-versus-cheapest
+  logic.
+- **No item whose nickname starts with `npc_` is sold anywhere.** That and "no
+  `[Good]`, so no price and no dealer" are all the catalogue drops; the counts are
+  in `equipment.py`. If the filter goes, `npc_shield01_mark10` at 10127 capacity
+  heads the shield list, and no player can buy it.
+
+**Listed means obtainable, and each row says how** (`source`, 2026-09-12): `sold`
+at a dockable base, `wreck`, `loot` (drops off an NPC), or `none`. The tab shows
+the first three; a checkbox adds `none`. The first rule (sold, or in a wreck)
+kept the 17 codenamed guns, the hardest hitting in the game and all wreck loot,
+and dropped 12 others.
+
+- **`loot`**: `MISSIONS/lootprops.ini` gives `special_nomad_gun01` and `02`
+  `drop_properties` of 10, and `SHIPS/loadouts.ini` hangs them on five and four
+  Nomad loadouts. They are the two hardest-hitting guns in the game, 2568 and
+  2543 hull DPS, above CERBERUS. The rule needs both halves: a drop chance alone
+  admits the twelve `shield01_mark08_lf`-shaped shields, which carry a 6 and sit
+  on no ship; a loadout alone admits all 26 `npc_` shields, which carry no chance
+  and would head the capacity list (10127, against a best buyable 289150). One
+  rule for guns and shields; shields come out at 79 of 121.
+- **`none`**: Death's Hand Mk III appears in `weapon_equip.ini` and
+  `weapon_good.ini` and nowhere else in `DATA/`: no dealer, wreck, loadout,
+  mission script or loot entry. The same holds for Reaper Mk III, the two Order
+  turrets Mk II, Vengeance Mk III, Rowlett's Revenge and the Nomad Prototype
+  (NPCs carry it, nothing drops it). The owner's save carries none of the twelve.
+  Without `source` the list could not tell "not in the game" from "the reader
+  lost it".
+- **No "the story gave it to you" source.** `msn_playerloadout`, the ship the
+  campaign hands you at the end, carries one thing no dealer sells,
+  `special_nomad_gun01`, which is already `loot`.
+- `drop_properties[0]` is read as a chance: across all 434 entries it runs 0 to
+  100; 100 on every commodity, 33 on nanobots and shield batteries, 8 on most
+  guns. Only non-zero matters, so a wrong unit costs a word, not a row. Fields 2
+  and 3 are always equal and are not the price.
+
+## Job boards
+
+A bar shows what it offers today, never what it can offer; the Jobs tab shows
+the second (2026-09-12).
+
+| File | What it gives |
+|---|---|
+| `DATA/MISSIONS/mbases.ini` | `[MVendor] num_offers = 2, 4`, the slots on the board, and `[BaseFaction] mission_type = DestroyMission, <min>, <max>, <weight>`, one faction's difficulty band and its weight in the draw |
+| `DATA/RANDOMMISSIONS/diff2money.ini` | 23 rungs, difficulty to credits, 1800 at 0.0 up to 247065 at 100.0 |
+
+A board's ceiling is the money at its highest `max`, its floor the money at its
+lowest `min`.
+
+- 160 of the 163 dockable bases run a live board. Planet Primus and Planet Gammu
+  carry no offering faction; Planet Sprague carries one with
+  `num_offers = 0, 0`. `fl.py jobs --all` lists the three. (Planet Toledo was the
+  fourth until it left the denominator on 2026-09-13.)
+- All 241 `mission_type` rows are `DestroyMission`, vanilla's only random type.
+  The kind is carried anyway, so a mod's new type is listed, not counted as a
+  bounty.
+- 101 bases have one offering faction, 51 two, 11 three, one five: Trafalgar
+  Base, weights 40/20/20/10/10.
+- The ceiling is 146192, at Ruiz Base, Planet Malta, Planet Crete and Tripoli
+  Shipyard. The lowest live board pays 2200.
+
+**Interpolate between rungs; never turn it into a lookup.** Four of the 19 band
+edges miss their rung by float32 noise, `0.11239` in one file against `0.112387`
+in the other. Interpolation lands them within a credit; a lookup would have to
+invent what a value between rungs means.
+
+**Not printed**: what the job sends at you, and what the best of a full board
+comes to. `npcranktodiff.ini` maps (NPC rank, wing size) to the same difficulty
+scale, so the game inverts it to pick your opposition, but the direction of that
+inversion and the spread of the draw inside a band are in no file.
+
+"Open" means a system holding at least one base you have docked at (the owner's
+call, 2026-09-12); the undocked bases in such a system are the point of the tab.
+On that day's save: 12 open systems, 63 bases, 62 boards, 55 docked. Sorting and
+filters run on the page (160 rows). The view refetches on every entry, because
+docking somewhere new between two looks is what the tab is for.
+
+## Bribes
+
+A `[GF_NPC]` belongs to the `[MBase]` above it in `mbases.ini`: the file nests by
+position only, so one walk that remembers the current base places every `bribe`
+line. `game/jobs.py` and `reputation.load_bar` make the same walk. Counted
+2026-09-12:
+
+- 41 of the 55 factions are bribable, across 162 bases.
+- All 2386 `bribe` lines read 10000, so the list answers *where*, never *where
+  cheapest*. What the engine charges is `BRIBE_RATE` in `reputation.py`.
+- 3 to 94 bases per faction, median 22, so the page lists only the ones the save
+  has docked at (median 7 on that save).
+- On that save 11 of the 41 had no bar he had reached, the Rheinland Police among
+  them (25 stations take the money, he had landed on none). The row says so in a
+  sentence, and `bases_total` makes an empty list read as a journey, not a failed
+  lookup.
+
+Layers as in Jobs: `load_bar` returns base nicknames; `backend/rep.py` narrows
+them by `GameData.bases` (dockable) and by the save (visited) and builds the
+shared base shape. No second base index; `market.base_index` is deliberately not
+imported. `_reputation` reads `ctx.saved()`: one decode gives the standings and
+the docked bases (a separate `fl.decode_save(ctx.save)` is the second-read trap
+`common.Ctx` exists to prevent).
+
+## Routes and Best Path
+
+### The jump graph (Map -> Best Path)
+
+An `[Object]` carrying `goto = <system>, <object>, <tunnel>` is a jump: 232
+across 52 systems, all two-way, each `goto` naming an object the same walk found.
+84 gates, 140 holes of five kinds, two `nomad_gate`, six Dyson airlocks. The save
+records seen jumps as it records bases, by `FLHash` of the nickname, at flag 1.
+
+- **The nodes are jump objects, not systems.** New York holds a gate and a hole
+  to Texas, and which one you want depends on where you came in. Start at any
+  jump in the departure system for free; a jump costs one hop and no distance;
+  flying to another jump in the same system costs the distance between them;
+  arrival is the first jump landing in the destination.
+- **Two costs, disagreeing on 49% of the 2182 reachable pairs**, so both are
+  drawn: fewest jumps (ties broken on distance) and least flying (ties broken on
+  jumps), one Dijkstra under two orderings. No flying route is longer than the
+  fewest-jumps one; no jumps route has more hops than the least-flying one.
+- **Distance covers the middle systems only, without trade lanes.** Both ends are
+  picked by hand; lanes would need where each runs and whether it stands, which
+  the files do not settle.
+- **A link counts as found when either end has been seen.** 14 of 116 links on
+  that day's save were marked at one end only. Each step still carries `found`
+  for its own object.
+- **Five systems are an island**: `st01`, `st02`, `st02c`, `st03`, `st03b`, the
+  single-player Omicrons. 470 of the 2652 ordered pairs have no route; that is
+  the data.
+
+Against `UNIVERSE/systems_shortest_path.ini`: equal on 1502 of its 2079 pairs,
+this tool shorter on 577, longer on none. New York to New London is four jumps in
+the table, `li01 > li02 > iw04 > br02 > br01`, and three through Magellan,
+`li01 > iw03 > br02 > br01`, every hop a gate. `fl.py jumps --check` is that
+comparison and guards the graph. It reads `<name>.vanilla` when one exists,
+because after `routetable.py` wrote the table it reported 2079 equal.
+
+### How the game routes
+
+- **The game reads its route table once, when the world loads**, and that load
+  also reloads `content.dll` and `server.dll`, wiping any memory patch in them.
+- `shortest_legal_path.ini` is gates only, and it is what Set Best Path reads in
+  vanilla. `systems_shortest_path.ini` includes holes. Rows whose route has a hop
+  no gate makes: legal 0 of 1225, systems 1440 of 2029.
+- In `content.dll` the two filename strings sit at `0x70a828c`
+  (`Universe\shortest_legal_path.ini`) and `0x70a82c4`
+  (`Universe\systems_shortest_path.ini`); the slots at `+0x89512` and `+0x89492`
+  point at them, and the router reads `+0x89512`.
+- **flhack's five bytes do two things**: swap the two filename pointers (the low
+  halves `0x8C` and `0xC4`), **and** set a type byte its own source comments as
+  `mov byte [edi], 0x03 ; treat jump gates & holes the same`. On build v1.0
+  `server.dll` holds 0x0A at that site, so the byte the patch changes is also
+  the build fingerprint: "wrong build" and "already patched" are one check.
+  This install matches flhack's build 10: `server.dll` 0x0A at RVA `0x1ACE3`,
+  `content.dll` 0xC4 at `0x89492` (build 11's offsets give 0x24 and 0x90).
+- **Without the type byte, a hop with no gate sends the course to the system
+  origin.** 2026-09-13: Set Best Path from Battleship Matsumoto to Ohashi Border
+  Station (Hokkaido to Shikoku) pointed into `Ku05_Sun`, a `sun_2000` at
+  `[0, 0, 0]`, because the written route's first hop, Hokkaido to Kyushu, exists
+  only as a hole.
+
+### What `routetable.py` writes: two modes
+
+The table and the five bytes move together; either alone is broken.
+
+| mode | the game reads | table | the five bytes |
 |---|---|---|---|
-| rank 16, guns | 51 | 160 (109 + 51) | 126 (75 + 51) |
-| mount 6, guns | 51 | 145 (94 + 51) | 141 (90 + 51) |
-| mount `fighter 6`, shields | 3 | 18 | 11 |
-
-The shield rows are all `fighter`, none of them `elite` or `freighter`, which
-is the family rule holding. And 126 is what `num 16` gave before any of this,
-which is the check that `>=` really did collapse into it rather than becoming
-a second implementation of it.
-
-## Systems are identified by nickname, never by display name
-
-Found 2026-09-04 while adding the Routes sub-tab. Five system display names are
-shared by more than one system: **Omicron Beta** is `Ew02` and `St02`, **Omicron
-Major** is `St03`, `St03b`, `St02c` and `FP7_system`, and **Unknown** is `Ew05`
-and `Ew06`.
-
-Only one of each group has a market, so keying the trade selectors on labels
-would have worked today, by luck, and broken the moment anything looked at the
-single-player-only or multiplayer-only systems. `market.py` rows therefore carry
-both `sys_nick` and `system`: the nickname is the identity, the label is what
-gets printed.
-
-Same shape as the three duplicated faction names on the Reputation tab, and the
-same answer: the display string is not a key.
-
-## The page is one inline script, so a parse error takes all of it
-
-Added 2026-09-04 after the tab strip came up empty. The whole UI lives in one
-`<script>` in `PAGE`, which means a *syntax* error is not a broken feature, it
-is a page with no behaviour at all: static HTML, a stuck "loading…", no tabs.
-The server serves that quite happily, so curl says 200 and the API answers.
-
-The specific cause was `let top = 'map'`. `window.top` is a non-configurable
-property of the global object, and a global `let` or `const` on such a name is a
-SyntaxError rather than a shadowing declaration. `window`, `self`, `location`
-and `document` behave the same way. The variable is `topTab` now.
-
-**Verifying this needs a browser.** `firefox --headless --screenshot` renders
-the page and shows whether the strip drew. The shot fires at the load event,
-before the first `fetch` resolves, so an empty body in it is expected and is not
-evidence of anything; the tab strip is the part that tells you.
-
-**`check_views.py` has to survive the page script being dead, and did not.**
-Found 2026-09-07, when an unclosed template literal in `frontend/log.py` took
-the whole inline script down. The driver's own first act was
-`Object.keys(VIEW)`, and with the script dead `VIEW` is undefined, so the driver
-threw before it could write a single line and the report came out as a blank
-page. The one failure the tool exists for was the one failure it could not
-report. It now checks `$` and `VIEW` first and says so in words, and the seeding
-runs inside a try of its own.
-
-## Changes made to this install by hand, outside the tool
-
-Not everything in the game files is vanilla, and a value that looks wrong may be
-deliberate. Anything the tool wrote has a `.vanilla` beside it, which is the
-audit trail; this section covers what was changed by hand.
-
-**`DATA/EQUIPMENT/select_equip.ini` is back to vanilla as of 2026-09-06, and
-the round trip is the lesson.** On 2026-09-04 `[TradeLane] basic_trade_lane_eq`
-had `activation_start` cut from 750 to 100 and `activation_end` from 500 to 50,
-to make cruise hold until the ring was close. It did nothing, because those two
-are the *ring's* equipment and govern its spin-up window; they never reach the
-ship's engine state. Restored from `select_equip.ini.vanilla` once the real
-mechanism was found, verified key by key at 15 `[TradeLane]` keys matching.
-
-**Do not reach for this section again to change docking behaviour.** What the
-edit was trying to do is now `dockdist.py --takeover`, which patches code in
-memory and needs no file change at all. The only thing this file would still
-affect is how quickly the ring itself spins up, which is a separate complaint
-and has `spin_accel` and `secs_before_enter` beside it if it ever comes up.
-
-**`DATA/MISSIONS/M13/m13.ini` is back to vanilla as of 2026-09-15**, at the
-owner's call: *"нейтраль со всеми после окончания игры это скучно"*. The
-`[Trigger]` named `enter_bar` fires on walking into the bar at the end of M13
-and hard-sets 47 reputations: Liberty Navy and LSF 0.91, seven factions 0.65,
-twelve at -0.3, eight at -0.65 and seventeen already at 0. Read back after the
-restore, that is exactly what the file says again.
-
-**It had been zeroed twice, so that the story ended on neutral**, on 2026-09-02
-and again on 2026-09-09. The reasoning was that the trigger overwrites every
-relationship you spent the campaign building. Played, it turned out to make the
-endgame flat: with nobody liking or hating you there is nothing to trade off,
-which is the whole texture of the post-campaign game.
-
-**The zeroed version is parked as `m13.ini.neutral` beside the file.** There is
-no module for this edit and it exists nowhere else; the first time it was
-applied it vanished without trace, mtime 21:31 on 09-02 against a `.vanilla`
-taken on 09-01, with nothing in this repo recording what did it. A third
-hand-application would have been a third reconstruction, so the bytes are kept.
-Restoring either direction is a copy, through `persist.write_raw` so the mode
-survives.
-
-**If the reputations behave unexpectedly at the end of a campaign, check which
-of the three files is in place first** (`m13.ini`, `.vanilla`, `.neutral`)
-rather than looking for a bug in the reputation model.
-
-Making it neutral again is a decode, zero every numeric third field of
-`Act_SetRep` in that one trigger, re-encode through `persist._save`, which
-refuses to write unless the round trip is identical. Leave the `Act_SetRep`
-entries in the other triggers alone: theirs are symbols like
-`REP_FRIEND_THRESHOLD`, not numbers.
-
-Also worth knowing when reading these files: `CRUISING_SPEED` in
-`constants.ini` currently says 5000.0, written by the Engine tab's persist
-button, 153 asteroid field files carry a scaled `fill_dist` from `drawdist.py`,
-and `solararch.ini` carries a 40000 cull floor from `solardist.py`. All three
-have `.vanilla` backups.
-
-## Settled: an RTC is not a cutscene, and the first mission cannot be trimmed
-
-Tried on 2026-09-06 at the owner's request, broke the game twice, and reverted.
-Both facts are worth keeping, because both look obvious in the wrong direction.
-
-**`Act_AddRTC` populates a room.** The file it names is a
-`[CharacterEncounter]`: a `Location`, one `action` scene, and a list of `[Char]`
-entries. `m001a_s003x` puts the bartender, Juni and the Liberty diplomat in the
-Manhattan bar; `m001a_s004x` puts Juni and the diplomat there; `m000_s002xe`
-puts the wounded Lonnigan on the cityscape. Removing the `Act_AddRTC` does not
-skip a scene, it empties the room. With no Juni to click there is no
-`Cnd_CharSelect`, so no job offer, no `Act_SetShipAndLoadout` and no ship.
-
-The distinction that does exist is `autoplay`, present on 61 of the game's 68
-character encounters. With it the scene runs on entering the room; without it,
-`s004x` being the one example in this mission, it runs when the character is
-clicked. Dropping that key is the surgical version and was written but never
-tested, because the owner called the whole line of work off first.
-
-**`tr_fp7_cam_end` is not a wait.** The Freeport 7 opening is a chain of timers
-on the 33 triggers scoped to `FP7_system`, and this one is started by the first
-trigger, runs beside the whole chain, and ends it with `Act_ForceLand` on
-Manhattan. Its 68.5 seconds is the length of the sequence, not a pause in it.
-Capping every timer to 1s therefore force-landed the player one second in while
-the chain went on spawning ships and lighting fuses in a system being torn down,
-which is the crash. Vanilla runs a 42.8s chain under a 68.5s marker, x1.60, so
-a compressed chain needs the marker recomputed rather than capped.
-
-Neither is applied. `newgame.py` writes the starting ship and nothing else, and
-its `.vanilla` copies cover only `loadouts.ini` and `m01a.ini`.
-
-## Settled: the level system is one file, and a save's `rank` is only a cache
-
-Closed 2026-09-12. The owner asked to be reset to level 1 or to have the cap
-raised to 50, and named the three numbers the info screen shows: **Current
-Level, Current Worth, Next Level Requirements**. All three come out of one
-table.
-
-**`DATA/MISSIONS/ptough.ini`, `[PlayerToughnessScale]`**, 39 rows of
-`ptough_graph_pt = <worth>, <level>`, from `0, 0` to `2409599, 38`. That last
-row is the vanilla cap. The ladder rises about x1.14 a rung over its top ten.
-
-**Proved against the live game rather than reasoned about.** Worth 757221 sits
-between row 29 (738187) and row 30 (842492); the screen said level 29; and
-842492 - 757221 = 85271, which is exactly the Next Level Requirement it showed.
-Three numbers, no slack.
-
-**`[Player] rank` in a save is a cache of that lookup.** Editing it does
-nothing that lasts: the game recomputes from worth and puts it back. The ladder
-is the only thing worth changing, and being a file it survives a reload and
-needs no patching.
-
-### The wrong answer this replaced, and why it looked right
-
-The first pass measured `rank` against `money` across 220 saves on disk and
-found rank never varied inside a story state while money varied sixty-fold, and
-concluded the campaign sets the level. **That conclusion was wrong and the
-measurement was fine.** Worth is money *plus the ship plus everything bolted to
-it*, and the campaign hands out ships, so during a story playthrough worth
-tracks the story and money is noise on top of it. Measuring one term of a sum
-and reporting on the sum is the mistake, and it cost the owner a long answer to
-a question he had not asked.
-
-### Finding the table
-
-It is not in any `DATA/*.ini` key called rank, worth or level; a walk of the
-whole tree finds `rank` only in `news.ini`, where it means a story state. Four
-brute scans of all 40 binaries for an ascending ladder found nothing but
-relocation tables. What found it in one shot was **the two numbers off the
-screen**: searching the running process for int32 757221 and 85271 landed on
-them adjacent in the player block, and three hundred bytes away sat the table
-itself as `(worth, level)` pairs, stride 8. A grep of all 8594 files in the
-install for the top value, 2409599, then named the file.
-
-The lesson is the cheap one: two numbers a person can read off their own screen
-beat four brute-force scans, and they were available from the first minute.
-
-### What `fl.py levels` does
-
-Extends the ladder past 38 and keeps a `.vanilla` copy, the `drawdist` shape
-exactly. **Built from the vanilla rows every time**, so running it twice is the
-same as running it once. The first added rung continues the vanilla x1.14 so
-there is no seam at the old cap; the rest are a geometric run landing exactly
-on the worth asked for. It refuses a value past int32, which would wrap
-negative, and a ladder that does not strictly rise, which would make a level
-you can never leave.
-
-Applied at the owner's request on 2026-09-12: levels 39 to 50, from 2,746,943
-to 1,160,922,100, step x1.733.
-
-**Two things about this are not known and are not pretended otherwise.**
-Whether the game reads more than 39 rows at all: vanilla ships 39 and nothing
-says the reader is bounded, nothing proves it is not, and `--restore` is the
-answer if it will not start. And what else the curve drives: the game calls it
-`PlayerToughnessScale`, so it very likely also decides how tough the world
-thinks you are, which would mean a stretched ladder makes encounters harder.
-That is a reading of the name and the shape, not a measurement.
-
-## Settled: half of "draw everything" was already true, and stations were the rest
-
-The tracker asked to see every base, gate, planet and jump hole, and to raise
-the draw distance. Asked which of the three levers the game actually offers,
-the owner picked `LODranges` and put the map reveal and the scanner range out
-of scope. `backend/live/solardist.py` is the result, 2026-09-15.
-
-**The first thing the measurement did was delete half the request.** Planets
-and jump holes are never culled in a stock game: 54 of 55 `PLANET` archetypes
-and all 5 `JUMP_HOLE` ones ship with no `LODranges` at all, which covers 172 of
-the 511 placed base and jump objects. Jump gates already reach 50000, the Nomad
-gate 60000. Nothing to build for any of them.
-
-**Stations were the whole complaint.**
-
-| archetype | placed | shipped cull |
-|---|---|---|
-| `miningbase_badlands`, `miningbase_nomad` | 3 | 3000 |
-| `docking_fixture`, the mooring you dock at on a planet | 21 | 6000 |
-| six `miningbase_*` | 15 | 7000 |
-| `roid_miner2`, `space_port_dmg` | 32 | 12000 |
-| `trade_lane_ring` | 1059 | 13000 |
-| most stations | ~120 | 15000 |
-| `outpost`, `smallstation1`, the battleships | ~40 | 20000 |
-
-A mining base stops being drawn at 3 km while a jump gate is visible at 50.
-
-### Where the numbers live
-
-`LODranges` is in `solararch.ini` and nowhere else: 255 of its 321 `[Solar]`
-sections carry one, and `stararch.ini` and `asteroidarch.ini` carry none. All
-836 shipped values are ints. The values before the last are the switch points
-between detail meshes; **the last one is where the object stops being drawn at
-all**.
-
-### A floor, not a multiplier, and only the last value
-
-The control is one absolute distance, applied as `last = max(last, floor)`.
-
-A multiplier was the obvious shape because `drawdist` is one, and it is wrong
-here. The shipped spread is two orders of magnitude wide, so 3x takes
-`miningbase_badlands` from 3000 to 9000, still too close, while taking
-`space_arch` from 150000 to 450000, which buys nothing. A floor also makes the
-setting idempotent, which is the property `drawdist` needed a paragraph to
-defend.
-
-Only the last value moves. The earlier ones are tuned to apparent size, so
-stretching them keeps a high-poly mesh on screen while the object is a few
-pixels across: it costs and shows nothing. The count never changes, so the
-ladder cannot fall out of step with the model's own LODs.
-
-The ceiling is 150000 because that is the largest value vanilla itself ships,
-on `space_arch` and `space_arch_asteroid`, and both are placed in a system.
-
-### Two archetypes are invisible on purpose, and 37 are traps
-
-`fuchu_core` ships `0, 1` and `planet_storm_5000` ships `0, 1, 2, 3, 4, 5`.
-Both are placed in a system and both are meant never to be drawn. The next
-value up anywhere in the file is 1000, so the `HIDDEN = 100` cut sits in a
-clear gap rather than on a judgement call. Raising these would put an object on
-screen that the designers hid, which reads as a broken game rather than a mod.
-
-`suprise_*`, the game's own spelling, is the ambush set: 35 `MISSION_SATELLITE`
-archetypes at 1000 and 2 `surprise_*` `DESTROYABLE_DEPOT` baits at 1800.
-Drawing those early shows you the trap before it springs.
-
-That is 39 held back out of 255. Everything else is raised, the 23 `rm_*`
-random-mission props included, whose battleships have a 4000 radius and vanish
-at 15 to 20 km in a stock game.
-
-### It lands on the next launch, not the next system load
-
-`EXE/freelancer.ini` reads `solar = solar\solararch.ini` once at startup and,
-by its own comment, before the universe, because the universe inspects solar
-`OBJECT_TYPE` values. `drawdist`'s "next time a system loads" is true of
-asteroid files and false of this one, so the wording is not shared.
-
-### What was measured, at a 40000 floor
-
-195 of the 216 raisable archetypes moved, only their last value changed, every
-ladder still ascends, all 836 values are still ints, and the 39 held back are
-byte-for-byte what they were. A set-restore-set round trip through the page put
-the closest station back to 3000 and then to 40000 again.
-
-**The one thing to watch is the trade lanes.** 1059 lane rings move from 13000
-to the floor and a long lane is the densest thing this touches. If the frame
-rate suffers, `TRADELANE_RING` is the first type to put on the held-back list.
-
-## Settled: trading moves reputation, and the engine could never have done it
-
-Closed 2026-09-15 on the owner's observation that hauling ten million credits
-through a Liberty station leaves everyone there indifferent.
-
-**It cannot be a data edit, and the binary says so.** The parser's own keyword
-pool for `[RepChangeEffects]` sits in `DLLS/BIN/content.dll` at file offset
-`0x11a860` and reads, in order: `MarketGood`, `FactionGood`,
-`random_mission_abortion`, `random_mission_failure`, `random_mission_success`,
-`object_destruction`, `event`, `group`, `empathy_rate`, `RepChangeEffects`.
-Four events, no fifth. A line added to `empathy.ini` would name a word the
-parser does not know.
-
-So `live/trade.py` does it from outside, the way the Engine tab does cruise
-speed, and writes no game file: standing lives in the save, so a value written
-into the running game is kept the next time the game saves.
-
-### The size of a trade is cargo times price, never the credit balance
-
-**The owner's correction, and it is what makes the feature honest.** One visit
-to a base can also sell a gun, pay for repairs and collect a bounty. Sizing a
-trade by what the balance did would count all of it, silently. So the balance is
-not used for the amount at all: the value is the units that moved times what
-that base pays for them. Both directions count, because being a customer is
-business either way.
-
-**A base pays for something it does not stock, and that is measured.** You can
-sell anything anywhere in Freelancer, just badly. Ten Superconductors sold at
-Planet New Berlin, which does not list them, moved the balance 301,186 to
-302,186: 100.00 a unit, exactly the price `goods.ini` carries and exactly a
-seventh of the 700 Oder Shipyard pays two jumps away. `market.base_prices` is
-that walk, lifted out of `load_market` rather than repeated.
-
-### What is in memory, and the order that nearly ruined it
-
-The standings are 55 entries of 8 bytes, the `float32` first, in **the order
-`initialworld.ini` declares its groups**. Many copies exist, 0x1b8 apart.
-
-**Not `empathy.ini`'s order.** The two files open with the same factions and
-diverge about a quarter of the way down, so a wrong reading looks right for
-twenty slots. Measured against the running game: `initialworld.ini` agrees with
-55 of 55, `empathy.ini` with 23. It would not have failed, it would have
-written a correct number onto the wrong faction. `rep.Model` carries `order`
-from the pass it already made.
-
-**Clamp a write at the engine's limit, ±1.0, and never at `reputation.BOUND`.**
-That constant is 0.9 because it is the Reputation tab's planning bound. Across
-the 224 saves on this disk the range runs the full ±1.0 and **172 standings sit
-above 0.9**, so clamping a write there drags every one of them down. It did: a
-52,500 credit trade asking the Junkers for +0.00875 set four factions to exactly
-0.9, a loss six times the intended gain, pointing the wrong way.
-
-**Which copy is authoritative is unknown and does not matter.** All of them are
-written and the game reads one: of 21 live copies after a verified write, 18
-matched the save exactly and 3 were stale.
-
-### The hold comes from the save, and getting there cost three wrong answers
-
-The plan said to watch memory, on the assumption that a save is written only on
-docking. **Freelancer writes it on the transaction**, four times out of four.
-
-Reading the hold from memory failed three times, and all three are the same
-mistake in different clothes, worth writing down because each looked like the
-fix for the last:
-
-  * **a cached address.** The cargo array moves between dockings, and a dead
-    copy answers reads perfectly well, so it never looked stale;
-  * **re-ranking every tick.** Candidates are scored against the save, the game
-    rewrites the save when you trade, so the event being watched for is itself
-    what changes the ranking;
-  * **taking the vote of every copy.** Better, and still wrong, because the
-    candidate set was pinned when the cargo was still aboard and the stale
-    copies keep it.
-
-Ranking copies by how well they match the save picks the worst one for this job
-**by construction**: a copy that has stopped updating matches a save written
-before the trade exactly. The save has one copy and the game keeps it correct.
-
-**But no save is written on docking**, so the hold is tracked continuously,
-across flight as well, and the base only decides whether a change may be
-billed rather than when the count starts.
-
-### Salvage, decay and loot are not trade, and the balance says which
-
-Tracking through flight means a hold that grew from a wreck looks like one that
-grew from a purchase. A purchase costs credits and salvage does not, and the
-save carries the balance beside the cargo. A change the money does not account
-for moves the baseline and bills nothing. The same guard catches perishable
-cargo rotting: the owner's Alien Organisms lost a unit every few minutes and
-every loss would otherwise have read as a sale.
-
-### Two traps when checking it, both of which read as bugs
-
-**The change lands in the next save, not the one that caused it.** This reacts
-to the file, so the write is a second later than the save that triggered it.
-Diffing the two saves either side of a trade shows nothing moved. That is
-correct behaviour and it was reported as a failure first.
-
-**Compare standings at 1e-6, never tighter.** They are `float32` in memory and
-`float64` out of a save, so an exact comparison calls 47 of 55 different when
-every difference prints as `+0.00000`.
-
-### Verified end to end
-
-Sixty Superconductors at Oder Shipyard for the 42,000 the base lists:
+| `gates` | `shortest_legal_path.ini` | gates-only shortest paths, 136 shorter | out |
+| `holes` | `systems_shortest_path.ini` | hole-inclusive, 1170 routes, 648 jumps saved | in, written into the DLL files by `bestpath.file_write` |
+
+`--revert` restores both tables and the bytes. The switch is a box in the Engine
+tab: the mode lives in the files the game reads, not in the game.
+
+- `gates` writes into `shortest_legal_path.ini` **at that file's own width**.
+  Over its 1225 rows: 136 shorter, 0 longer, 0 without a gates-only route, and 0
+  naming a system the file does not list. That last count is 234 with holes
+  allowed; widening the file to fit them is what broke it: on 2026-09-12 one
+  hole-inclusive content went into both files (1723 of 2029 rows with a gateless
+  hop). 366 rows change: 136 shorter, 230 equal in jumps with less flying.
+  `--flying` asks for least distance outright.
+- `content()` refuses a gateless hop in `gates` mode and a system the file does
+  not list. Both refusals were proved by running the 2026-09-12 rule through
+  them: 1096 and 234, nothing written.
+
+### Why the file works and a memory patch cannot
+
+flhack hooks the load: a `jmp` over `add esp, 0x214` at
+`Freelancer.exe+0x1a81a8`, the instruction right after both DLLs load
+(`81 c4 14 02 00` is there in this install). `Freelancer.exe` is never reloaded,
+so the trampoline fires on every world load, re-finds both DLLs with
+`GetModuleHandleA`, re-checks the build and re-applies the bytes before the
+router reads. flhack writes nothing to disk, so the hook is its only option. This
+tool may write files: bytes in the DLL files come back with every load. No stub,
+no cave.
+
+`live/bestpath.py` first wrote the five bytes into memory from a button
+(2026-09-12). It read ON, the build matched, the swap direction was right, and
+the game still routed Hokkaido to Tau-23 as
+`Hokkaido > New Tokyo > Kyushu > Tau-29 > Tau-31`, the gates-only row, where the
+holes table says `Hokkaido > Kyushu`. The patch arrived after the table was read
+and died at the next load. A patch reading ON is not a patch working: flying the
+route settled it. The memory control left the Engine tab that day;
+`fl.py bestpath` remains.
+
+The removed control also hid a collision: `backend/engine.py` and
+`backend/bestpath.py` both offered a GET `bestpath`, and `tabs.py` merged them
+with `dict.update`, so the later module won silently. `_table` now raises on a
+repeated name, and the guard was proved to fire. An endpoint name is a tab's
+address.
+
+## Changing the running game: memory
+
+The Engine tab has two halves: process memory, and GAME FILES. Memory writes
+last until the game closes; the files are the defaults.
+
+### Cruise speed
+
+`CRUISING_SPEED` is one global in `constants.ini`, read once at startup, in
+exactly one of the 8370 files under `DATA/`: 5000 in open space and 500 in an
+asteroid field cannot be expressed in data. Writing 20.0 into a live game on
+2026-09-01 slowed the ship on the spot, without reload or crash, so the value is
+read per cruise burn.
+
+- **Never hardcode an address.** `common.dll` loads somewhere else each run.
+  `speed.py` finds the value by the three floats after it, `5.0, 3.0, 0.25`, one
+  hit in the whole address space. Searching for the speed itself fails: `1000.0`
+  matched 6948 places.
+- **Two kinds of address.** `speed.py` scans, because `CRUISING_SPEED` sits in a
+  loaded copy of `constants.ini`. `tradelane.py` and `dockdist.py` use flhack's
+  addresses (Jason Hood, 2014; source was at `~/Downloads/flhack/`) inside
+  `common.dll`, resolved against the module base from `/proc/<pid>/maps`. A scan
+  was tried first and found a lone 2500.0 that was a CommConsts value. Both
+  modules read the float first and refuse an implausible value, which catches a
+  wrong build or a moved address.
+- Those addresses are in `.rdata`, read-only in the process. `/proc/<pid>/mem`
+  bypasses page protection, so no `mprotect` is needed (flhack needs one on
+  Windows).
+- `kernel.yama.ptrace_scope` is 0 on `volkface`, so no privileges beyond the same
+  user are needed. Where it is not 0 this stops working and must say so; never
+  "fix" it by loosening the setting.
+- **Read `/proc/<pid>/mem` frugally.** `volkface` has 7.6 GB and sits at a few
+  hundred MB free with the game up. The first `find_scratch` pulled whole
+  mappings into Python and walked them byte by byte, and the desktop stalled. It
+  now reads 1 MB chunks, matches with `bytes.find` and stops at the first hit:
+  0.1 s and 14 MB.
+
+### Docking: cruise distance and takeover (2026-09-05)
+
+**There is no docking distance in the game's data.** All 1252 INI files under
+`DATA/`, searched for keys containing `dock`, give `docking_sphere` and
+`dock_with` on objects and `act_lockdock` and friends in mission scripts, nothing
+global. `Trade_Lane_Ring` in `solararch.ini` has no `docking_sphere` (`jumpgate`
+has 225, `jumphole` 150); `constants.ini` has nothing.
+
+- **Whether the autopilot cruises to a dock** is a float in `common.dll`:
+
+      0x62fe171  d8 1d c0223a06   fcomp dword [0x63a22c0]   ; 1750.0
+
+  In the shipped file and the running game. It is flhack's `ADDR_DOCK_DIST10`,
+  "Cruise to dock from". Four instructions read it: this `fcomp` and three `fmul`
+  about 1250 bytes earlier, so changing it moves more than the cut point. The
+  compare is gated by `[esi+0x365]`, cleared right after, so the answer is
+  latched once when the dock is ordered. At any real trade lane range 1750 and
+  300 both answer "cruise": moving it changed nothing anyone could feel.
+- Entering a trade lane is a dock: flhack's help says the proximity radius
+  default of 495 "is that used by Trade Lanes". That was the owner's lead.
+- **Where docking takes over is a code patch, never a number**: `[ebp+0x50]`, a
+  descriptor field loaded at `0x62fe758`, so the only place to change it is the
+  instruction that reads it. flhack calls it "Closer docking";
+  `dockdist.py --takeover` ports its stub. Settled at **200 m** for lanes and
+  gates after the owner flew 100, 200, 400 and 600; flhack picked the same value.
+- **Disproved: `0x639f44c`.** It initialises a field holding the same 1000.0. The
+  owner flew it at 100, 1000, 5000 and 10000 with no difference to a lane
+  approach. The knob was removed the same day.
+- `select_equip.ini` was the first wrong lead; see *Hand changes to the install*.
+
+### Injecting code (`inject.py`, 2026-09-06)
+
+flhack allocates executable memory with `VirtualAllocEx` and keeps the pointer at
+`0x67bf40`. `/proc/<pid>/mem` cannot allocate and does not need to: `common.dll`
+`.text` ends at `0x6398730` with 2256 bytes of zero padding inside a mapping that
+is already `r-xp`, linker slack before `.rdata`. Writing there from outside works
+because `/proc/<pid>/mem` goes through page protection.
+
+- **The game must not write into the cave**: the page is read-only, and the first
+  stub, which stored `dockwith` there, killed Freelancer on the first call.
+  Anything the stub writes at run time goes to `inject.find_scratch`, a zero run
+  in an already writable mapping. Constants stay in the cave, written only from
+  outside.
+- **Use a stub only for a computed value.** A pair of pointers or a constant is
+  a byte patch.
+- **Not every freeze is the tool's.** The one on 2026-09-05 was
+  `i915 GT0: rcs0 reset request timed out`, an Iris Xe GPU hang, with the stub in
+  memory and innocent. Read the journal first.
+
+### Trade reputation (`live/trade.py`, 2026-09-15)
+
+Hauling ten million credits through a Liberty station left everyone there
+indifferent. **It cannot be a data edit.** The parser's keyword pool for
+`[RepChangeEffects]` sits in `DLLS/BIN/content.dll` at file offset `0x11a860`:
+`MarketGood`, `FactionGood`, `random_mission_abortion`, `random_mission_failure`,
+`random_mission_success`, `object_destruction`, `event`, `group`,
+`empathy_rate`, `RepChangeEffects`. Four events, no fifth. So `trade.py` writes
+standing into the running game, and the game keeps it at its next save. No game
+file is touched.
+
+- **A trade's size is units moved times that base's price**, both directions,
+  never the balance: one visit can also sell a gun, pay for repairs and collect a
+  bounty. A base pays for goods it does not stock: ten Superconductors sold at
+  Planet New Berlin moved the balance 301,186 to 302,186, 100.00 a unit, the
+  `goods.ini` price, a seventh of the 700 Oder Shipyard pays two jumps away.
+  `market.base_prices` is that walk, lifted out of `load_market`.
+- **Standings in memory**: 55 entries of 8 bytes, `float32` first, in the order
+  `initialworld.ini` declares its groups, in many copies 0x1b8 apart. **Not
+  `empathy.ini`'s order**: the two agree for about twenty slots, then diverge.
+  Against the running game `initialworld.ini` matches 55 of 55, `empathy.ini` 23;
+  the wrong order writes a correct number onto the wrong faction. `rep.Model`
+  carries `order`.
+- **Clamp a write at ±1.0, the engine's limit, never at `reputation.BOUND`**
+  (0.9, the tab's planning bound). Across 224 saves standings use the full ±1.0
+  and 172 sit above 0.9. A clamp at 0.9 turned a 52,500-credit trade asking the
+  Junkers for +0.00875 into four factions set to exactly 0.9: a loss six times
+  the gain, the wrong way.
+- Which copy the game reads is unknown, so all are written. Of 21 live copies
+  after a verified write, 18 matched the save and 3 were stale.
+- **The hold comes from the save.** Freelancer writes the save on the
+  transaction (four of four), and not on docking. Reading the hold from memory
+  failed three ways: a cached address (the cargo array moves between dockings,
+  and a dead copy still answers), re-ranking copies every tick (the save they
+  were scored against is rewritten by the trade itself), and a vote of all copies
+  (the candidate set was pinned while the cargo was aboard). Ranking copies by
+  their match to the save picks a stale one by construction. The hold is tracked
+  continuously, flight included; the base decides only whether a change may be
+  billed.
+- **A change the balance does not account for bills nothing**: salvage, loot and
+  spoilage move the baseline. The owner's Alien Organisms lost a unit every few
+  minutes and would otherwise have read as sales.
+- **Traps when checking**: the write lands in the save after the one that
+  triggered it, a second later, so the two saves around a trade show nothing
+  moved; and standings compare at 1e-6, never tighter (`float32` in memory,
+  `float64` in a save: an exact compare calls 47 of 55 different while every
+  difference prints as `+0.00000`).
+- **No cap on one trade** (`MAX_STEP = None`, the owner's call). The largest
+  trade the game allows is a Dromedary's 275 units of Alien Organisms at 2000,
+  550,000 credits, asking +0.0917, 18% of neutral to friendly. A cap at a tenth
+  of the span turned 5.5 maximum loads into 10 and did nothing below 300,000,
+  which is every ordinary run.
+- **It counts only while the server runs**; `serve.py` starts the watcher at
+  boot, not on the first request.
+
+Verified end to end: sixty Superconductors at Oder Shipyard for the listed
+42,000:
 
     Rheinland Military   +0.01456 -> +0.02156    +0.00700   the billed step
     Rheinland Police     +0.01467 -> +0.01712    +0.00245
     Red Hessians         -0.61762 -> -0.62007    -0.00245
     Bundschuh            -0.28254 -> -0.28534    -0.00280
 
-Rheinland and its corporations up, the pirates down, 47 of 55 factions moved,
-all of it out of the empathy table, and the step is exactly what the rate asks.
+47 of 55 factions moved, all through the empathy table, and the step is exactly
+what the rate asks.
 
-**There is no cap on a single trade**, removed at the owner's call once the
-numbers were on the table: the biggest hold a player can buy is a Dromedary's
-275 and the dearest cargo is Alien Organisms at 2000, so the largest trade the
-game allows is 550,000 credits and asks for +0.0917, 18% of neutral to
-friendly. A cap at a tenth of the span turned 5.5 maximum loads into 10 and did
-nothing below 300,000, which is every ordinary run. `MAX_STEP` is `None` and
-setting it to a number turns it back on.
+## Changing the game: files
 
-**It only counts while the server is running**, which `serve.py` starts at boot
-rather than on the first request: a feature that begins working only once you
-open the right tab is a feature that looks broken.
+Every writer here follows the writer rule in *Working rules*. Both writers in
+`persist.py` put the file mode back because `mkstemp` creates 0600 and
+`os.replace` carried that onto the game file: by 2026-09-13 **161 files** sat at
+0600 instead of 0644 (every asteroid field, both route tables, `constants.ini`).
+It worked only because the game runs as the same user; a shared install, a
+`cp -p` copy or another user would have broken it. The 161 were repaired from
+their `.vanilla` siblings.
 
-## Settled: nobody in Sirius cares that you kill Nomads, and it is one number
+**Two writers in one file touch only their own bytes.** `callsign.py` patches
+four sites in `content.dll` and `bestpath.file_write` three more. Both used to
+rebuild the file from `.vanilla` and apply their own sites, so the best-path
+patch silently reset the callsign to "Freelancer Alpha 1-1". Both now read
+anchors and shipped values from `.vanilla` and apply them to the current file;
+`callsign.restore` resets only its four sites. Proved by running both in both
+orders.
 
-Closed 2026-09-13 on the owner's question: why does killing Nomads after the
-campaign not raise standing with everyone, since it would be logical.
+**Backups**: 163 `.vanilla` files (2026-09-13), plus an archive of every binary
+and writable data file at `~/Games/fl-backups/`, verified by extracting it and
+comparing hashes with the live files.
 
-**SYMPTOM**: it raises nothing. **EVIDENCE**: `DATA/MISSIONS/empathy.ini`.
+### Levels (`fl.py levels`, 2026-09-12)
 
-Every faction there has an `object_destruction` value, what your standing with
-*them* does when you destroy one of their ships, and a list of `empathy_rate`
-entries that spread that change to everyone else. The Nomad group `fc_n_grp`
-carries 54 rates and **exactly three are non-zero**, all `+1.000`:
-`fc_ln_grp`, `fc_kn_grp` and `fc_rn_grp`, the campaign's infiltrated navies.
-Against an `object_destruction` of `-0.03` that means those three take the full
-penalty and **the other 51 factions move by zero.**
+The info screen's Current Level, Current Worth and Next Level Requirements all
+come from **`DATA/MISSIONS/ptough.ini`, `[PlayerToughnessScale]`**: 39 rows of
+`ptough_graph_pt = <worth>, <level>`, from `0, 0` to `2409599, 38`, the vanilla
+cap. The ladder rises about x1.14 a rung over its top ten. Proved in the live
+game: worth 757221 sits between row 29 (738187) and row 30 (842492), the screen
+said level 29, and 842492 - 757221 = 85271, the Next Level Requirement shown.
 
-**The sign is read off the game, not guessed.** Killing a Liberty Rogue is
-`-0.018`; Liberty Police sit at `-0.250` toward them, so the kill is worth
-`-0.018 * -0.250` = `+0.0045` of Police standing, while the Outcasts at
-`+0.350` lose `0.0063`. **A negative rate is approval.**
+- **`[Player] rank` in a save is a cache**: the game recomputes it from worth.
+  Edit the ladder, never the rank.
+- **Worth is money plus the ship and everything on it.** A first pass measured
+  `rank` against `money` over 220 saves, saw rank fixed inside each story state
+  while money varied sixty-fold, and concluded the campaign sets the level. The
+  campaign hands out ships, so worth tracks the story: one term of a sum is not
+  the sum.
+- **Found by the two numbers on the owner's screen.** No INI key is called rank,
+  worth or level (`rank` in `news.ini` is a story state); four scans of all 40
+  binaries for an ascending ladder found only relocation tables. Searching the
+  running process for int32 757221 and 85271 found them adjacent in the player
+  block, with the table 300 bytes away as `(worth, level)` pairs, stride 8; a
+  grep of the install's 8594 files for 2409599 named the file.
+- `fl.py levels` extends the ladder past 38, built from the vanilla rows every
+  time. The first added rung continues x1.14, so there is no seam at the old cap;
+  the rest are a geometric run landing exactly on the requested worth. It refuses
+  a value past int32 (it would wrap negative) and a ladder that does not strictly
+  rise (a level you could never leave).
+- Applied 2026-09-12: levels 39 to 50, 2,746,943 to 1,160,922,100, step x1.733.
+- **Unknown**: whether the game reads more than 39 rows (`--restore` if it will
+  not start), and what else the curve drives. The name suggests it also sets how
+  tough the world thinks you are, which would make encounters harder; that is a
+  reading of the name, not a measurement.
 
-**The kill lands on the right faction.** `fc_n_grp` owns `fc_n_no_fighter_d19`,
-the ordinary Nomad fighter, as against the `MSN`-prefixed ones the story
-spawns, so a kill in the open world fires that group's event.
+### Draw distance (`solardist.py`, 2026-09-15)
 
-### The setting is a body count, and the first version got the axis wrong
+The tracker asked to see every base, gate, planet and jump hole. Of the game's
+three levers the owner picked `LODranges`; map reveal and scanner range are out
+of scope.
 
-`fl.py empathy 400` sets the other 51 so that **400 Nomads** is the journey
-from neutral to friendly with all of them at once.
+- **Planets, jump holes and gates were never the problem.** 54 of 55 `PLANET`
+  archetypes and all 5 `JUMP_HOLE` ones ship with no `LODranges` (172 of the 511
+  placed base and jump objects); gates reach 50000, the Nomad gate 60000.
+- **Stations were**:
 
-The first version offered the values the file itself uses, `-0.05` to `-0.45`,
-on the reasoning that borrowing the game's vocabulary beat inventing one. That
-was the wrong axis. Nothing in the format constrains the value, and the only
-question worth asking of this feature is **how long the grind is**. At `-0.25`
-it was **67 kills**, which the owner rightly refused: this is meant to be the
-expensive way round a deliberately awkward faction balance, and the player has
-to be able to weigh it against just flying the missions.
+  | archetype | placed | shipped cull |
+  |---|---|---|
+  | `miningbase_badlands`, `miningbase_nomad` | 3 | 3000 |
+  | `docking_fixture`, the mooring you dock at on a planet | 21 | 6000 |
+  | six `miningbase_*` | 15 | 7000 |
+  | `roid_miner2`, `space_port_dmg` | 32 | 12000 |
+  | `trade_lane_ring` | 1059 | 13000 |
+  | most stations | ~120 | 15000 |
+  | `outpost`, `smallstation1`, the battleships | ~40 | 20000 |
 
-It was briefly counted in wings of four, which is how the owner had described
-the grind, and he asked for plain ship counts instead. He was right twice: it
-is the number people reason in, and a wing is not a fixed size anyway.
+- `LODranges` is in `solararch.ini` only: 255 of its 321 `[Solar]` sections,
+  none in `stararch.ini` or `asteroidarch.ini`. All 836 values are ints. The
+  values before the last switch detail meshes; **the last is where the object
+  stops being drawn**.
+- **A floor on the last value, not a multiplier**: `last = max(last, floor)`. The
+  shipped spread covers two orders of magnitude, so x3 takes
+  `miningbase_badlands` to 9000 (still close) and `space_arch` to 450000 (useless).
+  A floor is also idempotent. The earlier values are tuned to apparent size and
+  stay. The ceiling is 150000, the largest vanilla value (`space_arch`,
+  `space_arch_asteroid`).
+- **39 archetypes are held back.** `fuchu_core` (`0, 1`) and `planet_storm_5000`
+  (`0, 1, 2, 3, 4, 5`) are placed and meant never to be drawn; the next value up
+  in the file is 1000, so `HIDDEN = 100` sits in a clear gap. `suprise_*` is the
+  ambush set, 35 `MISSION_SATELLITE` at 1000 and 2 `surprise_*`
+  `DESTROYABLE_DEPOT` baits at 1800: drawing them early shows the trap. The 23
+  `rm_*` random-mission props are raised: their battleships have a 4000 radius
+  and vanish at 15 to 20 km in a stock game.
+- **It applies at the next launch**: `EXE/freelancer.ini` reads
+  `solar = solar\solararch.ini` once at startup, before the universe. Asteroid
+  files (`drawdist`) apply at the next system load.
+- Measured at a 40000 floor: 195 of the 216 raisable archetypes moved, only their
+  last value; every ladder still ascends; all 836 values are ints; the 39 held
+  back are byte for byte unchanged. Set, restore, set through the page put the
+  closest station at 3000, then 40000 again.
+- **Watch the trade lanes**: 1059 rings go from 13000 to the floor. If the frame
+  rate suffers, `TRADELANE_RING` goes on the held-back list first.
 
-So it is a typed number of kills and the rate is derived:
+### Killing Nomads (`fl.py empathy`, 2026-09-13)
 
-    rate = -(friend - neutral) / kills / |object_destruction|
+Killing Nomads after the campaign raised nobody's standing. In
+`DATA/MISSIONS/empathy.ini` each faction has an `object_destruction` value (what
+destroying one of its ships does to your standing with it) and `empathy_rate`
+entries spreading that change to everyone else. The Nomad group `fc_n_grp`
+carries 54 rates and three are non-zero, all `+1.000`: `fc_ln_grp`, `fc_kn_grp`,
+`fc_rn_grp`, the infiltrated navies. With `object_destruction = -0.03`, those
+three take the full penalty and **the other 51 move by zero**.
 
-**Below 100 it scolds and writes anyway.** `SOFT_FLOOR` is a nudge, not a
-rule: under it the grind stops being an alternative to the ordinary endgame
-and becomes a button that hands out standing, which is the thing this is
-deliberately not. Anyone who wants that is allowed to have it. A refusal would
-only teach them to edit the file by hand, and it is their game.
+- **A negative rate is approval.** Killing a Liberty Rogue is `-0.018`; Liberty
+  Police sit at `-0.250` toward Rogues, so the kill gives
+  `-0.018 * -0.250 = +0.0045` Police standing, while the Outcasts at `+0.350`
+  lose 0.0063.
+- `fc_n_grp` owns `fc_n_no_fighter_d19`, the ordinary Nomad fighter (the story
+  spawns `MSN`-prefixed ones), so an open-world kill fires that group's event.
+- **The setting is a body count**: `fl.py empathy 400` sets the other 51 so that
+  400 Nomad kills take all of them from neutral to friendly at once:
 
-**It refused 2 for a while, and the guard was mine.** Anything outside `-1.0`
-to `0.0` was rejected, on the reasoning that the shipped rates stop at `-0.45`.
-That is a fact about the file and not a limit of the format, and it quietly
-made every count under ten impossible while the message talked about positive
-rates, which was not what it was rejecting. Two kills asks for `-8.33` and
-there is nothing wrong with it.
+      rate = -(friend - neutral) / kills / |object_destruction|
 
-**The sign is the direction and nothing is refused now**, at the owner's call,
-because a positive rate is both coherent and funny: `-400` is four hundred
-Nomads from neutral to **hostile**, with all of Sirius mourning every one you
-shoot. The only refusal left is a value that is not a number.
+  The span comes from `reputation.GOALS` (0.5), so it cannot drift from the
+  Reputation tab. Plain ship counts, at the owner's request (not wings of four:
+  a wing has no fixed size). The first version offered the file's own values,
+  `-0.05` to `-0.45`; `-0.25` meant 67 kills, which the owner refused: the grind
+  must be weighable against flying missions.
+- **Below 100 kills (`SOFT_FLOOR`) it warns and writes anyway**: the owner's
+  game. Nothing is refused except a value that is not a number. A sign flip is
+  allowed: `-400` is four hundred Nomads from neutral to **hostile**. An earlier
+  guard refused anything outside `-1.0..0.0`, which blocked every count under
+  ten (two kills ask for `-8.33`).
+- The three doubles keep `+1.000`: they are Nomads in a navy's colours, so the
+  change reads "everyone who is not a Nomad approves".
+- `empathy.ini` has one writer, so rebuilding it from `.vanilla` each time is
+  right. It is a data file read at startup and survives a reboot.
+- Calibrated on a save where 50 of 55 standings sat at `0.0000` because `m13.ini`
+  was zeroed then. With vanilla `m13.ini` (since 2026-09-15) a finished campaign
+  leaves Liberty at 0.91 and eight factions at -0.65, so the distance to friendly
+  differs per faction. The code needs no change: it takes the span from
+  `reputation.GOALS`, not from where the player stands.
 
-The span comes from `reputation.GOALS`, which is `0.5`, rather than being typed
-here, so it cannot drift from the number the Reputation tab uses.
+### Callsign (`fl.py callsign`, 2026-09-13)
 
-**Measured against the owner's own save, which is what made the size real.**
-Fifty of his 55 standings sit at exactly `0.0000`, because the end-of-campaign
-reputation reset in `m13.ini` was zeroed at the time (see *Changes made to this
-install by hand*). So `0 -> +0.5 for fifty factions at once` is not a
-hypothetical span, it is precisely his position, and it is what the kill count
-is measured against.
-
-**`m13.ini` went back to vanilla on 2026-09-15, which changes the calibration
-for any campaign finished after that and not for the save above.** A vanilla
-ending leaves Liberty at 0.91 and eight factions at -0.65, so the journey to
-friendly is shorter for some and much longer for others, and there is no single
-span any more. The count this feature asks for is still the honest control; it
-just stops being one number for everybody. Nothing in `empathy.py` needs
-changing, because it derives the span from `reputation.GOALS` rather than from
-where the player happens to stand.
-
-**The three doubles keep their `+1.000`** because they are Nomads wearing a
-navy's colours, and keeping them is what makes the change honest: it is
-"everyone who is not a Nomad approves", not "every row in the file".
-
-It survives a reboot because it is a data file read at startup, so there is
-nothing to re-apply. **`empathy.ini` has one writer**, unlike `content.dll`, so
-rebuilding it from `.vanilla` every time is right here.
-
-### Found on the way: every file this project wrote was mode 0600
-
-`persist._save` created its temp with `mkstemp`, which is 0600, and
-`os.replace` carried that onto the game file. **161 files** were sitting at
-0600 instead of 0644, including every asteroid field, both route tables and
-`constants.ini`. It worked only because the game runs as the same user, and it
-would not have survived the install being shared, copied with `cp -p`, or read
-by anything running as somebody else. Both writers now stat the file first and
-put the mode back, and the 161 were repaired from their `.vanilla` siblings.
-
-## Settled: how flhack survived a world load, and why we do not need to
-
-Closed 2026-09-13 from the owner's question, *"А FL Hack как работал?"*, with
-his source in hand. It answers both that and why our own port did nothing.
-
-**flhack hooks the load.** It writes a `jmp` over `add esp, 0x214` at
-`Freelancer.exe+0x1a81a8`, the instruction that runs right after both libraries
-are loaded, and the author says why in a comment:
-
-    // Content.dll and Server.dll are loaded every time a game is loaded -
-    // patch in code after they're loaded.
-
-`Freelancer.exe` is never reloaded, so that trampoline survives, fires on every
-world load, re-finds the two libraries with `GetModuleHandleA` because their
-bases move, re-checks the build fingerprint and re-applies the bytes **before
-the router reads anything**. Verified against this install: `81 c4 14 02 00` is
-at that address, exactly as the source expects.
-
-**Our port had the right bytes and the wrong moment.** `live/bestpath.py` wrote
-the same five bytes in the same three places, from outside, once, when a button
-was pressed. That is after the load has already read the table, and the next
-load wipes it. Three correct measurements and one useless feature.
-
-**We do not need the trampoline, because we may write files and flhack may
-not.** flhack is a runtime tool that deliberately touches nothing on disk, so
-hooking the load is its only option. `server.dll` and `content.dll` are re-read
-from disk on every world load, which is precisely why a memory patch is wiped:
-the load replaces those pages from the file. Put the bytes **in the file** and
-the same load brings them back instead of taking them away. No stub, no cave,
-no hand-written x86.
-
-### The byte we dropped is the one that mattered
-
-In flhack's own assembly the first of the five is commented:
-
-    mov byte [edi], 0x03      ; treat jump gates & holes the same
-
-**That is not the filename swap.** The swap is a different pair, `0x8C` and
-`0xC4` at `0x80` apart, the low halves of two pointers:
-
-    0x70a828c  'Universe\shortest_legal_path.ini'      gates only
-    0x70a82c4  'Universe\systems_shortest_path.ini'    holes too
-
-So flhack does two things at once: give the router the wider table, **and** tell
-it a hole is the same kind of object as a gate. On 2026-09-13 the route tables
-were rewritten with hole routes while that type byte was untouched, and the
-router put the course at the system origin, which in Hokkaido is a red dwarf.
-The section above records that as "the engine can only follow a gate". The
-correction is: **only until that byte is set.**
-
-### Two modes, and the halves are not separable
-
-`live/routetable.py` now has both, and moves the table and the bytes together
-because either alone is broken:
-
-| mode | reads | table | the five bytes |
-|---|---|---|---|
-| `gates` | `shortest_legal_path.ini` | gates-only shortest paths, 136 shorter | out |
-| `holes` | `systems_shortest_path.ini` | hole-inclusive, 1170 routes, 648 jumps saved | in |
-
-`--revert` puts both tables and the bytes back. The switch is a box in the
-Engine tab, and this is the answer to the owner's *"как переключаться между
-ними"*: not in the game, in the file the game reads.
-
-### Two writers in one file must touch only their own bytes
-
-**Found by breaking it.** `callsign.py` patches four sites in `content.dll` and
-`bestpath.file_write` patches three more, and both were written the way every
-other writer here is written: rebuild the file from `.vanilla`, apply my sites.
-That is right for a file with one owner and wrong the moment there are two. The
-best-path patch silently reset the owner's callsign to "Freelancer Alpha 1-1".
-
-Both now **read their anchors and shipped values from `.vanilla` and apply them
-to the current file**, which is idempotent because setting a byte to a value
-twice is setting it once, and which leaves every other byte alone.
-`callsign.restore` likewise resets its own four sites rather than writing the
-whole shipped file back. Proved by running both in both orders.
-
-`persist.write_raw` is the one atomic byte writer both use, and **it puts the
-file mode back**: `mkstemp` creates 0600 and the game has to read what it wrote.
-
-### Backups
-
-163 `.vanilla` files, plus a full archive of every binary and every writable
-data file at `~/Games/fl-backups/`, verified by extracting it and comparing
-hashes against the live files. `server.dll` and `content.dll` had no `.vanilla`
-before this and have one now.
-
-## Settled: a callsign is three recorded vocabularies, and a name is not one
-
-Closed 2026-09-13. The owner asked for *"кастомное имя из игровых ассетов и
-чтобы боты могли его говорить"*, offering "yanagi suzuki 6" against the
-"freelancer alpha 1-1" he kept hearing, then asked to choose every part
-including the numbers, and for it to live in a file rather than in the process.
-
-**"Yanagi" and "Susuki" are formation designators, not names.** They are in the
-same list as Alpha, Beta and Gamma, which is why they get heard and taken for
-names.
-
-**No personal name is recorded anywhere in the game.** `faction_prop.ini` does
-carry pools per culture, 100 Kusari first names and 300 surnames with Suzuki
-among them, and they are text for the contact list. Searched across all 1852
-distinct message ids in every voice file: `yanagi`, `suzuki`, `adams`, `aaron`
-return **zero**. Three vocabularies are recorded and a callsign is those three:
+The owner asked for a callsign made of game assets that the bots speak, choosing
+every part including the numbers, stored in a file. "Yanagi" and "Susuki" are
+formation designators, in the list with Alpha, Beta and Gamma. **No personal name
+is recorded**: `faction_prop.ini` has name pools (100 Kusari first names, 300
+surnames, Suzuki among them) for the contact list, and across all 1852 distinct
+message ids in every voice file `yanagi`, `suzuki`, `adams`, `aaron` return zero.
+A callsign is three recorded vocabularies:
 
     <faction word>    <formation designator>    <number> - <number>
     48 recordings          29 recordings          0 to 20, both halves
 
-**All three lists are derived, never typed.** The faction words are the
-`gcs_refer_faction_*_short` ids present in the voice files, named through
-`InitialWorld.ini`. The designators are the union of every faction's
-`formation_desig` range, which comes to 197808..197836, 29 values, against 29
-recordings `_01` to `_29`. The numbers are whichever of 0 to 20 have a
-recording both with and without the trailing dash.
+All three lists are derived: faction words from the `gcs_refer_faction_*_short`
+ids in the voice files, named through `InitialWorld.ini`; designators from the
+union of every faction's `formation_desig` range, 197808..197836, 29 values
+against 29 recordings `_01` to `_29`; numbers are those of 0 to 20 recorded both
+with and without the trailing dash.
 
-### The four sites, and the disassembly that found them
-
-All in `DLLS/BIN/content.dll`, in the one function that builds a callsign:
+The four sites, in `DLLS/BIN/content.dll`, in the function that builds a
+callsign:
 
 | Slot | What is there | Patch |
 |---|---|---|
@@ -2201,195 +985,321 @@ All in `DLLS/BIN/content.dll`, in the one function that builds a callsign:
 | **second** number | `6a 01`, a literal `push 1`, feeding `gcs_misc_number_%d-` | one byte |
 | **first** number | `(id - 1) % 20 + 1` in eleven bytes | `mov $N,%edx` plus six nops |
 
-**The site feeding the dashed format is spoken second, and this table said the
-opposite until 2026-09-13.** The file held 6 at the dashed site and 13 at the
-plain one; the bots said **13-6**; `fl.py callsign` printed 6-13. So the picker
-and the read-back were both labelled backwards, and the owner was the only
-instrument that could say so.
+- **The dashed-format site is spoken second.** Until 2026-09-13 the labels were
+  backwards: the file held 6 at the dashed site and 13 at the plain one, the bots
+  said 13-6, `fl.py callsign` printed 6-13. The owner heard it; an argument from
+  the disassembly that the tool was right came first and was wrong.
+  `FIRST_SITE` and `SECOND_SITE` in `callsign.py` hold the mapping; the sites are
+  named by byte shape, `pushed` and `computed`.
+- The other arm of the branch does `add $0xfffcfb51,%edx` (-197807) and
+  `push $0x70a6540` ("gcs_refer_formationdesig_%02d"), so the designator is
+  `ids - 197807`: 197808 is Alpha, 197836 Yanagi. 29 recordings, 29 strings, 29
+  values.
+- **The branch is "has no formation", not "is the player"**: an NPC flying alone
+  takes it too, so the words occasionally turn up on someone else's radio. The
+  page says so.
+- **Found by disassembly**: `objdump -D -b binary -m i386` over `content.dll` and
+  about sixty lines of reading, after byte pattern matching had failed. The
+  running process holds no assembled ids: the engine hashes a message id as soon
+  as it builds it, as it does nicknames.
+- Every site is found by signature (the two code signatures anchor on the address
+  of a string itself found by search); `write` refuses unless each matches
+  exactly once. Four refusals, each proved: a word with no recording (`fc_n`, the
+  Nomads), a nonsense word, a designator above 29, a number above 20.
+- `content.dll` reloads with every save load, so a write applies at the next load
+  without a relaunch.
+- Verified: `.vanilla` byte-identical to the shipped file and unchanged by three
+  later writes; four changed runs, 20 bytes; PE headers and all five sections
+  identical; code patches in section 0, strings in section 1; set B over set A
+  equals set B over vanilla; the patch disassembles to `mov $0x6,%edx` plus six
+  nops ending exactly at the following `push %edx`, and nothing jumps into the
+  eleven replaced bytes. Confirmed by ear on 2026-09-13.
+- The picker is a box in the Engine tab's GAME FILES half.
 
-**The designator arithmetic proves the mapping rather than suggesting it.** The
-other arm of the same branch does
+### New game: an RTC is not a cutscene (tried 2026-09-06, reverted)
 
-    add $0xfffcfb51,%edx     ; -197807
-    push $0x70a6540          ; "gcs_refer_formationdesig_%02d"
+Trimming the first mission broke the game twice. `newgame.py` writes the starting
+ship and nothing else; its `.vanilla` copies cover only `loadouts.ini` and
+`m01a.ini`.
 
-so the number is `ids - 197807`: 197808 is Alpha and 197836 is Yanagi, which is
-exactly the 29 recordings and exactly the 29 strings. Three counts agreeing.
+- **`Act_AddRTC` populates a room.** Its file is a `[CharacterEncounter]`: a
+  `Location`, one `action` scene, `[Char]` entries. `m001a_s003x` puts the
+  bartender, Juni and the Liberty diplomat in the Manhattan bar; `m001a_s004x`
+  Juni and the diplomat; `m000_s002xe` the wounded Lonnigan on the cityscape.
+  Removing it empties the room: no Juni, no `Cnd_CharSelect`, no job, no
+  `Act_SetShipAndLoadout`, no ship. `autoplay` (on 61 of 68 character encounters)
+  is the real switch: with it the scene runs on entering, without it on clicking
+  the character (`s004x` is this mission's one example). Dropping that key was written but never tested: the owner
+  stopped the work first.
+- **`tr_fp7_cam_end` is not a wait.** The Freeport 7 opening is a chain of timers
+  on the 33 triggers scoped to `FP7_system`; this one starts with the first
+  trigger, runs beside the chain and ends it with `Act_ForceLand` on Manhattan.
+  Its 68.5 s is the sequence length. Capping every timer to 1 s force-landed the
+  player one second in while the chain kept spawning ships in a system being torn
+  down: the crash. Vanilla runs a 42.8 s chain under a 68.5 s marker (x1.60), so
+  a compressed chain needs the marker recomputed, not capped.
 
-**The branch is "has a formation", not "is the player".** The literal
-designator and the literal 1 are the arms a ship with neither takes, which in
-single player is the player, and is also any NPC flying alone. **So these words
-will occasionally turn up on somebody else's radio**, and there is no version
-of this without that. It is on the page, not left to be discovered.
+### Hand changes to the install
 
-### How it was found, which is the reusable part
+A value that looks wrong may be deliberate. Tool writes have a `.vanilla`
+beside them; this list covers the rest.
 
-The strings were found by grepping the binaries, but what turned four strings
-into four patch sites was `objdump -D -b binary -m i386` over `content.dll` and
-reading about sixty lines of it. Every attempt to get there by pattern-matching
-bytes had failed. **A 2003 binary disassembles fine and the answer was thirty
-seconds away the whole time.**
+- **`DATA/EQUIPMENT/select_equip.ini` is vanilla again since 2026-09-06.** On
+  2026-09-04 `[TradeLane] basic_trade_lane_eq` had `activation_start` cut from 750
+  to 100 and `activation_end` from 500 to 50, to hold cruise until the ring. It
+  did nothing: those keys are the ring's spin-up window and never reach the
+  ship's engine state. Restored from `.vanilla`, 15 `[TradeLane]` keys checked.
+  Docking is `dockdist.py --takeover`; this file now only matters for ring spin-up
+  (`spin_accel`, `secs_before_enter` sit beside it).
+- **`DATA/MISSIONS/M13/m13.ini` is vanilla again since 2026-09-15**, the owner's
+  call: neutral with everyone after the campaign was boring. Its `[Trigger]`
+  `enter_bar` fires on walking into the bar at the end of M13 and hard-sets 47
+  reputations: Liberty Navy and LSF 0.91, seven factions 0.65, twelve -0.3, eight
+  -0.65, seventeen already 0. It had been zeroed on 2026-09-02 and 2026-09-09. The
+  zeroed version is kept as `m13.ini.neutral`: the first zeroing vanished without
+  trace (mtime 21:31 on 09-02 against a `.vanilla` from 09-01), and there is no
+  module for it. Switching is a copy through `persist.write_raw`. Re-making it:
+  decode, zero every numeric third field of `Act_SetRep` in that one trigger,
+  re-encode through `persist._save`, which refuses unless the round trip is
+  identical; the `Act_SetRep` entries in other triggers are symbols like
+  `REP_FRIEND_THRESHOLD`. **If end-of-campaign reputations look wrong, first
+  check which of `m13.ini`, `.vanilla`, `.neutral` is in place.**
+- Non-vanilla values written by the tool: `CRUISING_SPEED` 5000.0 in
+  `constants.ini` (the Engine tab's persist button), a scaled `fill_dist` in 153
+  asteroid field files (`drawdist.py`), a 40000 cull floor in `solararch.ini`
+  (`solardist.py`), levels to 50 in `ptough.ini`, plus whatever `routetable`,
+  `callsign` and `empathy` were last set to.
 
-Searching the running process for the assembled ids found nothing, and that is
-worth knowing before anyone tries: the engine hashes a message id as soon as it
-has built it and never keeps the text, the same way nicknames are handled
-everywhere else in this game.
+## The page
 
-### `fl.py callsign`
+### Look: `design/Neural Companion.dc.html` is the source
 
-The `drawdist` and `levels` shape: `.vanilla` first, built from the shipped
-bytes every time so twice is the same as once, and `--restore` in one command.
-The picker is a box in the Engine tab's GAME FILES half.
+A Claude Design canvas drawn by the owner (2026-09-07): dark HUD, Chakra Petch
+over IBM Plex Mono, cyan for the instrument, amber for anything that touches a
+file. Overview and Systems are drawn in full; Equipment, Trade, Reputation and
+Neural Net as markup; Chart is not covered and uses the same panel, border and
+label vocabulary. Read it before changing how anything looks.
 
-**Every site is found by signature, never by a hardcoded offset**, the rule
-already in `speed.py`, and the two code signatures anchor on the address of a
-string that was itself found by search. `write` refuses unless each matches
-exactly once.
+- Its values live in `frontend/_theme.css` as tokens and nowhere else.
+- The canvas emits inline styles; the page uses classes. Do not port a
+  `style="..."`. A tab's own selectors live in its module, not in the theme: both
+  grid-column bugs shipped so far were a row template and its column list
+  drifting apart in two files.
+- Three deliberate departures, because every engine control writes into a live
+  game: a slider posts on release, a redraw waits while a slider is under a
+  thumb, and the two expensive readings behind `ALL KNOBS` are fetched only when
+  it is open. `frontend/engine.py` says so at the top.
+- The canvas draws the engine controls as a strip on every page. That was built
+  and reverted on 2026-09-07: it polled process memory every five seconds from
+  every tab, and was rebuilt on every tick, which swallowed clicks (below). A tab
+  polls only while open, and each setting shows in one place.
+- `check_views.py` skips grids marked `wrapgrid`, the ones meant to wrap
+  (Overview's panel flow and its label/value list). The computed style cannot
+  tell them apart: `repeat(auto-fit, ...)` resolves to concrete tracks.
 
-**Four refusals, each proved by running it rather than assumed:** a word with no
-recording (`fc_n`, the Nomads, is a real faction with no voice line), a
-nonsense word, a designator above 29, and a number above 20. None of them
-touched the file.
+### One inline script: a parse error kills the whole page
 
-**It needs a raw byte writer**, which this project did not have: `persist._save`
-encodes BINI and `content.dll` is a PE. `callsign._write_file` is temp plus
-`os.replace`, the same atomic idiom, and it **restores the file mode**, because
-`mkstemp` creates 0600 and the game has to be able to read what it wrote. The
-older writers do not do that and get away with it only because the game runs as
-the same user.
+The UI is one `<script>` in `PAGE`, so a syntax error leaves static HTML, a stuck
+"loading…" and no tabs, while curl gets 200 and the API answers. 2026-09-04:
+`let top = 'map'`; `window.top` is non-configurable, so a global `let` or `const`
+on that name is a SyntaxError (also `window`, `self`, `location`, `document`).
+The variable is `topTab`.
 
-Verified: `.vanilla` byte-identical to the shipped file and unchanged by three
-later writes; exactly four changed runs totalling 20 bytes; PE headers and all
-five sections identical; the two code patches land in section 0 and the two
-strings in section 1; writing set B over set A gives the same file as writing
-set B over vanilla; the patched instructions disassemble to `mov $0x6,%edx` plus
-six nops landing exactly on the following `push %edx`, and nothing jumps into
-the eleven replaced bytes.
+- **Verify in a browser.** `firefox --headless --screenshot` shows whether the tab
+  strip drew. The shot fires at the load event, before the first `fetch`
+  resolves, so an empty body proves nothing.
+- `check_views.py` checks `$` and `VIEW` before anything else and says so in
+  words; the seeding runs in its own try. On 2026-09-07 an unclosed template
+  literal in `frontend/log.py` killed the script, the driver's
+  `Object.keys(VIEW)` threw, and the report came out blank.
 
-### Confirmed by ear on 2026-09-13: the bots say the new words
+### The poll compares, never rebuilds
 
-The one thing that could not be checked from here is settled. The owner heard
-his own callsign in game, which is what this feature was for, and the only
-defect was the order of the two numbers.
+`render()` runs on a five-second poll. It used to assign `innerHTML` every tick
+though the markup was byte-identical (1389 characters for the engine strip).
+That destroys every child, and a browser fires `click` only when press and
+release land on the same element, so a click straddling a tick did nothing,
+silently, on every button of every tab. Proved headless: press, one `render()`,
+release, and `#engmore` is a different object. (Reported 2026-09-07: `ALL KNOBS`
+"opened once and then stopped opening".)
 
-**And that defect is the lesson, not the fix.** He reported it as *"Freelancer
-Red 6-13. Цифры местами перепутал"*, quoting `fl.py callsign`'s own output line
-and saying the halves were swapped. That was read here as a claim about what
-the game says, and instead of asking which of the two he meant, an argument was
-built from the disassembly to show the tool was right. It was not right. The
-sites were labelled backwards and he could hear it.
+- **`paint(node, html)` in `frontend/shell.py` writes only when the html changed.
+  It is not an optimisation; never remove it as one.** Handlers survive because
+  their elements do; focus, selection and scroll survive too.
+- **`paint` compares with the last string it wrote**, kept in a `WeakMap` keyed
+  on the node, never with `node.innerHTML`, which returns the browser's own
+  serialisation: `selected` comes back as `selected=""`, `hidden` as
+  `hidden=""`, a U+00A0 as `&nbsp;`. Comparing with `innerHTML` left four of the
+  nine views (`search`, `rep`, `systems`, `log`) rebuilt on every tick for three
+  days, closing open `<select>`s and dropping focus and half-typed text (reported
+  2026-09-10). Do not try to fix this by writing markup the browser echoes back.
+- Anything that empties a painted node by hand goes through `clear(node)`, or the
+  next real write is skipped. `check_views.py` is the one caller.
+- `check_views.py` measures the invariant by identity: render a view twice with
+  the same data, and no node may be replaced. With the old comparison put back it
+  printed 12 `POLL` lines naming `systems`, `search`, `rep` and the two log views
+  with rumors.
 
-**Three times in one day the owner's report was treated as the thing to
-disprove**, over the route table, over Omicron Gamma and over this, and twice
-he was right. The cost is not the wasted tokens, it is that he had to fight to
-be believed about his own game. The rule that follows, and it is the same one
-the route table already taught:
+### Marks live on the server
 
-  * **On anything the files cannot settle, the person with the speakers and the
-    screen is the instrument, and this tool is the hypothesis.** Static bytes
-    can say what a site holds. They cannot say what a sentence sounds like,
-    where a course points, or what is floating in a system.
-  * **When a report is ambiguous, ask which reading is meant.** One question
-    beats a page of evidence aimed at the wrong claim.
+On 2026-09-09 the owner's read marks vanished overnight. `localStorage` is scoped
+to a browsing context: the marks were made in a Zen workspace container
+(`userContextId=1`, 75 marks), the next day's tab was plain (`userContextId=0`,
+20 marks). Every key regenerated identically; there were two stores. `run.sh`
+ended in `xdg-open`, which always opens a plain tab.
 
-`FIRST_SITE` and `SECOND_SITE` in `callsign.py` are the whole of the mapping
-now, and the two sites are named for their byte shape, `pushed` and `computed`,
-so that nothing in the module claims to know an order it cannot check.
+- Marks live in `data/marks.json`, written through a temp file and
+  `os.replace` under one lock (`serve.py` is threaded). A missing or unreadable
+  file reads as no marks.
+- **`merge_marks` unions and never deletes**, so any old browser store can still
+  contribute.
+- **The page is a cache.** A toggle applies locally, then posts; a `marksHeld`
+  timestamp stops the poll returning a payload older than the write (the same
+  guard as the slider under a thumb). The Equipment tab registers no poll and
+  needs no guard; the code says so.
+- `localStorage` is not cleared: it is the fallback if the file is lost.
+- Favourite guns live in the same file under `fav`, keyed by the bare item
+  nickname, unique across guns and shields (314 rows, 314 nicknames).
 
-## Settled: one codebase for both platforms, and the Windows half is unproven
+### The header names the save
 
-Added 2026-09-12 on the owner's ask, *"попробовать адаптировать это всё и под
-винду"*, with their answer to how it would be tested: write it and mark it.
+`api/state` carries `save_path` and `save_dir`; the save name in the header is a
+button that shows the folder and hands it to the file manager (2026-09-12). The
+save sits six levels down a Wine prefix, in one of several accounts, picked by
+mtime at startup:
 
-**There is no Windows fork and there must never be one.** No second `serve.py`,
-no `_win` copy of a reader, no branch. Three things differ between the two
-platforms and each picks its spelling at import from `sys.platform`:
+    ~/Games/freelancer-win32/drive_c/users/<account>/Documents/My Games/
+    Freelancer/Accts/SinglePlayer/AutoSave.fl
+
+- **`api/reveal` takes no argument**: it opens only the folder this process chose.
+  An endpoint opening a path the browser sends would open arbitrary folders on
+  request.
+- The opener is spawned and never awaited, so "opened" means asked; a stuck
+  handler cannot hang the POST. The path is printed beside the answer.
+  `xdg-open`, `os.startfile` and `open` live in one function in `common.py`.
+
+### Layout: size from the box, not the window
+
+Systems lays a house out two cards abreast. `@media (min-width: 1400px)` never
+fired for the owner: a browser sidebar takes about 600px, so the page sat near
+1396 CSS px. Now (2026-09-10):
+
+    grid-template-columns: repeat(auto-fit, minmax(max(34rem, 48%), 1fr));
+
+`48%` caps it at two; `34rem` is the floor below which it drops to one column.
+Measured: one column at 900 and 1100, two from about 1130px of page width (two at
+1256, 1396, 1500 and 1920), never three. A media query measures the window, and `.wrap` (capped at 1680), the
+sidebar and the panel all sit between the window and the box. `.totals` and
+`.hits` already work this way.
+
+### Equipment tab
+
+- **"Only bases I have docked at" drops rows** (2026-09-10, reversing the earlier
+  design, which kept every row with an empty dealer list). The owner called that
+  useless: it left 187 of 235 guns on screen with nothing under them. Against a
+  save with 30 docked bases: guns 235 -> 51, shields 79 -> 36. It is a filter kind
+  inside `eqp.search`; `search.py` then narrows each surviving row's `bases` to
+  docked dealers and can no longer empty a row.
+- **A favourite bypasses every filter.** `eqp.search` takes `keep`, checked
+  before the filters and carried through the same sort, so a favourite sits in
+  the ranking, not on top of it. Starring the weakest gun and asking for
+  `hull_dps >= 100` returns 226 rows instead of 225, that gun last.
+- **Every column shows; a `×` on a heading drops one.** All on, guns need 1335px
+  and shields 1244px; below about 1350px the table scrolls inside its `.guns` box.
+  A dropped column brings up a `+ add a column…` select beside
+  `+ add a parameter…`. `gearHidden` holds the exceptions, so a parameter added
+  later appears without being named. A column you sort or filter on carries no
+  `×`. Dropping and restoring ask the server nothing; cells stay in step with the
+  grid at 12, 9 and 10 columns. `price` has its own column and is not a
+  parameter column.
+- **Rank needed is a comparison**: `rank` is `cmp` in `PARAMETERS`, drawing the
+  `[= <= >=]` select the mount class uses. Other numeric parameters stay a plain
+  minimum. Both comparisons are inclusive; `>=` on a number is `num`, which every
+  numeric filter sends, so there is no `over` kind; `<=` is `upto`. `le` and `ge` compare mount classes
+  and refuse across socket families (a shield's `fighter 6` and `elite 6` differ);
+  they are not the numeric pair.
+
+  | | `=` | `<=` | `>=` |
+  |---|---|---|---|
+  | rank 16, guns | 51 | 160 (109 + 51) | 126 (75 + 51) |
+  | mount 6, guns | 51 | 145 (94 + 51) | 141 (90 + 51) |
+  | mount `fighter 6`, shields | 3 | 18 | 11 |
+
+  The shield rows are all `fighter`, none `elite` or `freighter`: the family
+  rule holding. 126 is what `num 16` gave before, so `>=` is that filter, not a
+  copy of it.
+
+## Starting the server
+
+`serve.py` binds the port before it loads anything; if the port is taken it names
+the port, prints the command that frees it and exits 1. `run.sh` is three lines
+around `serve.py --open`; `run.cmd` is the same for Windows.
+
+On 2026-09-12 the old `run.sh` started a second server, which died on `bind`
+while its wait loop connected to the old one on the first try and opened a
+browser on an hour-old server: the new tab seemed missing. A script probe
+(`/dev/tcp`) only guesses whether the server bound; `serve.py` knows.
+
+- `exec` with only redirections applies them to the rest of the script:
+  `exec 3<&- 2>/dev/null` silenced every later message
+  (`bash -c 'exec 3<&- 2>/dev/null; echo hi >&2'` prints nothing).
+- **`allow_reuse_address` differs by platform.** `HTTPServer` sets it. On Linux
+  it binds over a socket in TIME_WAIT, so a restart after Ctrl+C works. On Windows
+  `SO_REUSEADDR` lets a second program bind a port another is listening on. So
+  `serve.py` keeps the flag on Linux and turns it off on Windows.
+
+## Windows: one codebase, the Windows half unproven
+
+Asked for on 2026-09-12; the owner's test plan: write it and mark it. **There is
+no Windows fork and must never be one.** Three things differ, each picked at
+import from `sys.platform`:
 
 | What | Linux | Windows |
 |---|---|---|
-| where the game is | the Wine prefix under `~/Games` | `AppPath` out of the registry, `Program Files (x86)` as the fallback |
+| where the game is | the Wine prefix under `~/Games` | `AppPath` from the registry, `Program Files (x86)` as fallback |
 | where the saves are | every Wine prefix beside the game | the `Personal` shell folder, because OneDrive moves Documents |
 | process memory | `/proc/<pid>/{maps,mem}` | `ReadProcessMemory` and friends |
 
-Everything else was already portable and needed nothing: the save decoder, the
-BINI reader, the PE string tables, the DPS model, the jump graph, the job
-boards and the whole page are plain Python on `os.path`.
+The rest (save decoder, BINI reader, PE string tables, DPS model, jump graph, job
+boards, the page) is plain Python on `os.path`.
 
-**`backend/live/proc.py` is the only code in the project that touches another
-process.** Before this, 22 places across `speed.py`, `inject.py`,
-`tradelane.py` and `thrusters.py` opened `/proc/<pid>/mem` themselves, which is
-22 copies of a decision with one right answer per platform. They now call six
-functions: `find_pid`, `mappings`, `regions`, `read`, `write`, `chunks`.
-`mappings` yields `(lo, hi, perms, name)` with `perms` spelled the way
-`/proc/<pid>/maps` spells it, `rwxp`, on both platforms, because that is what
-the callers already read.
+**`backend/live/proc.py` is the only code that touches another process.** It
+replaced 22 direct `/proc/<pid>/mem` openings across `speed.py`, `inject.py`,
+`tradelane.py` and `thrusters.py` with six functions: `find_pid`, `mappings`,
+`regions`, `read`, `write`, `chunks`. `mappings` yields `(lo, hi, perms, name)`
+with `perms` spelled `rwxp` on both platforms. Proved on the running game: every
+`fl.py` live command gave byte-identical output before and after, and each write
+path was run with the value already there (`fl.py speed 300`, a thruster set to
+its own speed, a POST to `api/allhacks`).
 
-**The refactor was proved by the game that was running at the time.** Every
-`fl.py` live command was captured before and after and the two are byte
-identical, and each write path was then exercised with a value equal to the one
-already there: `fl.py speed 300`, a thruster set to its own speed, and a POST
-to `api/allhacks`, which writes into `.text` and into data and reported
-everything already on. The output was identical again afterwards.
+Never run. Three traps return wrong answers instead of errors, so the code is
+built around them:
 
-### The Windows half has never run, and three traps are designed around
+- **Toolhelp cannot list a 32-bit process's modules from 64-bit Python**
+  (`TH32CS_SNAPMODULE32` fails with `ERROR_PARTIAL_COPY` across WOW64). Modules
+  come from `EnumProcessModulesEx` with `LIST_MODULES_ALL`; Toolhelp still lists
+  processes.
+- **`MEMORY_BASIC_INFORMATION` is laid out for the caller**: pointer fields
+  `c_void_p`, `RegionSize` `c_size_t`.
+- **Every function gets `argtypes`**, or ctypes passes a `HANDLE` as a C `int` and
+  truncates it on 64-bit.
 
-Written against the Win32 documentation in one pass. Each of these returns a
-wrong answer rather than an error, which is why they are designed around rather
-than waited for:
+Windows `write` needs `VirtualProtectEx`: lift protection, write, restore, flush
+the instruction cache (or the CPU runs the old byte for a while). This does not
+change `find_scratch`: the game's own write into a read-only page still faults.
 
-  * **Toolhelp cannot enumerate a 32-bit process's modules from 64-bit Python.**
-    `CreateToolhelp32Snapshot(TH32CS_SNAPMODULE32)` fails with
-    `ERROR_PARTIAL_COPY` across WOW64, and Freelancer is 32-bit while the Python
-    most people install is 64-bit. Modules come from `EnumProcessModulesEx` with
-    `LIST_MODULES_ALL`. Toolhelp is still used for the process list, where it
-    has no such problem.
-  * **`MEMORY_BASIC_INFORMATION` is laid out for the caller, not the target**,
-    so its pointer fields are `c_void_p` and `RegionSize` is `c_size_t`.
-    Declared as `c_uint32` it would look right on a 32-bit Python and read
-    garbage on a 64-bit one.
-  * **Every function gets `argtypes`.** Without them ctypes passes a `HANDLE`
-    as a C `int`, truncating it on 64-bit, and the call then fails or succeeds
-    against nothing.
-
-**Writing needs `VirtualProtectEx` and Linux does not.** `/proc/<pid>/mem`
-writes straight through page protection; `WriteProcessMemory` does not, and
-every target here is in `.text` or `.rdata`. So the Windows `write` lifts the
-protection, writes, puts it back and flushes the instruction cache, which is
-not decoration: a patched instruction still in the CPU's instruction cache is
-the game running the old byte for a while. **This does not change
-`find_scratch`.** That exists because the game's own `mov` into a read-only
-page faults, which is the game's problem and not ours; being able to lift
-protection from outside does not make `.text` padding safe for the game to
-write.
-
-### What `check_windows.py` settles, and what it cannot
-
-It puts the Windows-sized types back into `ctypes.wintypes`, fakes `WinDLL`,
-imports `proc_windows.py` for real and then measures it. That settles every
-name, every struct size and offset against the documented Windows numbers, and
-that every imported function has `argtypes` and `restype`.
-
-**`ctypes.wintypes` imports on Linux and lies about sizes**, which is the trap
-the check itself had to be written around: `wintypes.DWORD` is `c_ulong`, four
-bytes on Windows and **eight on 64-bit Linux**. Imported as-is,
-`MEMORY_BASIC_INFORMATION` measures 56 bytes here and 48 where it matters, and
-a check that accepted 56 would be reporting on a struct that does not exist.
-`c_wchar` is two bytes on Windows and four on Linux, so the check measures
-`WCHAR` with a two-byte stand-in.
-
-It earned its place immediately: `pcPriClassBase` was declared `ctypes.c_long`,
-which is a Win32 `LONG` on Windows and eight bytes on Linux, and the check
-caught `PROCESSENTRY32W` coming out 1096 bytes instead of 568.
-
-What it cannot settle is whether the calls do what the module thinks. Only
-Windows answers that, and `fl.py proc` is the command that asks: pid, modules,
-sixteen bytes of `common.dll`, nothing written.
+`check_windows.py` puts Windows-sized types into `ctypes.wintypes`, fakes
+`WinDLL`, imports `proc_windows.py` and measures every name, struct size and
+offset against the documented numbers, and that every function has `argtypes`
+and `restype`. On Linux `wintypes.DWORD` is 8 bytes (4 on Windows) and `c_wchar`
+4 (2), so imported as-is `MEMORY_BASIC_INFORMATION` measures 56 bytes instead of
+48; `WCHAR` is measured with a two-byte stand-in. It caught `pcPriClassBase` declared `c_long`: `PROCESSENTRY32W` came out 1096
+bytes instead of 568. Whether the calls work only Windows can say: `fl.py proc`
+asks (pid, modules, sixteen bytes of `common.dll`, nothing written).
 
 ## Dependency
 
-`bini.py` lives in `../scripts/` and is shared with other work in this area. It
-is not part of this project and is not frozen. **The path is derived from
-`backend/__init__.py`'s own location**, two levels up, and that file now checks
-the file is there and says where it looked. Without the check the first thing a
-checkout without the vault beside it sees is `ModuleNotFoundError: No module
-named 'bini'`, which names a module nobody has heard of and no path at all.
+`bini.py` lives in `../scripts/`, shared with the rest of this area. Its path is
+derived from `backend/__init__.py`'s own location, two levels up, and that file
+checks `bini.py` exists and says where it looked; without the check a checkout
+without the vault beside it fails with `No module named 'bini'` and no path.
